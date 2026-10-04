@@ -36,7 +36,7 @@
     --s-prism: #e58cff;
     --font-display: "Almendra", "Palatino Linotype", Georgia, serif;
     --font-body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
-    --slot-size: 64px;
+    --slot-size: clamp(46px, 7.2vh, 64px);
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -50,40 +50,63 @@
     font-family: var(--font-body);
     font-size: 16px;
     line-height: 1.45;
-    min-height: 100%;
   }
   body.dragging, body.dragging * { cursor: grabbing !important; }
   button { font: inherit; color: inherit; }
   h2, p { margin: 0; }
 
+  html, body { height: 100%; }
   .screen {
     max-width: 1380px;
     margin: 0 auto;
+    min-height: 100%;
     padding-inline: 16px;
-    padding-block: 18px 40px;
+    padding-block: 12px;
     display: grid;
-    gap: 16px;
+    gap: 12px;
     grid-template-columns: 380px minmax(0, 1fr) 320px;
-    align-items: start;
+    grid-template-rows: auto minmax(0, 1fr);
   }
-  .stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .stack { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .stack-a { align-content: stretch; }
+  .sheet-close { display: none; }
   @media (max-width: 1200px) {
     .screen { grid-template-columns: 380px minmax(0, 1fr); }
-    .stack-c { grid-column: 1 / -1; }
-    .inspect { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+    .stack-c {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      z-index: 40;
+      width: min(560px, 100%);
+      transform: translate(-50%, 105%);
+      visibility: hidden;
+      transition: transform 0.25s ease, visibility 0s linear 0.25s;
+    }
+    .stack-c.open { transform: translate(-50%, 0); visibility: visible; transition: transform 0.25s ease; }
+    .inspect {
+      grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+      column-gap: 18px;
+      border-radius: 14px 14px 0 0;
+      max-height: 85vh;
+      overflow: auto;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.65);
+    }
     .inspect .ph { grid-column: 1 / -1; }
+    .sheet-close { display: grid; }
+    .market-foot { display: none; }
   }
   @media (max-width: 800px) {
-    .screen { grid-template-columns: minmax(0, 1fr); }
-    .stack { display: contents; }
+    :root { --slot-size: 42px; }
+    .doll .col { gap: 6px; }
+    .screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; gap: 10px; }
+    .stack-a, .stack-b { display: contents; }
     .equip { order: 1; }
     .market { order: 2; }
     .bag { order: 3; }
-    .inspect { order: 4; grid-template-columns: minmax(0, 1fr); }
-    .res { order: 5; }
   }
-  @media (max-width: 420px) {
-    :root { --slot-size: 54px; }
+  @media (max-width: 480px) {
+    .inspect { grid-template-columns: minmax(0, 1fr); }
   }
 
   /* ---------- Panels ---------- */
@@ -93,7 +116,7 @@
     background: linear-gradient(180deg, var(--leather-2), var(--leather));
     border: 1px solid var(--brass-dim);
     border-radius: 12px;
-    padding: 14px 16px 16px;
+    padding: 12px 14px 14px;
     box-shadow:
       inset 0 1px 0 rgba(255, 228, 176, 0.09),
       inset 0 0 0 1px rgba(0, 0, 0, 0.35),
@@ -110,7 +133,7 @@
     background: linear-gradient(90deg, transparent, var(--brass), transparent);
     opacity: 0.7;
   }
-  .ph { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; min-width: 0; }
+  .ph { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; min-width: 0; }
   .ph h2 { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; line-height: 1.1; letter-spacing: 0.01em; }
   .ph .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--brass-dim), transparent); min-width: 12px; }
   .ph .aside { font-size: 0.875rem; color: var(--parch-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -121,11 +144,11 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 12px 28px;
-    padding: 12px 16px;
+    gap: 10px 28px;
+    padding: 8px 16px;
   }
   .brand { display: grid; line-height: 1; gap: 4px; }
-  .brand .day { font-family: var(--font-display); font-weight: 700; font-size: 2rem; color: var(--gold); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+  .brand .day { font-family: var(--font-display); font-weight: 700; font-size: 1.65rem; color: var(--gold); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
   .brand .sub { font-size: 0.8125rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--parch-faint); }
   .meters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; flex: 1; min-width: 0; }
   .meter { display: grid; gap: 3px; }
@@ -144,8 +167,8 @@
   .fight {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.3rem;
-    padding: 10px 30px;
+    font-size: 1.2rem;
+    padding: 7px 28px;
     background: linear-gradient(#f39257, #cf5521);
     color: #fff6e8;
     border: 1px solid #ffb07c;
@@ -161,6 +184,11 @@
     .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
     .meters { grid-column: 1 / -1; order: 3; }
     .fight-wrap { margin-left: 0; }
+    .fight-sub, .meter .wins-track { display: none; }
+    .meters { flex-wrap: nowrap; gap: 18px; }
+    .meter .num { font-size: 1.15rem; }
+    .hearts svg { width: 17px; height: 17px; }
+    .brand .day { font-size: 1.4rem; }
   }
 
   /* ---------- Slots and items ---------- */
@@ -216,7 +244,8 @@
   .dragging-src { opacity: 0.25; }
 
   /* ---------- Equipment ---------- */
-  .doll { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
+  .equip { display: flex; flex-direction: column; }
+  .doll { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
   .doll .col { display: grid; gap: 8px; align-content: start; }
   .stage {
     position: relative;
@@ -231,7 +260,7 @@
   }
   .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
   .stage .hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 0.75rem; color: var(--parch-faint); pointer-events: none; }
-  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
   .stat { background: rgba(0, 0, 0, 0.22); border: 1px solid rgba(255, 228, 176, 0.07); border-radius: 8px; padding: 7px 8px; display: grid; gap: 1px; min-width: 0; }
   .stat .k { font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--parch-faint); }
   .stat .v { font-weight: 800; font-size: 1.0625rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -252,7 +281,7 @@
   }
   .reroll:hover { border-color: var(--brass); }
   .reroll svg { width: 18px; height: 18px; }
-  .offers { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 10px; }
+  .offers { container-type: inline-size; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
   .offer {
     position: relative;
     display: grid;
@@ -269,7 +298,7 @@
   }
   .offer:hover { border-color: #6b5639; }
   .offer.locked { border-color: rgba(244, 198, 82, 0.6); box-shadow: inset 0 0 0 1px rgba(244, 198, 82, 0.15); }
-  .offer .slot { --slot-size: 74px; }
+  .offer .slot { --slot-size: clamp(42px, calc(20cqw - 26px), 74px); }
   .o-name { font-weight: 800; font-size: 0.9875rem; line-height: 1.15; min-height: 2.3em; display: grid; align-items: center; }
   .o-name.r-common { color: var(--r-common); }
   .o-name.r-rare { color: var(--r-rare); }
@@ -310,7 +339,20 @@
   .lock svg { width: 16px; height: 16px; }
   .offer.sold .slot { opacity: 0.35; }
   .sold-tag { font-family: var(--font-display); font-weight: 700; color: var(--parch-faint); font-size: 1.05rem; min-height: 2.3em; display: grid; align-items: center; }
-  .market-foot { margin-top: 12px; font-size: 0.875rem; color: var(--parch-faint); }
+  .market-foot { margin-top: 10px; font-size: 0.875rem; color: var(--parch-faint); }
+  @media (max-width: 520px) {
+    .offers { gap: 6px; }
+    .offer { padding: 20px 3px 7px; gap: 4px; }
+    .o-name { font-size: 0.75rem; }
+    .o-meta { display: none; }
+    .price { padding: 1px 7px 1px 3px; font-size: 0.875rem; }
+    .price svg { width: 14px; height: 14px; }
+    .lock { width: 22px; height: 22px; top: 2px; right: 2px; }
+    .lock svg { width: 13px; height: 13px; }
+    .sellzone { display: none; }
+    .stat { padding: 5px 7px; }
+    .stat .v { font-size: 0.9375rem; }
+  }
 
   /* ---------- Bag ---------- */
   .bag-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
@@ -360,8 +402,7 @@
   .inspect .ph { margin-bottom: 0; }
   .tt-wrap { position: relative; display: grid; justify-items: center; gap: 8px; }
   #turntable {
-    width: 100%;
-    max-width: 288px;
+    width: min(100%, 288px, 30vh);
     aspect-ratio: 1;
     border-radius: 12px;
     background: radial-gradient(circle at 50% 42%, #4d3f2f, #2a2119 72%);
@@ -372,6 +413,18 @@
   .seg button { padding: 4px 12px; border: 0; border-right: 1px solid var(--brass-dim); background: #221a13; color: var(--parch-dim); cursor: pointer; font-size: 0.875rem; }
   .seg button:last-child { border-right: 0; }
   .seg button[aria-pressed="true"] { background: var(--brass); color: #22180e; font-weight: 800; }
+  .sheet-close {
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 8px;
+    border: 1px solid var(--brass-dim);
+    background: #221a13;
+    color: var(--parch);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+  }
   .ins-body { display: grid; gap: 14px; align-content: start; min-width: 0; }
   .card { display: grid; gap: 6px; min-width: 0; }
   .c-name { font-family: var(--font-display); font-weight: 700; font-size: 1.6rem; line-height: 1.1; }
@@ -447,6 +500,18 @@
     .item.pop, .gold-num.bump { animation: none; }
     .toast { transition: none; }
   }
+  /* Phone compaction: last so it overrides the base rules above. */
+  @media (max-width: 800px) {
+    .panel { padding: 10px 12px 12px; }
+    .top { padding: 6px 12px; }
+    .ph { margin-bottom: 6px; }
+    .ph h2 { font-size: 1.1rem; }
+    .brand .sub, .stage .hint { display: none; }
+    .reroll { padding: 4px 10px; font-size: 0.875rem; }
+    .stats { margin-top: 8px; gap: 6px; }
+    .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; padding: 4px 7px; }
+    .stat .k { font-size: 0.625rem; letter-spacing: 0.08em; }
+  }
 </style>
 
 <main class="screen">
@@ -474,10 +539,6 @@
     <div class="stats" id="stats"></div>
   </section>
 
-  <section class="panel res" aria-label="Resonance">
-    <div class="ph"><h2>Resonance</h2><span class="rule"></span><span class="aside">2 · 4 · 6 items</span></div>
-    <div class="res-list" id="res-list"></div>
-  </section>
   </div>
 
   <div class="stack stack-b">
@@ -491,7 +552,7 @@
     <div class="ph"><h2>Bag</h2><span class="rule"></span><span class="aside" id="bag-count"></span></div>
     <div class="bag-row">
       <div class="bag-cells" id="bag-cells" style="display:contents"></div>
-      <div class="sellzone" id="sellzone" data-drop="sell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1.5 3h-3z"/><path d="M10.5 7C6 9 4 13 4 16a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5c0-3-2-7-6.5-9"/><path d="M12 11v6M10.5 12.5h2.3a1 1 0 0 1 0 2h-1.6a1 1 0 0 0 0 2H14"/></svg><span>Drop here to sell for half price</span></div>
+      <div class="sellzone" id="sellzone" data-drop="sell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1.5 3h-3z"/><path d="M10.5 7C6 9 4 13 4 16a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5c0-3-2-7-6.5-9"/><path d="M12 11v6M10.5 12.5h2.3a1 1 0 0 1 0 2h-1.6a1 1 0 0 0 0 2H14"/></svg><span>Sell here · half price</span></div>
     </div>
   </section>
 
@@ -500,7 +561,7 @@
 
   <div class="stack stack-c">
   <aside class="panel inspect" aria-label="Inspector">
-    <div class="ph"><h2>Inspect</h2><span class="rule"></span></div>
+    <div class="ph"><h2>Inspect</h2><span class="rule"></span><button type="button" class="sheet-close" id="sheet-close" aria-label="Close inspector">×</button></div>
     <div class="tt-wrap">
       <canvas id="turntable" width="576" height="576" aria-label="Rotating view of the selected item"></canvas>
       <div class="seg" role="group" aria-label="Turntable style">
@@ -511,7 +572,7 @@
     <div class="ins-body">
       <div class="card" id="card" aria-live="polite"></div>
       <div class="actions" id="actions"></div>
-      <p class="shortcuts">Double-click an item to buy, equip or take it off.</p>
+      <p class="shortcuts">Double-click an item to equip or take it off.</p>
     </div>
   </aside>
   </div>
@@ -987,8 +1048,8 @@ function toggleLock(i) {
 
 function quick(loc) {
   const [w, k] = loc.split(':');
-  if (w === 'shop') buy(+k);
-  else if (w === 'bag') equipFrom(loc);
+  if (w === 'shop') return;
+  if (w === 'bag') equipFrom(loc);
   else unequip(k);
 }
 
@@ -1251,14 +1312,14 @@ hs.add(pedestal);
 hero.arms.right.pivot.rotation.set(-0.5, 0, -0.16);
 hero.arms.left.pivot.rotation.set(0.12, 0, 0.14);
 
-const worn = { weapon: null, helm: null, ring1: null, ring2: null };
+const worn = { weapon: null, helm: null };
 const heroAnims = [];
 let freshUid = null;
 
 function attach(slotKey, item, parent, setup) {
   const prev = worn[slotKey];
   if (prev && item && prev.uid === item.uid) return;
-  if (prev) parent.remove(prev.holder);
+  if (prev) prev.holder.removeFromParent();
   worn[slotKey] = null;
   if (!item) return;
   const holder = new THREE.Group();
@@ -1270,26 +1331,37 @@ function attach(slotKey, item, parent, setup) {
   parent.add(holder);
   worn[slotKey] = { uid: item.uid, holder, model };
 }
+const R2H = new THREE.Vector3(-0.22, 0.62, 0.32);
+const N2H = new THREE.Vector3(0.55, 0.8, 0.1).normalize();
+const L2H = R2H.clone().addScaledVector(N2H, 0.35);
+const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
+let twoHanded = false;
+function aimArm(arm, target) {
+  arm.pivot.quaternion.setFromUnitVectors(DOWN, target.clone().sub(arm.pivot.position).normalize());
+}
 function refreshHero() {
-  attach('weapon', S.equip.weapon, hero.arms.right.socket, (h, model, it) => {
+  const w = S.equip.weapon;
+  twoHanded = !!(w && ITEMS[w.id].hands === 2);
+  attach('weapon', w, twoHanded ? hero.body : hero.arms.right.socket, (h, model, it) => {
     model.position.y = -it.grip;
-    if (it.hands === 2) h.rotation.set(0.3, 0, 0.62);
-    else h.rotation.set(0.72, 0, 0.32);
+    if (it.hands === 2) {
+      h.position.copy(R2H);
+      h.quaternion.setFromUnitVectors(UP, N2H);
+    } else {
+      h.rotation.set(0.72, 0, 0.32);
+    }
     h.scale.setScalar(it.hold);
   });
+  if (twoHanded) {
+    aimArm(hero.arms.right, R2H);
+    aimArm(hero.arms.left, L2H);
+  } else {
+    hero.arms.right.pivot.rotation.set(-0.5, 0, -0.16);
+    hero.arms.left.pivot.rotation.set(0.12, 0, 0.14);
+  }
   attach('helm', S.equip.helm, hero.helm, h => {
     h.position.set(0, 0.06, 0);
     h.scale.setScalar(0.78);
-  });
-  attach('ring1', S.equip.ring1, hero.arms.left.socket, h => {
-    h.position.set(0.02, 0.0, 0.07);
-    h.rotation.set(0, -0.4, 0);
-    h.scale.setScalar(0.2);
-  });
-  attach('ring2', S.equip.ring2, hero.arms.right.socket, h => {
-    h.position.set(-0.02, 0.0, 0.08);
-    h.rotation.set(0, 0.4, 0);
-    h.scale.setScalar(0.2);
   });
   hero.hair.visible = !S.equip.helm;
 }
@@ -1438,14 +1510,14 @@ function renderRes() {
 function renderStats() {
   const c = counts();
   let hp = 100;
+  void c;
   for (const k of [...LEFT, ...RIGHT]) if (S.equip[k]) hp += ITEMS[S.equip[k].id].hp || 0;
   const w = S.equip.weapon && ITEMS[S.equip.weapon.id];
-  const shield = c.Holy >= 2 ? 10 : 0;
   const tiles = [
     ['HP', hp],
     ['Damage', w ? w.dmg : 1],
     ['Speed', `${w ? w.speed.toFixed(1) : '1.5'}s`],
-    ['Shield', shield],
+    ['Crit', '5%'],
   ];
   $('stats').innerHTML = tiles.map(([k, v]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
 }
@@ -1456,6 +1528,7 @@ function renderInspector() {
   const loc = S.sel;
   const item = getItem(loc);
   if (!item) {
+    document.querySelector('.stack-c')?.classList.remove('open');
     ttItem = null;
     card.innerHTML = '<p class="c-empty">Select an item to inspect it.</p>';
     actions.innerHTML = '';
@@ -1490,7 +1563,6 @@ function render() {
   renderEquip();
   renderBag();
   renderShop();
-  renderRes();
   renderStats();
   renderInspector();
   if (focusLoc) document.querySelector(`[data-loc="${focusLoc}"]`)?.focus({ preventScroll: true });
@@ -1553,6 +1625,7 @@ window.addEventListener('scroll', hideTip, { passive: true });
 /* ---------- Drag and drop ---------- */
 let drag = null;
 let suppressClick = false;
+let lastClick = { loc: null, t: 0 };
 document.addEventListener('pointerdown', e => {
   const b = e.target.closest('.item');
   if (!b || e.button > 0) return;
@@ -1615,8 +1688,17 @@ document.addEventListener('click', e => {
   if (lock) { toggleLock(+lock.dataset.lock); return; }
   const b = e.target.closest('.item');
   if (b) {
-    S.sel = b.dataset.loc;
+    const now = performance.now();
+    const loc = b.dataset.loc;
+    if (lastClick.loc === loc && now - lastClick.t < 400) {
+      lastClick.loc = null;
+      quick(loc);
+      return;
+    }
+    lastClick = { loc, t: now };
+    S.sel = loc;
     render();
+    openSheet();
     return;
   }
   const a = e.target.closest('[data-act]');
@@ -1631,11 +1713,13 @@ document.addEventListener('click', e => {
     else if (act === 'sell') sell(loc);
   }
 });
-document.addEventListener('dblclick', e => {
-  const b = e.target.closest('.item');
-  if (b) quick(b.dataset.loc);
-});
 $('reroll').addEventListener('click', reroll);
+const sheet = document.querySelector('.stack-c');
+const sheetMQ = window.matchMedia('(max-width: 1200px)');
+function openSheet() { if (sheetMQ.matches) sheet.classList.add('open'); }
+function closeSheet() { sheet.classList.remove('open'); }
+$('sheet-close').addEventListener('click', closeSheet);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 $('fight').addEventListener('click', () => toast('The fight screen is the next step. This demo covers the market.'));
 const tt = $('turntable');
 const ttCtx = tt.getContext('2d');
@@ -1669,8 +1753,10 @@ function loop(now) {
 
   const bob = reduceMotion ? 0 : Math.sin(t * 2.2);
   hero.body.position.y = bob * 0.018;
-  hero.arms.right.pivot.rotation.x = -0.5 + bob * 0.03;
-  hero.arms.left.pivot.rotation.x = 0.12 - bob * 0.04;
+  if (!twoHanded) {
+    hero.arms.right.pivot.rotation.x = -0.5 + bob * 0.03;
+    hero.arms.left.pivot.rotation.x = 0.12 - bob * 0.04;
+  }
   hero.head.rotation.z = reduceMotion ? 0 : Math.sin(t * 1.1) * 0.035;
   hero.root.rotation.y += (heroYaw - hero.root.rotation.y) * 0.18;
   for (const w of Object.values(worn)) {
