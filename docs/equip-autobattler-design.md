@@ -8,7 +8,7 @@ An autobattler in the spirit of Backpack Battles, without the backpack. Instead 
 
 The depth comes from three layers:
 
-1. **Keywords** (Burn, Frost, Blind, ...) with simple rules that counter each other.
+1. **Keywords** (Burn, Frost, Sand, ...) with simple rules that counter each other.
 2. **Slots** that decide *how* an item triggers, while its **school** decides *what* it does. Every school can fill every slot, so you can stack one school or combine two.
 3. **Bridges and legendaries** that connect schools into a web of builds, plus scrolls and cubes for gambling on upgrades.
 
@@ -52,7 +52,7 @@ The depth comes from three layers:
 *Continuous damage, tick effects:* Burn and Poison drain HP smoothly at their advertised rate, but "whenever Burn ticks" (every 1s) and "whenever Poison ticks" (every 3s) still happen on that schedule. A tick that crits repeats the damage dealt since the last tick, and tick effects like Phoenix Heart and Leechmaw Ring use that amount. Coiled Serpent stops the drain and strikes on every 5th Poison tick instead.
 | **Frost** | enemy | At 10 stacks the enemy is **Frozen** for 1.5s: weapon and cooldowns pause (statuses still tick). Frost then resets to 0, and the enemy **Thaws** for 2s, during which it can't gain Frost. |
 | **Slow** | enemy | −3% speed per stack, up to 25 stacks. **Never wears off.** **Slow and Heat on the same fighter cancel 1:1.** |
-| **Blind** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). **Never wears off.** Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
+| **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). **Never wears off.** Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
 | **Shield** | you | Absorbs damage before HP. Doesn't decay. |
 | **Heal** | you | Restores HP up to your max. Healing beyond max is **overheal** and is lost unless an item uses it. **Lifesteal counts as healing.** |
 | **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
@@ -60,7 +60,7 @@ The depth comes from three layers:
 | **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
 | **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. Up to 20 stacks. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
 | **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 12 stacks. Counts as healing, so Burn cuts it. |
-| **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Blind; never the Frost meter). |
+| **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
 
 ### Trigger words
@@ -81,9 +81,9 @@ These come from the rules themselves, before any items:
 
 - Burn beats Heal (healing cut), Shield beats Burn, Poison beats Shield, Heal beats Poison (outheals the slow ramp).
 - Cleanse and Regen beat status builds; burst and Burn (which cuts Regen) beat Lunar.
-- Blind beats weapon builds (crit, Lifesteal, on-hit). Burn and Poison beat Blind (they never miss). Fast weapon burst beats the slow Poison ramp.
+- Sand beats weapon builds (crit, Lifesteal, on-hit). Burn and Poison beat Sand (they never miss). Fast weapon burst beats the slow Poison ramp.
 - Frost and Slow beat Heat and speed builds. Heat cancels Slow.
-- Thorns beats fast and multi-hit builds (dual wield, Heat, crit daggers): every hit pays. Burn and Poison beat Thorns (no hits to punish), and so do Blind, Frost and Slow (fewer hits land).
+- Thorns beats fast and multi-hit builds (dual wield, Heat, crit daggers): every hit pays. Burn and Poison beat Thorns (no hits to punish), and so do Sand, Frost and Slow (fewer hits land).
 
 ## 5. Slots
 
@@ -103,7 +103,7 @@ These come from the rules themselves, before any items:
 
 **Two-handed weapons** leave the offhand empty and are budgeted for about 35% more damage per second than one-handed weapons.
 
-**Dual wield**: a dual-wield offhand is a second weapon clock. Gloves effects, weapon-hit bridges and helm weapon bonuses apply to both weapons. Blind affects both.
+**Dual wield**: a dual-wield offhand is a second weapon clock. Gloves effects, weapon-hit bridges and helm weapon bonuses apply to both weapons. Sand affects both.
 
 ## 6. Schools and resonance
 
@@ -112,7 +112,7 @@ These come from the rules themselves, before any items:
 | Fire | Burn, Heat |
 | Frost | Frost, Slow |
 | Venom | Poison |
-| Desert | Blind |
+| Desert | Sand |
 | Holy | Heal, Shield |
 | Blood | Lifesteal |
 | Fortune | Luck |
@@ -127,7 +127,7 @@ Every item has a school. Bridge rings and bridge legendaries count toward **both
 | Fire | Burn you apply +1 | Start with 4 Heat; Heat cap 25 | Burn loses a stack every 2 ticks instead of every tick |
 | Frost | Freeze lasts +0.5s | Slow you apply +1 | Freeze triggers at 8 Frost instead of 10 |
 | Venom | Start of fight: apply 3 Poison | Poison ticks every 1.5s | Poison ticks every 1s |
-| Desert | Start of fight: apply 2 Blind | Enemies with 10+ Blind deal 15% less damage | Blind cap 20 (80% miss chance) |
+| Desert | Sand decays half as fast | Enemies with 10+ Sand deal 15% less damage | Sand cap 20 (80% miss chance) |
 | Holy | Start with 10 Shield | Heals +20% | Shield gains +50% |
 | Blood | +5% Lifesteal | Lifesteal ignores Burn's healing cut | Lifesteal doubled while below 50% HP |
 | Fortune | +3 Luck | Crits deal 2.5× | Every chance roll rolls twice and keeps the better result |
@@ -194,19 +194,19 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Ring | Festering Ring | R | Whenever Poison ticks: 25% chance to apply 1 Poison. |
 | Amulet | Coiled Serpent | L | Poison ticks deal no damage. Instead, every 5th tick strikes for 6× its stacks, and the strike can crit. |
 
-### Desert (Blind)
+### Desert (Sand)
 
 | Slot | Item | Rarity | Effect |
 |---|---|---|---|
-| Weapon | Dune Scimitar | C | Scimitar · 2.0s · 6 dmg. On hit: apply 2 Blind. |
-| Weapon (2H) | Sandstorm Glaive | R | Glaive · 3.5s · 18 dmg. On hit: apply 4 Blind. |
-| Offhand | Sand Pouch | C | Every 3s: apply 3 Blind. |
-| Helm | Nomad's Wrap | R | While the enemy has 10+ Blind, their weapon hits deal 15% less damage. |
-| Body | Dustveil Robe | C | When hit: apply 3 Blind to the attacker. |
-| Gloves | Grit Gloves | R | On crit: apply 4 Blind. |
-| Boots | Dust Devils | C | Start of fight: apply 8 Blind. |
-| Cape | Sirocco Cloak | E | Clutch: set the enemy's Blind to its cap. |
-| Ring | Dune Ring | R | Whenever an enemy attack misses: apply 1 Blind. |
+| Weapon | Dune Scimitar | C | Scimitar · 2.0s · 6 dmg. On hit: apply 2 Sand. |
+| Weapon (2H) | Sandstorm Glaive | R | Glaive · 3.5s · 18 dmg. On hit: apply 4 Sand. |
+| Offhand | Sand Pouch | C | Every 3s: apply 3 Sand. |
+| Helm | Nomad's Wrap | R | While the enemy has 10+ Sand, their weapon hits deal 15% less damage. |
+| Body | Dustveil Robe | C | When hit: apply 3 Sand to the attacker. |
+| Gloves | Grit Gloves | R | On crit: apply 4 Sand. |
+| Boots | Dust Devils | C | Start of fight: apply 8 Sand. |
+| Cape | Sirocco Cloak | E | Clutch: set the enemy's Sand to its cap. |
+| Ring | Dune Ring | R | Whenever an enemy attack misses: apply 1 Sand. |
 | Amulet | Mirage | L | Enemy attacks that miss hit the enemy instead, with their own on-hit effects. |
 
 ### Holy (Heal, Shield)
@@ -275,7 +275,7 @@ Thorns is the punish-the-attacker school. Its weakness is built in (statuses and
 
 **How it webs with other schools:**
 - **Holy:** Shield soaks the hits that trigger Thorns, and Hallowed Briar turns Shield gains into Thorns. Juggernaut and Spinefist both turn defence into weapon damage.
-- **Desert:** Blind makes enemies miss, which normally starves Thorns. Nettle Treads and the Sandbriar Ring turn misses into Thorns instead, so Desert becomes a partner rather than a counter.
+- **Desert:** Sand makes enemies miss, which normally starves Thorns. Nettle Treads and the Sandbriar Ring turn misses into Thorns instead, so Desert becomes a partner rather than a counter.
 - **Blood:** Bloodbriar heals from Thorns damage, and Crimson Chalice's Lifesteal applies to it (it isn't a weapon hit).
 - **Fortune:** Lucky Thorn lets Thorns crit, and Luck raises Bramble Crown's chance.
 - **Fire:** Pyrebriar turns every Thorns trigger into Heat, so being hit makes you faster.
@@ -305,7 +305,7 @@ The counter school for status builds: Regen heals steadily for the whole fight a
 
 ### Prismatic (random)
 
-Random statuses are drawn from Burn, Poison, Frost, Slow and Blind. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck, +3% Lifesteal, 2 Thorns and 2 Regen. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
+Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck, +3% Lifesteal, 2 Thorns and 2 Regen. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
 
 | Slot | Item | Rarity | Effect |
 |---|---|---|---|
@@ -333,7 +333,7 @@ Each bridge counts toward both of its schools. Every one of the 36 school pairs 
 | Frostfire Band | Fire · Frost | Whenever the enemy Freezes, double their Burn. |
 | Hoarfrost Ring | Frost · Fire | Whenever you apply Slow, gain 1 Heat. |
 | Witchfire Ring | Fire · Venom | Whenever Burn ticks: 50% chance to apply 1 Poison. |
-| Glassblower's Ring | Fire · Desert | Whenever you apply Burn to an enemy with 5+ Blind, consume 5 Blind and deal 15 damage. |
+| Glassblower's Ring | Fire · Desert | Whenever you apply Burn to an enemy with 5+ Sand, consume 5 Sand and deal 15 damage. |
 | Bloodfire Ring | Fire · Blood | Whenever a weapon hit Lifesteals, apply 1 Burn. |
 | Lucky Ember | Fire · Fortune | Burn ticks can crit. |
 | Paralytic Ring | Venom · Frost | Weapon hits apply 1 Slow per 4 Poison on the enemy. |
@@ -347,7 +347,7 @@ Each bridge counts toward both of its schools. Every one of the 36 school pairs 
 | Shatter Ring | Frost · Fortune | Weapon hits on a Frozen enemy always crit. |
 | Oasis Ring | Desert · Holy | Whenever an enemy attack misses, heal 4 and gain 4 Shield. |
 | Duelist's Ring | Desert · Blood | Whenever an enemy attack misses, your next weapon hit has +25% Lifesteal. |
-| Desert Fox Ring | Desert · Fortune | +1 Luck per 2 Blind on the enemy. |
+| Desert Fox Ring | Desert · Fortune | +1 Luck per 2 Sand on the enemy. |
 | Crimson Bulwark | Holy · Blood | Whenever a weapon hit Lifesteals, gain 2 Shield. |
 | Blessed Dice | Holy · Fortune | Your heals and Shield gains can crit. |
 | Vampire's Die | Blood · Fortune | Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%). |
@@ -431,7 +431,7 @@ The knife stacks Burn while the Lantern builds Frost. Each Freeze doubles the Bu
 | Dune Scimitar | Sand Pouch | Nomad's Wrap | Dustveil Robe | Grit Gloves | Dust Devils | Sirocco Cloak | Oasis Ring, Quicksand Ring | Mirage |
 
 Resonance: Desert 10 (tier 6), Holy 1, Frost 1.
-Starts at 8 Blind and climbs toward 20 (80% miss chance). Each miss heals you, shields you and Slows them, and Mirage turns the miss back on the attacker. Burn and Poison builds beat it because they never miss.
+Starts at 8 Sand and climbs toward 20 (80% miss chance). Each miss heals you, shields you and Slows them, and Mirage turns the miss back on the attacker. Burn and Poison builds beat it because they never miss.
 
 ### 5. Plague Doctor (Venom · Fire · Fortune)
 | Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
@@ -455,7 +455,7 @@ At full HP, the Hymnal's heals all become Shield through the Vessel. Shield gain
 | Bloodletter | Winter's Bell | Vampire's Cowl | Bloodbound Mail | Bloodied Knuckles | Snowtread Boots | Blood Moon Cloak | Hoarfrost Ring, Vampire's Die | Molten Core |
 
 Resonance: Blood 6 (tier 6), Frost 3 (tier 2), Fire 2 (tier 2), Fortune 1.
-You Slow them, and every Slow you apply becomes Heat (Hoarfrost). Molten Core removes the Heat cap, so the axe keeps speeding up. Lifesteal pays Molten Core's HP cost. Blind is deadly to it: misses mean no Lifesteal, and the HP cost kills you.
+You Slow them, and every Slow you apply becomes Heat (Hoarfrost). Molten Core removes the Heat cap, so the axe keeps speeding up. Lifesteal pays Molten Core's HP cost. Sand is deadly to it: misses mean no Lifesteal, and the HP cost kills you.
 
 ### 8. Prism Chaos (Prismatic)
 | Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
@@ -542,7 +542,7 @@ An item has a **potential tier** with lines: Rare (1 line), Epic (2), Unique (3)
 | Weapon | Weapon damage +4/7/10/14% · Attack time −3/5/7/10% · Lifesteal +2/3/5/7% · Luck +1/2/3/4 · On hit: apply 1/1/2 of a status (Epic and up) |
 | Armour | HP +8/12/18/25 · Start with Shield 6/10/15/22 · Start with Heat 2/3/4 (Epic and up) · Clutch: gain Shield 10/15/22 (Epic and up) · Luck +1/1/2/3 · Start with Thorns 2/3/4/6 |
 | Offhand | Cooldown −4/6/9/12% · HP +6/10/14/20 · Start with Shield 5/8/12/18 · Luck +1/2/2/3 |
-| Accessory | Luck +1/2/3/4 · Lifesteal +2/3/4/6% · HP +6/10/14/20 · Start with Heat 1/2/3/4 · Start: apply Slow 2/3/4/6 · Start: apply Blind 3/4/6 (Epic and up) |
+| Accessory | Luck +1/2/3/4 · Lifesteal +2/3/4/6% · HP +6/10/14/20 · Start with Heat 1/2/3/4 · Start: apply Slow 2/3/4/6 · Start: apply Sand 3/4/6 (Epic and up) |
 
 **Caps across all items:** weapon damage +30%, attack time −25%, cooldown −25%. The jackpot is a source line like "On hit: apply 2 Burn" on a non-Fire weapon, which lets a build borrow a status without a bridge ring.
 
@@ -589,9 +589,9 @@ The game opens on a title menu with a live, turnable preview of your character, 
 
 These rules protect the design so balance work is about numbers, not redesigns.
 
-1. **Fatigue** from 25s ends stall builds (Heal, Shield, Blind).
+1. **Fatigue** from 25s ends stall builds (Heal, Shield, Sand).
 2. **Thaw** gives 2s of Frost immunity after each Freeze, so permanent lockdown is impossible.
-3. **Caps:** Heat 20 (25 with Fire tier 4, none with Molten Core). Blind 15 (20 with Desert tier 6). Net speed 40%–250%. Crit chance 100%.
+3. **Caps:** Heat 20 (25 with Fire tier 4, none with Molten Core). Sand 15 (20 with Desert tier 6). Net speed 40%–250%. Crit chance 100%.
 4. **Crit multipliers don't stack.** Use the highest one that applies (2×, 2.5× or 3×).
 5. **Within a school, effects add.** Only crits, legendaries and tier-6 resonance multiply. Regular items never say "+X% Burn damage".
 6. **Loops shrink each cycle or are gated** to once per second.
@@ -616,7 +616,7 @@ Approximate worth of one unit of each effect in damage-equivalent, used to budge
 | 1 Poison applied | 4–5 over a 20s fight (worth more early) |
 | 1 Frost | about 0.15s of enemy downtime |
 | 1 Slow | about 3% of enemy output for about 2s |
-| 1 Blind | about 4% of enemy weapon damage while it lasts |
+| 1 Sand | about 4% of enemy weapon damage while it lasts |
 | 1 Heat | about 3% of your output for the rest of the fight |
 | 1 Luck | about 3% weapon damage, plus chance effects |
 
