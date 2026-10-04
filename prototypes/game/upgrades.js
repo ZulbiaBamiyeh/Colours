@@ -8,7 +8,7 @@ import { ITEMS } from './items.js';
 export const UPGRADE_SLOTS = { common: 2, rare: 3, epic: 4, legendary: 3 };
 export const TIERS = ['Rare', 'Epic', 'Unique', 'Legendary'];
 const LINE_COUNT = [1, 2, 3, 3];
-const STATUS_NAMES = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand' };
+const STATUS_NAMES = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Blind' };
 const pct = n => `${Math.round(n * 10) / 10}%`;
 
 export function family(def) {
@@ -59,7 +59,7 @@ export function lineText(l) {
     case 'regen': return `Start with ${l.v} Regen`;
     case 'clutchShield': return `Clutch: gain ${l.v} Shield`;
     case 'slow': return `Start: apply ${l.v} Slow`;
-    case 'sand': return `Start: apply ${l.v} Sand`;
+    case 'sand': return `Start: apply ${l.v} Blind`;
     case 'onHit': return `On hit: apply ${l.v} ${STATUS_NAMES[l.s]}`;
   }
   return l.k;
