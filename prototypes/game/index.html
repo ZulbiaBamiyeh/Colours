@@ -1004,6 +1004,20 @@
   .float.big { font-size: 1.6rem; }
   .float.small { font-size: 0.8125rem; font-weight: 700; }
   .float.banner { font-family: var(--font-display); font-size: 1.5rem; }
+  .float.dot.fatigue { font-size: 1.5rem; font-weight: 800; color: #fff1d0 !important; text-shadow: -1px -1px 0 #4a2e0c, 1px -1px 0 #4a2e0c, -1px 1px 0 #4a2e0c, 1px 1px 0 #4a2e0c, 0 0 8px rgba(74, 46, 12, 0.9); }
+  /* Fatigue's sandstorm: a warm haze with streaks of blown sand, strength set by --storm (0 to 1). */
+  .storm {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    background:
+      repeating-linear-gradient(100deg, transparent 0 46px, rgba(245, 215, 155, 0.32) 46px 49px, transparent 49px 97px, rgba(210, 170, 100, 0.24) 97px 99px),
+      repeating-linear-gradient(97deg, transparent 0 71px, rgba(250, 228, 175, 0.24) 71px 73px),
+      linear-gradient(180deg, rgba(150, 105, 50, 0.3), rgba(220, 175, 105, 0.5) 70%, rgba(200, 150, 80, 0.62));
+    background-size: 400px 100%, 300px 100%, 100% 100%;
+    mix-blend-mode: normal;
+  }
+  .arena-stage.storming .storm { opacity: calc(var(--storm, 0) * 0.85); animation: sandblow 0.9s linear infinite; }
+  @keyframes sandblow { to { background-position: 400px 0, 300px 0, 0 0; } }
+  @media (prefers-reduced-motion: reduce) { .arena-stage.storming .storm { animation: none; } }
   /* Burn and Poison as they drain: small, soft and drifting sideways rather than popping. */
   .float.dot { font-size: 0.98rem; font-weight: 800; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85); animation: dotdrift 1.4s ease-out forwards; }
   @keyframes dotdrift {
@@ -1550,6 +1564,7 @@
         <div class="bd-half a" id="bd-a" aria-hidden="true"></div>
         <div class="bd-half b" id="bd-b" aria-hidden="true"></div>
         <canvas id="arena" aria-label="Battle arena"></canvas>
+        <div class="storm" aria-hidden="true"></div>
         <div class="vs-tag"><span id="vs-a">You</span><span class="b" id="vs-b">Ghost</span></div>
         <div class="floats" id="floats"></div>
         <div class="result" id="result" hidden></div>

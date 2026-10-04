@@ -1192,6 +1192,37 @@ const flameGeo = (() => {
 })();
 const flames = new Particles(as, 220, { geo: flameGeo, spin: false, opacity: 0.85, additive: true });
 // Poison bubbles: thin rings that always face the camera.
+// Fatigue's sandstorm: grains blown across the arena on a gusting wind.
+const sand = new Particles(as, 520, { spin: true, opacity: 0.85 });
+const dust = new Particles(as, 60, { geo: new THREE.IcosahedronGeometry(1, 0), opacity: 0.35 });
+const SAND_GRAIN = [0xe8cc8a, 0xd6b06a, 0xc49a58, 0xf0dcae];
+const STORM = { k: 0, gust: 0 };
+function updateStorm(dt) {
+  const T = B.T;
+  const target = B.sim && T >= RULES.FATIGUE_AT ? Math.min(1, 0.4 + (T - RULES.FATIGUE_AT) * 0.08) : 0;
+  STORM.k += (target - STORM.k) * Math.min(1, dt * (target > STORM.k ? 1.6 : 0.8));
+  STORM.gust += dt;
+  const gust = 0.75 + 0.25 * Math.sin(STORM.gust * 1.7) + 0.12 * Math.sin(STORM.gust * 4.3);
+  arenaStage.style.setProperty('--storm', (STORM.k * gust).toFixed(3));
+  arenaStage.classList.toggle('storming', STORM.k > 0.02);
+  if (STORM.k > 0.02 && !reduceMotion) {
+    let n = STORM.k * gust * 190 * dt;
+    while (n > 0) {
+      if (n < 1 && Math.random() > n) break;
+      n--;
+      const vx = 4.5 + Math.random() * 3.5;
+      sand.emit({
+        x: -5 - Math.random(), y: Math.random() * 2.8, z: -1.6 + Math.random() * 2.6,
+        vx, vy: -0.25 + Math.random() * 0.5, wob: 1.2, life: 11 / vx,
+        size: 0.018 + Math.random() * 0.03, color: SAND_GRAIN[(Math.random() * SAND_GRAIN.length) | 0],
+      });
+      // Now and then a low cloud of dust rolls along the ground.
+      if (Math.random() < 0.06) dust.emit({ x: -5, y: 0.05 + Math.random() * 0.5, z: -1.2 + Math.random() * 2, vx: 3 + Math.random() * 1.5, vy: 0.08, life: 3.2, size: 0.22 + Math.random() * 0.2, color: SAND_GRAIN[(Math.random() * 2) | 0], grow: true });
+    }
+  }
+  sand.update(dt);
+  dust.update(dt);
+}
 const bubbles = new Particles(as, 160, { geo: new THREE.TorusGeometry(1, 0.17, 4, 14), spin: false, opacity: 0.85 });
 const apx = new PixelPass(ar);
 const bolts = new Bolts(as, particles);
@@ -1250,6 +1281,11 @@ function makeFighterView(side, equip, look) {
 function clearArena() {
   for (const k of ['A', 'B']) if (F[k]) { as.remove(F[k].holder); as.remove(F[k].pedWrap); F[k] = null; }
   particles.clear();
+  sand.clear();
+  dust.clear();
+  STORM.k = 0;
+  arenaStage.style.setProperty('--storm', 0);
+  arenaStage.classList.remove('storming');
   bubbles.clear();
   flames.clear();
   $('floats').querySelectorAll('.snail, .blind-eye').forEach(el => el.remove());
@@ -1494,9 +1530,10 @@ function floatText(side, text, color, cls = '') {
   setTimeout(() => { el.remove(); floatCount--; }, 1150);
 }
 // Small, quiet numbers for Burn and Poison as they drain, drifting off the body to one side.
-const DOT_COLOR = { burn: '#ff7a52', poison: '#8fd46a' };
-function dotFloat(side, n, kind) {
-  if (floatCount > 26) return;
+const DOT_COLOR = { burn: '#ff7a52', poison: '#8fd46a', fatigue: '#f0c878' };
+// force: always shown, even when the arena is crowded with numbers.
+function dotFloat(side, n, kind, force = false) {
+  if (floatCount > 26 && !force) return;
   const f = F[side];
   _p.set(f.holder.position.x + (Math.random() - 0.5) * 0.5, 1.15 + Math.random() * 0.5, 0.2).project(ac);
   const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
@@ -1545,7 +1582,7 @@ function spawnSnail(f) {
   f.snails++;
   setTimeout(() => { el.remove(); f.snails--; }, 3200);
 }
-const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#d08aff', self: '#ff8a8a', thorns: '#f08cb0' };
+const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#f0c878', self: '#ff8a8a', thorns: '#f08cb0' };
 const ST_COLOR = { burn: [0xff8a2a, 0xffc04a], poison: [0x8bd34a, 0x5aa83a], frost: [0xbfefff, 0x7fd6ff], slow: [0x7fb0ff, 0xa8c8ff], sand: [0xdbb470, 0xc9a060] };
 function fxDamage(e) {
   const f = F[e.side];
@@ -1573,7 +1610,13 @@ function fxDamage(e) {
       particles.emit({ x, y, z, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, vz: 0, drag: 5, life: 0.3, size: 0.045, color: i % 2 ? 0xf08cb0 : 0xe9d9b0 });
     }
   } else if (e.kind === 'fatigue') {
-    particles.burst(x, 0.3, 0, 8, [0xb070ff, 0x7040c0], { max: 1, up: 1.5, g: 0, life: 0.7 });
+    // Sand whips around the fighter.
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2, r = 0.35 + Math.random() * 0.2;
+      particles.emit({ x: x + Math.cos(a) * r, y: 0.3 + Math.random() * 1.5, z: Math.sin(a) * r, vx: -Math.sin(a) * 2.2 + 1.2, vy: 0.3, vz: Math.cos(a) * 2.2, drag: 2.5, life: 0.5, size: 0.03, color: SAND_GRAIN[i % 4] });
+    }
+    f.knock = Math.max(f.knock, 0.3);
+    f.flash = Math.max(f.flash, 0.45); f.flashColor.set(0xe8c070);
   } else {
     particles.burst(x, y, z, 8, [0xe9b8ff, 0xffffff], { max: 2, life: 0.35 });
     f.flash = Math.max(f.flash, 0.4); f.flashColor.set(0xe9b8ff);
@@ -1589,6 +1632,7 @@ function playEvent(e, quiet) {
     case 'dmg': {
       const n = Math.round(e.n);
       if (e.dot) { if (!quiet && n > 0) dotFloat(e.side, n, e.kind); break; }
+      if (e.kind === 'fatigue') { if (!quiet && n > 0) { dotFloat(e.side, n, 'fatigue', true); fxDamage(e); } break; }
       if (!quiet && n > 0) {
         floatText(e.side, `${e.crit ? 'Crit ' : ''}${n}`, KIND_COLOR[e.kind] ?? '#fff', e.crit ? 'big' : e.kind === 'hit' ? '' : 'small');
         fxDamage(e);
@@ -1667,7 +1711,20 @@ function playEvent(e, quiet) {
       }
       break;
     case 'fatigue':
-      if (!B.fatigueShown) { B.fatigueShown = true; log('<b>Fatigue</b> sets in: both fighters take growing damage each second.'); }
+      if (!B.fatigueShown) {
+        B.fatigueShown = true;
+        log('<b>Fatigue</b>: a sandstorm rolls in, and both fighters take growing damage each second.');
+        if (!quiet) {
+          const el = document.createElement('span');
+          el.className = 'float banner big';
+          el.textContent = 'Sandstorm!';
+          el.style.color = '#f0c878';
+          el.style.left = '50%';
+          el.style.top = '30%';
+          $('floats').append(el);
+          setTimeout(() => el.remove(), 1150);
+        }
+      }
       break;
     case 'trigger': {
       const el = $(`hud-${e.side}`).querySelector(`.hi[data-slot="${e.slot}"]`);
@@ -2089,6 +2146,7 @@ function animateFighters(t, dt, simDt) {
   }
   bolts.update(B.T, simDt);
   particles.update(animDt);
+  updateStorm(animDt);
   bubbles.update(animDt);
   flames.update(animDt);
   for (const key of Object.keys(B.flash)) {

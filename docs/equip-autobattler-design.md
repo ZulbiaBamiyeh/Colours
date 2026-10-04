@@ -35,7 +35,7 @@ The depth comes from three layers:
 | Weapon | Sets your attack interval and base damage. Accuracy starts at 100%. |
 | Crit | Base 5% chance. A crit deals 2× damage. |
 | Speed | Heat and Slow change the speed of your weapon and every cooldown. Net speed is clamped between 40% and 250%. |
-| Fatigue | From 25s, both fighters take 1 damage per second, rising by 1 each second. Fatigue ignores Shield. |
+| Fatigue | From 25s, both fighters take 1 damage per second, rising by 1 each second. Fatigue ignores Shield. In battle it shows as a sandstorm that builds over the arena, with a damage number on each fighter every second. |
 | Draw | If both fighters die on the same tick, the fight is a draw. |
 
 **Resolution order each tick:** Burn ticks, then Poison ticks, then weapons and cooldowns fire (weapon, then offhand, then the other slots top to bottom), then reactions resolve. A fixed order keeps fights deterministic, so ghosts replay identically.
