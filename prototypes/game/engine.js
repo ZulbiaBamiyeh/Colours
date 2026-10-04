@@ -31,6 +31,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
   const events = [];
   const frames = [];
   const ev = (type, data) => events.push({ t: r1(t), type, ...data });
+  let cause = 'other';
 
   function makeFighter(side, build) {
     const f = {
@@ -186,7 +187,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (type === 'frost') {
       if (tgt.thaw > 0 || tgt.frozen > 0) return false;
       tgt.st.frost += n;
-      ev('status', { side: tgt.side, type, n });
+      ev('status', { side: tgt.side, type, n, by: src.side, cause });
       if (tgt.st.frost >= 10) freeze(tgt, FREEZE_TIME, false, src);
     } else {
       if (type === 'slow') {
@@ -198,7 +199,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       } else {
         tgt.st[type] += n;
       }
-      ev('status', { side: tgt.side, type, n });
+      ev('status', { side: tgt.side, type, n, by: src.side, cause });
     }
     if (!o.generated) {
       fire(src, 'applied', { type, n });
@@ -353,9 +354,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
         it.timer += sp;
         if (it.timer >= it.def.cd) {
           it.timer -= it.def.cd;
-          ev('trigger', { side: f.side, slot: it.slot });
+          ev('trigger', { side: f.side, slot: it.slot, cast: true });
           it.busy = true;
-          try { it.def.act(ctx(f, it)); } finally { it.busy = false; }
+          cause = 'item';
+          try { it.def.act(ctx(f, it)); } finally { it.busy = false; cause = 'other'; }
         }
       }
     }

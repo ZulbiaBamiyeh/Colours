@@ -186,7 +186,7 @@ const LIST = [
     model: { t: 'glove', a: 0xf6f0e0, b: 0xe8b73a, sun: 0xf2d67c } },
   { id: 'pilgrims_sandals', name: "Pilgrim's Sandals", schools: [HOLY], slot: 'boots', rarity: C,
     text: 'Start of fight: gain 20 Shield.', hooks: { start: c => c.gain('shield', 20) },
-    model: { t: 'boot', sandal: true, a: 0xc48a24, b: 0x8a5a2b, extra: 'wings' } },
+    model: { t: 'boot', sandal: true, a: 0x8a5a2b, b: 0x5c3a1c, c: 0xe8b73a, wrap: 0xe8dcc0, tint: 0xd8c8a0, extra: 'wings' } },
   { id: 'guardians_mantle', name: "Guardian's Mantle", schools: [HOLY], slot: 'cape', rarity: E,
     text: 'Clutch: gain Shield equal to 40% of your max HP.', hooks: { clutch: c => c.gain('shield', c.me.maxHp * 0.4) },
     model: { t: 'cape', a: 0xf6f0e0, b: 0xe8b73a, hem: 0xe8b73a, emblem: 'sun' } },
@@ -390,6 +390,24 @@ const LIST = [
     },
     model: { t: 'amulet', shape: 'phoenix' } },
 ];
+
+const METAL = { Fire: 0x9a4524, Frost: 0xc6d0e2, Venom: 0x4f6a34, Desert: 0xc48a24, Holy: 0xe8b73a, Blood: 0x3a1a20, Fortune: 0x2f8a63, Prismatic: 0xc6d0e2 };
+const RING_STYLE = {
+  ashen_ring: 'flat', rimeheart_ring: 'twist', festering_ring: 'band', dune_ring: 'flat', sanctified_vessel: 'double', sanguine_ring: 'twist',
+  loaded_dice: 'flat', fools_opal: 'double', hearthfire_ring: 'band', forgeheart_ring: 'flat', frostfire_band: 'double', hoarfrost_ring: 'twist',
+  witchfire_ring: 'twist', glassblowers_ring: 'flat', bloodfire_ring: 'double', lucky_ember: 'band', paralytic_ring: 'twist', scorpion_ring: 'flat',
+  leechmaw_ring: 'double', leeching_fang: 'twist', vipers_eye: 'flat', quicksand_ring: 'twist', glacial_aegis: 'double', frozen_blood: 'flat',
+  shatter_ring: 'band', oasis_ring: 'double', duelists_ring: 'flat', desert_fox_ring: 'twist', crimson_bulwark: 'double', blessed_dice: 'band', vampires_die: 'flat',
+};
+for (const def of LIST) {
+  if (def.model.t !== 'ring') continue;
+  def.model.style = RING_STYLE[def.id] ?? 'band';
+  if (def.schools.length === 2) {
+    def.model.band = METAL[def.schools[0]];
+    def.model.band2 = METAL[def.schools[1]];
+    def.model.setting = METAL[def.schools[1]];
+  }
+}
 
 export const ITEMS = {};
 for (const def of LIST) {

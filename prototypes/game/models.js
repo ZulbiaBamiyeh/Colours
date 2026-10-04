@@ -651,9 +651,14 @@ function glove(m, p) {
 function boot(m, p) {
   const g = new THREE.Group();
   if (p.sandal) {
-    g.add(mesh(box(0.32, 0.06, 0.62), m(p.b), [0, -0.17, 0.12]));
-    for (const z of [0.3, 0.12, -0.06]) g.add(mesh(torus(0.15, 0.025, 5, 12), m(p.a), [0, -0.1, z], [0, 0, 0], [1.05, 0.55, 1]));
-    for (const y of [0.0, 0.2, 0.4]) g.add(mesh(torus(0.13, 0.025, 5, 12), m(p.a), [0, y, -0.04], [PI / 2, 0, 0]));
+    const linen = m(p.wrap ?? 0xe8dcc0);
+    g.add(mesh(cyl(0.17, 0.16, 0.44, 10), linen, [0, 0.17, -0.02]));
+    g.add(mesh(box(0.27, 0.17, 0.46), linen, [0, -0.08, 0.13]));
+    g.add(mesh(sph(0.135, 8, 6), linen, [0, -0.08, 0.35], [0, 0, 0], [1.02, 0.65, 1]));
+    g.add(mesh(box(0.34, 0.06, 0.66), m(p.b), [0, -0.19, 0.14]));
+    for (const [z, r] of [[0.3, 0.5], [0.3, -0.5], [0.08, 0.5], [0.08, -0.5]]) g.add(mesh(box(0.33, 0.04, 0.06), m(p.a), [0, 0.01, z], [0, r, 0]));
+    for (const y of [0.0, 0.15, 0.3]) g.add(mesh(torus(0.175, 0.025, 5, 14), m(p.a), [0, y, -0.02], [PI / 2, 0, 0]));
+    g.add(mesh(torus(0.18, 0.03, 5, 14), m(p.c ?? 0xe8b73a), [0, 0.39, -0.02], [PI / 2, 0, 0]));
   } else {
     g.add(mesh(cyl(0.2, 0.18, 0.62, 10), m(p.a), [0, 0.24, -0.02]));
     g.add(mesh(box(0.3, 0.22, 0.5), m(p.a), [0, -0.06, 0.12]));
@@ -675,25 +680,57 @@ function boot(m, p) {
 }
 
 /* Capes */
+// A draped sheet: narrow at the shoulders, flaring and rippling towards the hem, bulging toward +Z.
+function capeGeo(top, bottom, depth, ripple, rows = null) {
+  const segU = 16, segV = 12;
+  const pos = [], col = [], idx = [];
+  const edge = [];
+  for (let j = 0; j <= segV; j++) {
+    const v = j / segV;
+    const w = top + (bottom - top) * Math.pow(v, 0.8);
+    for (let i = 0; i <= segU; i++) {
+      const u = (i / segU) * 2 - 1;
+      const z = depth * (1 - u * u) * (0.5 + 0.5 * v) + ripple * Math.sin(u * 7 + v * 2.5) * v;
+      pos.push(u * w, 0.7 - 1.45 * v, z);
+      if (rows) { const c = rows(v); col.push(c.r, c.g, c.b); }
+      if (j === segV) edge.push(new THREE.Vector3(u * w, 0.7 - 1.45 * v, z + 0.01));
+    }
+  }
+  for (let j = 0; j < segV; j++) for (let i = 0; i < segU; i++) {
+    const a = j * (segU + 1) + i, b = a + 1, c = a + segU + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  if (rows) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return { geo, edge };
+}
 function cape(m, p) {
   const g = new THREE.Group();
-  const ts = -PI * 0.38, tl = PI * 0.76;
-  g.add(mesh(cyl(0.34, 0.64, 1.4, 18, true, ts, tl), m(p.a, { double: true })));
-  g.add(mesh(cyl(0.32, 0.62, 1.38, 18, true, ts, tl), m(p.b, { double: true }), [0, 0, -0.02]));
-  g.add(mesh(torus(0.36, 0.06, 6, 18, PI * 0.8), m(p.trim ?? p.b), [0, 0.68, 0], [PI / 2, 0, PI * 0.1]));
-  for (const s of [-1, 1]) g.add(mesh(sph(0.06, 8, 6), m(p.clasp ?? 0xe8b73a, { glow: 0.3 }), [0.26 * s, 0.66, 0.24]));
-  if (p.hem) g.add(mesh(cyl(0.65, 0.66, 0.08, 18, true, ts, tl), m(p.hem, { double: true, glow: p.hemGlow ?? 0 }), [0, -0.68, 0.005]));
-  if (p.stripes) for (let i = 0; i < 6; i++) g.add(mesh(cyl(0.35 + i * 0.05 + 0.005, 0.4 + i * 0.05, 0.2, 18, true, ts, tl), m(hslHex(i / 6, 0.85, 0.6), { double: true }), [0, 0.55 - i * 0.22, 0.003]));
-  const ez = 0.52;
-  if (p.emblem === 'flame') flames(g, m, 0, -0.15, ez, 0.8);
-  if (p.emblem === 'snow') snowflake(g, m, 0xccf5ff, 0, -0.05, ez, 0.2);
-  if (p.emblem === 'fang') for (const x of [-0.08, 0.08]) g.add(mesh(cone(0.06, 0.26, 5), m(0xf2ecd8), [x, -0.1, ez], [PI, 0, 0]));
-  if (p.emblem === 'swirl') g.add(mesh(torus(0.16, 0.03, 5, 18, PI * 1.6), m(p.trim), [0, -0.1, ez]));
-  if (p.emblem === 'sun') { g.add(mesh(cyl(0.14, 0.14, 0.03, 14), m(0xf2d67c, { glow: 0.6 }), [0, -0.1, ez], [PI / 2, 0, 0])); }
-  if (p.emblem === 'moon') g.add(mesh(cyl(0.17, 0.17, 0.03, 18), m(0xd8344f, { glow: 0.5 }), [0, -0.1, ez], [PI / 2, 0, 0]));
+  const rows = p.stripes ? (v => new THREE.Color().setHSL(Math.floor(v * 5.99) / 6, rb(m)[0], rb(m)[1], THREE.SRGBColorSpace)) : null;
+  const { geo, edge } = capeGeo(0.3, 0.7, 0.22, 0.05, rows);
+  g.add(new THREE.Mesh(geo, rows ? m(0xffffff, { vc: true }) : m(p.a)));
+  const lining = new THREE.Mesh(geo, m(p.b, { back: true }));
+  lining.position.z = -0.012;
+  g.add(lining);
+  g.add(mesh(torus(0.3, 0.065, 6, 18, PI), m(p.trim ?? p.b), [0, 0.7, 0], [PI / 2, 0, 0]));
+  for (const k of [-1, 1]) g.add(mesh(sph(0.065, 8, 6), m(p.clasp ?? 0xe8b73a, { glow: 0.3 }), [0.27 * k, 0.68, 0.08]));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge), 40, 0.035, 5, false), m(p.hem ?? p.trim ?? p.b, { glow: p.hemGlow ?? 0 })));
+  const ey = -0.05, ez = 0.2;
+  if (p.emblem === 'flame') flames(g, m, 0, ey - 0.15, ez, 0.8);
+  if (p.emblem === 'snow') snowflake(g, m, 0xccf5ff, 0, ey, ez, 0.2);
+  if (p.emblem === 'fang') for (const x of [-0.08, 0.08]) g.add(mesh(cone(0.06, 0.26, 5), m(0xf2ecd8), [x, ey, ez], [PI, 0, 0]));
+  if (p.emblem === 'swirl') g.add(mesh(torus(0.16, 0.03, 5, 18, PI * 1.6), m(p.trim), [0, ey, ez]));
+  if (p.emblem === 'sun') {
+    g.add(mesh(cyl(0.13, 0.13, 0.03, 14), m(0xf2d67c, { glow: 0.6 }), [0, ey, ez], [PI / 2, 0, 0]));
+    for (let i = 0; i < 8; i++) { const a = (i * PI) / 4; g.add(mesh(box(0.035, 0.1, 0.02), m(0xf2d67c, { glow: 0.5 }), [Math.cos(a) * 0.2, ey + Math.sin(a) * 0.2, ez], [0, 0, a - PI / 2])); }
+  }
+  if (p.emblem === 'moon') g.add(mesh(cyl(0.17, 0.17, 0.03, 18), m(0xd8344f, { glow: 0.5 }), [0, ey, ez], [PI / 2, 0, 0]));
   if (p.emblem === 'card') {
-    g.add(mesh(box(0.24, 0.34, 0.02), m(0xf4ecd8), [0, -0.1, ez], [0, 0, 0.15]));
-    clover(g, m, 0x2f8a63, 0, -0.08, ez + 0.02, 0.04);
+    g.add(mesh(box(0.24, 0.34, 0.02), m(0xf4ecd8), [0, ey, ez], [0, 0, 0.15]));
+    clover(g, m, 0x2f8a63, 0, ey + 0.02, ez + 0.02, 0.04);
   }
   return g;
 }
@@ -701,8 +738,29 @@ function cape(m, p) {
 /* Rings */
 function ring(m, p) {
   const g = new THREE.Group();
-  g.add(mesh(torus(0.5, 0.1, 8, 28), m(p.band)));
-  if (p.band2) g.add(mesh(torus(0.5, 0.06, 6, 28), m(p.band2), [0, 0, 0.05]));
+  const style = p.style ?? 'band';
+  const b2 = p.band2 ?? p.band;
+  if (style === 'twist') {
+    // Two strands twisted around the band like rope.
+    for (const [phase, mat] of [[0, m(p.band)], [PI, m(b2)]]) {
+      const pts = [];
+      for (let i = 0; i < 72; i++) {
+        const u = (i / 72) * PI * 2;
+        const r = 0.5 + 0.045 * Math.cos(u * 7 + phase);
+        pts.push(new THREE.Vector3(Math.cos(u) * r, Math.sin(u) * r, 0.045 * Math.sin(u * 7 + phase)));
+      }
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 144, 0.055, 6, true), mat));
+    }
+  } else if (style === 'flat') {
+    g.add(mesh(lathe([[0.44, -0.1], [0.56, -0.1], [0.58, 0], [0.56, 0.1], [0.44, 0.1], [0.44, -0.1]], 32), m(p.band), [0, 0, 0], [PI / 2, 0, 0]));
+    g.add(mesh(torus(0.575, 0.025, 5, 32), m(b2, { glow: 0.15 })));
+  } else if (style === 'double') {
+    g.add(mesh(torus(0.5, 0.07, 6, 28), m(p.band), [0, 0, -0.06]));
+    g.add(mesh(torus(0.5, 0.07, 6, 28), m(b2), [0, 0, 0.06]));
+  } else {
+    g.add(mesh(torus(0.5, 0.1, 8, 28), m(p.band)));
+    if (p.band2) g.add(mesh(torus(0.5, 0.06, 6, 28), m(p.band2), [0, 0, 0.05]));
+  }
   g.add(mesh(cyl(0.16, 0.12, 0.13, 8), m(p.setting ?? p.band), [0, 0.6, 0]));
   const gy = 0.76;
   const gemMat = m(p.gem, { glow: p.glow ?? 0.55 });
@@ -989,6 +1047,7 @@ export function buildHero(opts = {}) {
   const m = MS;
   const skin = opts.skin ?? SKIN;
   const root = new THREE.Group();
+  root.rotation.order = 'YXZ';
   const body = new THREE.Group();
   root.add(body);
   const parts = { tunic: [], hands: [], feet: [], skin: [] };
@@ -1038,7 +1097,11 @@ export function buildHero(opts = {}) {
   const back = new THREE.Group();
   back.position.set(0, 1.08, -0.2);
   body.add(back);
-  return { root, body, arms, head, hair, helm, back, parts, base: { tunic: opts.tunic ?? TUNIC, skin, boots: BOOTS }, worn: {}, twoHanded: false };
+  const gear = { body: new THREE.Group(), gloves: [new THREE.Group(), new THREE.Group()], boots: new THREE.Group() };
+  body.add(gear.body, gear.boots);
+  arms.right.pivot.add(gear.gloves[0]);
+  arms.left.pivot.add(gear.gloves[1]);
+  return { root, body, arms, head, hair, helm, back, parts, gear, gearKeys: {}, base: { tunic: opts.tunic ?? TUNIC, skin, boots: BOOTS }, worn: {}, twoHanded: false, hasOff: false };
 }
 
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
@@ -1108,13 +1171,80 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   hero.hair.visible = !equip.helm;
   place('cape', equip.cape, hero.back, (h, model, def) => {
     h.rotation.set(0, PI, 0);
-    h.position.set(0, -0.48, 0.02);
-    h.scale.set(0.62, 0.75, 0.55);
+    h.position.set(0, -0.47, 0.04);
+    h.scale.set(1.0, 0.72, 0.7);
   });
   const tintOf = (item) => item && (ITEMS[item.id].model.tint ?? ITEMS[item.id].model.a);
   tint(hero.parts.tunic, tintOf(equip.body) ?? hero.base.tunic);
   tint(hero.parts.hands, tintOf(equip.gloves) ?? hero.base.skin);
   tint(hero.parts.feet, tintOf(equip.boots) ?? hero.base.boots);
+  hero.hasOff = !!off;
+  const key = it => (it ? it.uid : 0);
+  const clear = grp => { while (grp.children.length) grp.remove(grp.children[0]); };
+  if (hero.gearKeys.body !== key(equip.body)) {
+    hero.gearKeys.body = key(equip.body);
+    clear(hero.gear.body);
+    if (equip.body) {
+      const p = ITEMS[equip.body.id].model;
+      const trim = p.b;
+      if (p.kind === 'plate' || p.kind === 'carapace' || p.kind === 'mail') {
+        const r = p.kind === 'mail' ? 0.12 : 0.15;
+        for (const k of [-1, 1]) {
+          hero.gear.body.add(mesh(new THREE.SphereGeometry(r, 10, 6, 0, PI * 2, 0, PI / 2), MS(trim), [0.34 * k, 1.03, 0], [0, 0, -0.35 * k], [1.25, 0.85, 1.2]));
+          if (p.kind === 'carapace') hero.gear.body.add(mesh(cone(0.04, 0.16, 5), MS(p.c ?? trim), [0.42 * k, 1.12, 0], [0, 0, -0.9 * k]));
+        }
+        hero.gear.body.add(mesh(torus(0.3, 0.035, 5, 16), MS(trim), [0, 1.06, 0], [PI / 2, 0, 0]));
+      }
+      if (p.kind === 'robe') hero.gear.body.add(mesh(cyl(0.36, 0.44, 0.34, 10, true), MS(p.a, { double: true }), [0, 0.3, 0]));
+      if (p.emblem) hero.gear.body.add(mesh(octa(0.06), MS(p.emblem, { glow: 0.7 }), [0, 0.84, 0.29], [0, 0, 0], [1, 1.3, 0.6]));
+      if (p.flame) flames(hero.gear.body, MS, 0, 0.78, 0.29, 0.3);
+      if (p.snow) snowflake(hero.gear.body, MS, p.snow, 0, 0.84, 0.29, 0.08);
+      if (p.clover) clover(hero.gear.body, MS, p.clover, -0.1, 0.88, 0.28, 0.035);
+    }
+  }
+  if (hero.gearKeys.gloves !== key(equip.gloves)) {
+    hero.gearKeys.gloves = key(equip.gloves);
+    hero.gear.gloves.forEach(clear);
+    if (equip.gloves) {
+      const p = ITEMS[equip.gloves.id].model;
+      for (const grp of hero.gear.gloves) {
+        grp.add(mesh(cyl(0.085, 0.1, 0.12, 8), MS(p.b), [0, -0.42, 0]));
+        if (p.knuckle || p.gem || p.frost) grp.add(mesh(p.spike ? cone(0.025, 0.08, 5) : octa(0.035), MS(p.knuckle ?? p.gem ?? p.frost, { glow: 0.5 }), [0, -0.55, 0.08], p.spike ? [PI / 2, 0, 0] : [0, 0, 0]));
+      }
+    }
+  }
+  if (hero.gearKeys.boots !== key(equip.boots)) {
+    hero.gearKeys.boots = key(equip.boots);
+    clear(hero.gear.boots);
+    if (equip.boots) {
+      const p = ITEMS[equip.boots.id].model;
+      for (const k of [-1, 1]) {
+        hero.gear.boots.add(mesh(cyl(0.125, 0.12, 0.26, 8), MS(p.sandal ? (p.wrap ?? 0xe8dcc0) : p.a), [0.13 * k, 0.2, 0]));
+        hero.gear.boots.add(mesh(torus(0.125, 0.03, 5, 12), MS(p.sandal ? p.a : p.b), [0.13 * k, 0.33, 0], [PI / 2, 0, 0]));
+        if (p.extra === 'fur') hero.gear.boots.add(mesh(torus(0.13, 0.05, 5, 10), MS(0xffffff), [0.13 * k, 0.34, 0], [PI / 2, 0, 0]));
+        if (p.extra === 'flames') flames(hero.gear.boots, MS, 0.13 * k, 0.32, -0.04, 0.25);
+        if (p.extra === 'wings') hero.gear.boots.add(mesh(extrude(shapeFrom(WING, k), 0.02, 0.005), MS(0xffffff), [0.22 * k, 0.24, -0.03], [0, -0.4 * k, 0], [0.32, 0.32, 1]));
+      }
+    }
+  }
+}
+
+// Attack and cast poses. s swings the weapon arm (or both arms for two-handed weapons),
+// os swings the offhand arm. 0 is the resting pose.
+const _dir = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+export function swingPose(hero, s = 0, os = 0) {
+  if (hero.twoHanded) {
+    _dir.copy(N2H).applyAxisAngle(X_AXIS, s);
+    const w = hero.worn.weapon;
+    if (w) w.holder.quaternion.setFromUnitVectors(UP, _dir);
+    aimArm(hero.arms.right, R2H);
+    aimArm(hero.arms.left, R2H.clone().addScaledVector(_dir, 0.35));
+  } else {
+    hero.arms.right.pivot.rotation.set(-0.5 + s, 0, -0.16);
+    hero.arms.left.pivot.rotation.set((hero.hasOff ? -0.4 : 0.12) + os, 0, hero.hasOff ? 0.2 : 0.14);
+  }
 }
 
 // Idle animation and equipped-item animations.

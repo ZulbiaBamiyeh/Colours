@@ -4,7 +4,8 @@ import {
   ITEMS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
 } from './items.js';
 import { simulate, mulberry32, RULES } from './engine.js';
-import { createStudio, buildHero, dressHero, animateHero, pedestal, heroLights, iceBlock, MS, mesh } from './models.js';
+import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh } from './models.js';
+import { Particles, Bolts, fighterFx } from './fx.js';
 
 const $ = id => document.getElementById(id);
 const studio = createStudio(ITEMS);
@@ -592,39 +593,78 @@ const ac = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
 }
 const GHOST_LOOK = { skin: 0xc4bfe6, hair: 0x5a5a8a, tunic: 0x6a5a8a, eyes: 0x8fe3ff, eyesGlow: 0.9, blush: 0x9a8fd0 };
 const F = { A: null, B: null };
+const particles = new Particles(as);
+const bolts = new Bolts(as, particles);
+const HOME_X = 1.5;
+function collectMats(root) {
+  const set = new Set();
+  root.traverse(o => {
+    if (o.isMesh && o.material && o.material.emissive && !o.userData.fx) set.add(o.material);
+  });
+  const mats = [...set];
+  for (const mt of mats) { mt.userData.em0 = mt.emissive.clone(); mt.userData.ei0 = mt.emissiveIntensity; }
+  return mats;
+}
+function weaponStyle(equip, main) {
+  if (!main) return 'dual';
+  const w = equip.weapon && ITEMS[equip.weapon.id].weapon;
+  if (!w) return 'fist';
+  return w.hands === 2 ? '2h' : '1h';
+}
+function weaponColor(equip, main) {
+  const e = main ? equip.weapon : equip.offhand;
+  if (!e) return 0xfff4e0;
+  const sc = ITEMS[e.id].schools[0];
+  return { Fire: 0xffa050, Frost: 0xbfefff, Venom: 0xb8f070, Desert: 0xffe0a0, Holy: 0xfff0b0, Blood: 0xff7080, Fortune: 0x9ff0c8, Prismatic: 0xf0c0ff }[sc] ?? 0xfff4e0;
+}
 function makeFighterView(side, equip, look) {
   const h = buildHero(look);
   dressHero(h, equip, ITEMS);
+  const dir = side === 'A' ? 1 : -1;
   const holder = new THREE.Group();
-  const x = side === 'A' ? -1.45 : 1.45;
-  holder.position.x = x;
+  holder.position.x = -dir * HOME_X;
   const ped = pedestal();
-  holder.add(ped);
-  h.root.rotation.y = side === 'A' ? 0.8 : -0.8;
+  const pedWrap = new THREE.Group();
+  pedWrap.add(ped);
+  pedWrap.position.x = -dir * HOME_X;
+  as.add(pedWrap);
+  h.root.rotation.y = dir * 0.8;
   holder.add(h.root);
   const ice = iceBlock();
   ice.visible = false;
+  ice.traverse(o => { o.userData.fx = true; });
   holder.add(ice);
+  const fx = fighterFx(dir);
+  holder.add(fx.group);
   as.add(holder);
-  return { hero: h, holder, ice, x, dir: side === 'A' ? 1 : -1, lunge: 0, shake: 0 };
+  return {
+    side, equip, hero: h, holder, pedWrap, ice, fx, dir, x: -dir * HOME_X, mats: collectMats(h.root),
+    attack: null, cast: null, knock: 0, dodge: 0, flash: 0, flashColor: new THREE.Color(1, 1, 1), flashOn: false,
+    pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, dead: false, deathT: 0, win: false, winT: 0,
+  };
 }
 function clearArena() {
-  for (const k of ['A', 'B']) if (F[k]) { as.remove(F[k].holder); F[k] = null; }
+  for (const k of ['A', 'B']) if (F[k]) { as.remove(F[k].holder); as.remove(F[k].pedWrap); F[k] = null; }
+  particles.clear();
+  bolts.clear();
 }
+const camBase = new THREE.Vector3();
 function sizeArena() {
   const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
   if (!w || !h) return;
   ar.setSize(w, h, false);
   ac.aspect = w / h;
   const tanH = Math.tan(THREE.MathUtils.degToRad(ac.fov / 2));
-  const d = Math.max(1.75 / tanH, 2.75 / (tanH * ac.aspect));
-  ac.position.set(0, 1.25 + d * 0.12, d);
+  const d = Math.max(1.75 / tanH, 2.9 / (tanH * ac.aspect));
+  camBase.set(0, 1.25 + d * 0.12, d);
+  ac.position.copy(camBase);
   ac.lookAt(0, 1.0, 0);
   ac.updateProjectionMatrix();
 }
 new ResizeObserver(sizeArena).observe(arenaStage);
 
-const B = { sim: null, ghost: null, T: 0, speed: 1, ei: 0, fi: -1, done: false, playing: false, flash: {}, playerEquip: null };
+const B = { sim: null, ghost: null, T: 0, speed: 1, ei: 0, ai: 0, fi: -1, done: false, playing: false, flash: {}, playerEquip: null, hitStop: 0, shake: 0, banner: false };
+const INTRO = 1.0, LEAD = 0.24, REC = 0.3;
 function hudHTML(side, name, sub, equip) {
   const rows = [];
   const order = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
@@ -637,7 +677,7 @@ function hudHTML(side, name, sub, equip) {
     rows.push(`<li class="hi" data-slot="${slot}" data-id="${e.id}"><img src="${studio.icon(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
-    <div class="hpbar"><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
+    <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
     <div class="schips"></div>
     <ul class="hud-items">${rows.join('')}</ul>`;
 }
@@ -649,7 +689,7 @@ function startBattle() {
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, S.equip[k] ? { ...S.equip[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
   const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
-  Object.assign(B, { sim, ghost, T: 0, ei: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false });
+  Object.assign(B, { sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
   clearArena();
   F.A = makeFighterView('A', playerEquip, {});
   F.B = makeFighterView('B', ghost.equip, GHOST_LOOK);
@@ -671,7 +711,7 @@ function startBattle() {
 
 const hudCache = { A: {}, B: {} };
 function updateHud(force) {
-  const fi = Math.min(B.sim.frames.length - 1, Math.floor(B.T / 0.1 + 1e-6));
+  const fi = Math.max(0, Math.min(B.sim.frames.length - 1, Math.floor(B.T / 0.1 + 1e-6)));
   if (fi === B.fi && !force) return;
   B.fi = fi;
   const fr = B.sim.frames[fi];
@@ -681,6 +721,7 @@ function updateHud(force) {
     const pct = s.maxHp ? Math.max(0, s.hp / s.maxHp) : 0;
     const fill = root.querySelector('.hp-fill');
     fill.style.width = `${(pct * 100).toFixed(1)}%`;
+    root.querySelector('.hp-lag').style.width = `${(pct * 100).toFixed(1)}%`;
     fill.className = `hp-fill${pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : ''}`;
     root.querySelector('.hp-sh').style.width = `${Math.min(100, (s.shield / s.maxHp) * 100).toFixed(1)}%`;
     root.querySelector('.hp-text').textContent = `${Math.ceil(s.hp)} / ${Math.round(s.maxHp)}${s.shield >= 1 ? ` · Shield ${Math.round(s.shield)}` : ''}`;
@@ -696,11 +737,9 @@ function updateHud(force) {
       const bar = root.querySelector(`.hi[data-slot="${c.slot}"] .cd i`);
       if (bar) bar.style.width = `${(c.p * 100).toFixed(0)}%`;
     }
-    const F_ = F[side];
-    F_.ice.visible = s.frozen;
   }
   const clock = $('clock');
-  clock.textContent = `${fr.t.toFixed(1)}s${fr.t >= 25 ? ' · Fatigue' : ''}`;
+  clock.textContent = `${Math.max(0, B.T).toFixed(1)}s${fr.t >= 25 ? ' · Fatigue' : ''}`;
   clock.classList.toggle('fatigue', fr.t >= 25);
 }
 
@@ -772,7 +811,7 @@ const _p = new THREE.Vector3();
 function floatText(side, text, color, cls = '') {
   if (floatCount > 26) return;
   const f = F[side];
-  _p.set(f.x, 2.35, 0).project(ac);
+  _p.set(f.holder.position.x, 2.35, 0).project(ac);
   const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
   const el = document.createElement('span');
   el.className = `float ${cls}`;
@@ -785,19 +824,44 @@ function floatText(side, text, color, cls = '') {
   setTimeout(() => { el.remove(); floatCount--; }, 1150);
 }
 const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#d08aff', self: '#ff8a8a' };
+const ST_COLOR = { burn: [0xff8a2a, 0xffc04a], poison: [0x8bd34a, 0x5aa83a], frost: [0xbfefff, 0x7fd6ff], slow: [0x7fb0ff, 0xa8c8ff], sand: [0xdbb470, 0xc9a060] };
+function fxDamage(e) {
+  const f = F[e.side];
+  const atk = F[e.side === 'A' ? 'B' : 'A'];
+  const x = f.holder.position.x, y = 1.05, z = 0.15;
+  if (e.kind === 'hit' || e.kind === 'reflect') {
+    f.knock = e.crit ? 1.4 : 1;
+    f.flash = e.crit ? 1 : 0.75;
+    f.flashColor.set(e.crit ? 0xffe08a : 0xffffff);
+    const c = weaponColor(atk.equip, true);
+    particles.burst(x + f.dir * 0.1, y, z, e.crit ? 26 : 12, [c, 0xffffff], { max: e.crit ? 4.5 : 3, size: e.crit ? 0.06 : 0.045, life: 0.3, flat: 1 });
+    if (e.absorbed >= 1) { f.pulse = 1; particles.burst(x, y, z, 8, [0x8fd0ff, 0xffffff], { max: 2.5, life: 0.3 }); }
+    if (e.crit && !reduceMotion) { B.hitStop = 0.11; B.shake = 1; }
+  } else if (e.kind === 'burn') {
+    particles.burst(x, y, z, 6, ST_COLOR.burn, { max: 1.8, up: 1.2, g: 0, life: 0.45 });
+    f.flash = Math.max(f.flash, 0.35); f.flashColor.set(0xff8a2a);
+  } else if (e.kind === 'poison') {
+    particles.burst(x, y, z, 6, ST_COLOR.poison, { max: 1.2, up: 0.6, g: 0, life: 0.6 });
+    f.flash = Math.max(f.flash, 0.35); f.flashColor.set(0x8bd34a);
+  } else if (e.kind === 'fatigue') {
+    particles.burst(x, 0.3, 0, 8, [0xb070ff, 0x7040c0], { max: 1, up: 1.5, g: 0, life: 0.7 });
+  } else {
+    particles.burst(x, y, z, 8, [0xe9b8ff, 0xffffff], { max: 2, life: 0.35 });
+    f.flash = Math.max(f.flash, 0.4); f.flashColor.set(0xe9b8ff);
+  }
+}
 function playEvent(e, quiet) {
   const other = s => (s === 'A' ? 'B' : 'A');
   const log = html => logLine(html, e.t);
     const verb = (side, you, them) => (side === 'A' ? you : them);
   switch (e.type) {
     case 'attack':
-      if (!quiet) F[e.side].lunge = 1;
       break;
     case 'dmg': {
       const n = Math.round(e.n);
       if (!quiet && n > 0) {
         floatText(e.side, `${e.crit ? 'Crit ' : ''}${n}`, KIND_COLOR[e.kind] ?? '#fff', e.crit ? 'big' : e.kind === 'hit' ? '' : 'small');
-        if (e.kind === 'hit') F[e.side].shake = 1;
+        fxDamage(e);
       }
       if (e.kind === 'hit') log(`<b>${sideName(other(e.side))}</b> hit <b>${sideName(e.side)}</b> for ${n}${e.crit ? ' <span class="crit">(crit)</span>' : ''}${e.absorbed >= 1 ? `, ${Math.round(e.absorbed)} blocked` : ''}.`);
       else if (e.kind === 'burn' || e.kind === 'poison') log(`<span class="k-${e.kind}">${e.kind === 'burn' ? 'Burn' : 'Poison'}</span> deals ${n} to <b>${sideName(e.side)}</b>${e.crit ? ' <span class="crit">(crit)</span>' : ''}.`);
@@ -807,24 +871,48 @@ function playEvent(e, quiet) {
       break;
     }
     case 'miss':
-      if (!quiet) floatText(e.side, 'Miss', '#e8dcc0', 'small');
+      if (!quiet) { floatText(e.side, 'Miss', '#e8dcc0', 'small'); F[e.side].dodge = 1; }
       log(`<b>${sideName(other(e.side))}</b> missed.`);
       break;
     case 'heal':
-      if (!quiet && e.n >= 1) floatText(e.side, `+${Math.round(e.n)}`, '#8fe08a', 'small');
+      if (!quiet && e.n >= 1) {
+        floatText(e.side, `+${Math.round(e.n)}`, '#8fe08a', 'small');
+        const f = F[e.side];
+        for (let i = 0; i < Math.min(14, 3 + e.n / 2); i++) particles.emit({ x: f.holder.position.x + (Math.random() - 0.5) * 0.6, y: 0.4 + Math.random() * 1.1, z: (Math.random() - 0.5) * 0.4, vy: 0.9 + Math.random() * 0.6, life: 0.8, size: 0.05, color: 0x8fe08a, grow: true });
+      }
       break;
     case 'shield':
-      if (!quiet && e.n >= 1) floatText(e.side, `+${Math.round(e.n)} Shield`, '#8fd0ff', 'small');
+      if (!quiet && e.n >= 1) {
+        floatText(e.side, `+${Math.round(e.n)} Shield`, '#8fd0ff', 'small');
+        F[e.side].pulse = 1;
+      }
       break;
     case 'status':
-      if (!quiet && e.n >= 2) floatText(e.side, `+${e.n} ${STATUS_NAME[e.type]}`, getComputedStyle(document.documentElement).getPropertyValue(STATUS_VAR[e.type]) || '#fff', 'small');
+      if (!quiet) {
+        if (e.n >= 2) floatText(e.side, `+${e.n} ${STATUS_NAME[e.type]}`, getComputedStyle(document.documentElement).getPropertyValue(STATUS_VAR[e.type]) || '#fff', 'small');
+        const f = F[e.side];
+        particles.burst(f.holder.position.x, 1.0, 0.1, Math.min(10, 2 + e.n), ST_COLOR[e.type], { max: 1.6, life: 0.4, g: 0 });
+      }
+      break;
+    case 'thaw':
+      if (!quiet) { const f = F[e.side]; particles.burst(f.holder.position.x, 1.0, 0, 26, [0xbfefff, 0xffffff, 0x7fd6ff], { max: 3.5, size: 0.06, life: 0.5 }); }
       break;
     case 'freeze':
-      if (!quiet) floatText(e.side, 'Frozen!', '#9fe2ff', 'banner');
+      if (!quiet) {
+        floatText(e.side, 'Frozen!', '#9fe2ff', 'banner');
+        const f = F[e.side];
+        particles.burst(f.holder.position.x, 1.0, 0, 18, [0xbfefff, 0x7fd6ff], { max: 2.5, size: 0.05, life: 0.45 });
+        f.iceK = 0;
+      }
       log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'are', 'is')} <span class="k-frost">Frozen</span> for ${e.dur}s.`);
       break;
     case 'clutch':
-      if (!quiet) floatText(e.side, 'Clutch!', '#f4c652', 'banner');
+      if (!quiet) {
+        floatText(e.side, 'Clutch!', '#f4c652', 'banner');
+        F[e.side].clutch = 1;
+        F[e.side].flash = 0.8; F[e.side].flashColor.set(0xf4c652);
+        particles.burst(F[e.side].holder.position.x, 0.2, 0, 24, [0xf4c652, 0xffe8a0], { max: 3, up: 2, size: 0.05, life: 0.6 });
+      }
       log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'drop', 'drops')} below 30% HP: clutch effects trigger.`);
       break;
     case 'reflect':
@@ -836,6 +924,10 @@ function playEvent(e, quiet) {
     case 'trigger': {
       const el = $(`hud-${e.side}`).querySelector(`.hi[data-slot="${e.slot}"]`);
       if (el && !quiet) { el.classList.add('flash'); B.flash[`${e.side}:${e.slot}`] = 0.25; }
+      if (!quiet && !e.cast && e.slot !== 'weapon') {
+        const f = F[e.side];
+        particles.burst(f.holder.position.x, 1.2, 0.2, 6, [0xf4c652, 0xffffff], { max: 1.4, life: 0.35, g: 0, size: 0.03 });
+      }
       break;
     }
     case 'end':
@@ -907,6 +999,11 @@ $('skip').addEventListener('click', () => {
   const evs = B.sim.events;
   while (B.ei < evs.length) playEvent(evs[B.ei++], true);
   B.T = B.sim.duration;
+  B.ai = evs.length;
+  bolts.clear();
+  for (const k of ['A', 'B']) { F[k].attack = null; F[k].cast = null; F[k].holder.position.x = F[k].x; }
+  B.playing = false;
+  endPoses();
   updateHud(true);
   finishBattle();
 });
@@ -918,34 +1015,215 @@ $('speed-seg').addEventListener('click', e => {
   syncSpeed();
 });
 
+const ease = k => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+const easeIn = k => Math.pow(Math.min(1, Math.max(0, k)), 2);
+const handPos = f => new THREE.Vector3(f.holder.position.x + f.dir * 0.3, 0.85, 0.3);
+const chestPos = f => new THREE.Vector3(f.holder.position.x - f.dir * 0.1, 1.05, 0.15);
+function lookAhead() {
+  const evs = B.sim.events;
+  while (B.ai < evs.length && evs[B.ai].t - LEAD <= B.T) {
+    const e = evs[B.ai++];
+    if (e.type === 'attack') F[e.side].attack = { at: e.t, main: e.main, style: weaponStyle(F[e.side].equip, e.main), color: weaponColor(F[e.side].equip, e.main) };
+    else if (e.type === 'trigger' && e.cast) F[e.side].cast = { at: e.t };
+    else if (e.type === 'status' && e.cause === 'item' && e.by && e.by !== e.side) {
+      bolts.launch(handPos(F[e.by]), chestPos(F[e.side]), e.t - LEAD, e.t, ST_COLOR[e.type][0]);
+    }
+  }
+}
+function endPoses() {
+  const r = B.sim.result;
+  for (const k of ['A', 'B']) {
+    const lost = r === 'draw' || (r === 'A' && k === 'B') || (r === 'B' && k === 'A');
+    F[k].dead = lost;
+    F[k].win = !lost;
+  }
+  B.shake = 0.6;
+}
 function stepBattle(dt) {
-  if (!B.playing) return;
-  B.T += dt * B.speed;
+  if (!B.playing) return 0;
+  if (B.hitStop > 0) { B.hitStop -= dt; return 0; }
+  const simDt = dt * B.speed;
+  B.T += simDt;
+  if (B.T > -0.35 && !B.banner) {
+    B.banner = true;
+    const el = document.createElement('span');
+    el.className = 'float banner big';
+    el.textContent = 'Fight!';
+    el.style.color = '#f4c652';
+    el.style.left = '50%';
+    el.style.top = '38%';
+    $('floats').append(el);
+    setTimeout(() => el.remove(), 1150);
+  }
+  lookAhead();
   const evs = B.sim.events;
   while (B.ei < evs.length && evs[B.ei].t <= B.T) playEvent(evs[B.ei++], false);
   if (B.T >= B.sim.duration) {
     B.T = B.sim.duration;
     updateHud(true);
-    if (B.T + 0.001 >= B.sim.duration && B.ei >= evs.length) { B.playing = false; setTimeout(finishBattle, 700); }
+    if (B.ei >= evs.length) {
+      B.playing = false;
+      endPoses();
+      setTimeout(finishBattle, 1100);
+    }
   } else {
     updateHud(false);
   }
+  return simDt;
 }
-function animateFighters(t, dt) {
+
+// Weapon swing over time. p is seconds relative to the moment the hit lands.
+const SWING = {
+  '1h': { W: -2.0, H: 0.45, reach: 0.95 },
+  '2h': { W: -1.15, H: 0.95, reach: 0.75 },
+  fist: { W: 0.55, H: -1.25, reach: 1.05 },
+  dual: { W: -1.7, H: 0.4, reach: 0.7 },
+};
+function attackCurve(p, style) {
+  const c = SWING[style];
+  if (p < -LEAD || p > REC) return null;
+  if (p < -0.07) { const k = ease((p + LEAD) / (LEAD - 0.07)); return { s: c.W * k, dash: -0.12 * k, lean: -0.14 * k }; }
+  if (p < 0.03) { const k = easeIn((p + 0.07) / 0.1); return { s: c.W + (c.H - c.W) * k, dash: -0.12 + (c.reach + 0.12) * k, lean: -0.14 + 0.42 * k }; }
+  const k = ease((p - 0.03) / (REC - 0.03));
+  return { s: c.H * (1 - k), dash: c.reach * (1 - k), lean: 0.28 * (1 - k) };
+}
+function emitStatus(f, s, dt) {
+  const x = f.holder.position.x;
+  const R = Math.random;
+  const st = s.st;
+  const rates = {
+    burn: st.burn > 0 ? Math.min(28, 4 + st.burn * 1.5) : 0,
+    poison: st.poison > 0 ? Math.min(14, 2 + st.poison * 0.7) : 0,
+    frost: st.frost > 0 && !s.frozen ? 2 + st.frost * 0.8 : 0,
+    sand: st.sand > 0 ? Math.min(22, 3 + st.sand * 1.2) : 0,
+    heat: s.heat > 0 ? Math.min(10, s.heat * 0.5) : 0,
+    luck: s.luck > 0 ? Math.min(8, 1 + s.luck * 0.4) : 0,
+  };
+  for (const k of Object.keys(rates)) {
+    f.emit[k] += rates[k] * dt;
+    while (f.emit[k] >= 1) {
+      f.emit[k] -= 1;
+      if (k === 'burn') particles.emit({ x: x + (R() - 0.5) * 0.5, y: 0.3 + R() * 1.3, z: (R() - 0.5) * 0.4, vx: (R() - 0.5) * 0.3, vy: 0.9 + R() * 0.8, life: 0.5 + R() * 0.4, size: 0.035 + R() * 0.03, color: R() < 0.5 ? 0xff8a2a : 0xffd04a });
+      if (k === 'poison') particles.emit({ x: x + (R() - 0.5) * 0.5, y: 0.2 + R() * 1.0, z: (R() - 0.5) * 0.4, vx: (R() - 0.5) * 0.2, vy: 0.35 + R() * 0.35, life: 1 + R() * 0.4, size: 0.04 + R() * 0.035, color: R() < 0.5 ? 0x8bd34a : 0x5aa83a, grow: true });
+      if (k === 'frost') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 1.9 + R() * 0.3, z: (R() - 0.5) * 0.6, vx: (R() - 0.5) * 0.2, vy: -0.45 - R() * 0.2, life: 1.2, size: 0.03, color: 0xdff6ff, grow: true });
+      if (k === 'sand') particles.emit({ x, y: 1.25 + R() * 0.5, vy: (R() - 0.5) * 0.3, life: 0.7 + R() * 0.4, size: 0.025 + R() * 0.02, color: R() < 0.5 ? 0xdbb470 : 0xc9a060, orbit: { cx: x, r: 0.42 + R() * 0.2, a: R() * Math.PI * 2, w: 4 + R() * 2 } });
+      if (k === 'heat') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.05, z: (R() - 0.5) * 0.6, vy: 0.8 + R() * 0.6, life: 0.6, size: 0.03, color: 0xffb04a });
+      if (k === 'luck') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.4 + R() * 1.4, z: (R() - 0.5) * 0.5, vy: 0.15, life: 0.6, size: 0.05, color: 0xf4c652, grow: true });
+    }
+  }
+}
+function animateFighters(t, dt, simDt) {
+  const fr = B.sim ? B.sim.frames[Math.max(0, B.fi)] : null;
+  if (B.shake > 0) B.shake = Math.max(0, B.shake - dt * 3);
+  const sh = B.shake * B.shake * 0.09;
+  ac.position.set(camBase.x + Math.sin(t * 0.35) * 0.12 + (Math.random() - 0.5) * sh, camBase.y + (Math.random() - 0.5) * sh, camBase.z);
+  ac.lookAt(0, 1.0, 0);
+  const animDt = B.playing ? simDt : dt;
   for (const side of ['A', 'B']) {
     const f = F[side];
     if (!f) continue;
-    animateHero(f.hero, t + (side === 'B' ? 1.3 : 0), dt, reduceMotion);
-    f.lunge = Math.max(0, f.lunge - dt * 4.5);
-    f.shake = Math.max(0, f.shake - dt * 5);
-    const lungeX = reduceMotion ? 0 : Math.sin(f.lunge * Math.PI) * 0.4 * f.dir;
-    const shakeX = reduceMotion ? 0 : Math.sin(f.shake * 40) * 0.05 * f.shake;
-    f.holder.position.x = f.x + lungeX + shakeX;
-    if (B.done && B.sim) {
-      const lost = (B.sim.result === 'A' && side === 'B') || (B.sim.result === 'B' && side === 'A') || B.sim.result === 'draw';
-      if (lost) f.hero.root.rotation.z += (-(f.dir) * 1.35 - f.hero.root.rotation.z) * Math.min(1, dt * 4);
+    const hero = f.hero;
+    animateHero(hero, t + (side === 'B' ? 1.3 : 0), dt, reduceMotion);
+    let s = 0, os = 0, dash = 0, lean = 0;
+    if (f.attack) {
+      const c = attackCurve(B.T - f.attack.at, f.attack.style);
+      if (c) {
+        if (f.attack.main) s = c.s; else os = c.s;
+        dash = c.dash;
+        lean = c.lean;
+        const p = B.T - f.attack.at;
+        const k = p > -0.08 && p < 0.16 ? 1 - Math.abs(p - 0.02) / 0.14 : 0;
+        f.fx.slashMat.opacity = Math.max(0, k) * 0.85;
+        f.fx.slashMat.color.set(f.attack.color);
+        const big = f.attack.style === '2h' ? 1.25 : 1;
+        f.fx.slash.scale.set(f.dir * big, big, 1);
+        f.fx.slash2.scale.set(f.dir * big, big, 1);
+      } else if (B.T > f.attack.at + REC) { f.attack = null; f.fx.slashMat.opacity = 0; }
+    } else f.fx.slashMat.opacity = 0;
+    if (f.cast) {
+      const p = B.T - f.cast.at;
+      if (p > -0.22 && p < 0) os += -1.6 * ease((p + 0.22) / 0.22);
+      else if (p >= 0 && p < 0.35) { os += -1.6 * (1 - ease(p / 0.35)); if (p < 0.05) particles.burst(handPos(f).x, 0.95, 0.3, 1, 0xf4c652, { max: 0.5, life: 0.3, g: 0 }); }
+      else if (p >= 0.35) f.cast = null;
     }
+    // Intro: run in from off-stage.
+    let introX = 0, hop = 0;
+    if (B.T < 0 && B.playing) {
+      const k = ease((B.T + INTRO) / 0.65);
+      introX = -f.dir * 2.2 * (1 - k);
+      if (k < 1) hop = Math.abs(Math.sin(t * 16)) * 0.08;
+    }
+    // Hit reaction and dodge.
+    f.knock = Math.max(0, f.knock - animDt * 4);
+    f.dodge = Math.max(0, f.dodge - animDt * 3.2);
+    const knock = Math.min(1.4, f.knock);
+    const kx = -f.dir * 0.3 * knock * knock;
+    lean -= 0.35 * Math.min(1, knock);
+    const dodgeK = f.dodge > 0 ? Math.sin((1 - f.dodge) * Math.PI) : 0;
+    // End of fight.
+    if (f.dead) {
+      f.deathT += dt;
+      const k = ease(f.deathT / 0.55);
+      hero.root.rotation.x = -1.35 * k;
+      hero.root.position.y = -0.08 * k;
+      if (f.deathT - dt < 0.5 && f.deathT >= 0.5) particles.burst(f.holder.position.x - f.dir * 0.6, 0.1, 0, 20, [0x8a7a60, 0x5a4a3a], { max: 1.8, up: 0.8, life: 0.6, size: 0.05 });
+      s = 0; os = 0;
+    } else {
+      hero.root.rotation.x = 0;
+      hero.root.position.y = 0;
+    }
+    if (f.win) {
+      f.winT += dt;
+      const k = ease(f.winT / 0.3);
+      s = SWING[weaponStyle(f.equip, true)].W * 0.85 * k;
+      hop = f.winT > 0.3 && f.winT < 2.3 ? Math.abs(Math.sin((f.winT - 0.3) * 7)) * 0.22 : 0;
+      if (Math.random() < dt * 10 && f.winT < 2.5) particles.emit({ x: f.holder.position.x + (Math.random() - 0.5) * 1.2, y: 0.3 + Math.random() * 1.8, z: (Math.random() - 0.5) * 0.5, vy: 0.3, life: 0.7, size: 0.06, color: 0xf4c652, grow: true });
+    }
+    swingPose(hero, s, os);
+    hero.body.rotation.x = reduceMotion ? 0 : lean;
+    hero.body.rotation.z = reduceMotion ? 0 : -f.dir * 0.22 * dodgeK;
+    const motion = reduceMotion ? 0 : 1;
+    f.holder.position.set(f.x + (introX + f.dir * dash + kx) * motion, hop * motion, 0.45 * dodgeK * motion);
+    // Hit flash and frozen tint.
+    const s0 = fr ? fr[side] : null;
+    f.flash = Math.max(0, f.flash - dt * 4);
+    const frozen = !!(s0 && s0.frozen);
+    const fk = Math.max(f.flash, frozen ? 0.35 : 0);
+    if (fk > 0.01) {
+      const col = f.flash > 0.35 || !frozen ? f.flashColor : ICE;
+      for (const mt of f.mats) { mt.emissive.copy(mt.userData.em0).lerp(col, fk); mt.emissiveIntensity = Math.max(mt.userData.ei0, fk * 1.1); }
+      f.flashOn = true;
+    } else if (f.flashOn) {
+      for (const mt of f.mats) { mt.emissive.copy(mt.userData.em0); mt.emissiveIntensity = mt.userData.ei0; }
+      f.flashOn = false;
+    }
+    // Ice block grows in and shrinks out.
+    f.iceK += ((frozen ? 1 : 0) - f.iceK) * Math.min(1, dt * 12);
+    f.ice.visible = f.iceK > 0.02;
+    f.ice.scale.setScalar(0.6 + 0.4 * f.iceK);
+    // Shield bubble, status rings.
+    f.pulse = Math.max(0, f.pulse - dt * 2.5);
+    const shieldK = s0 && s0.shield > 0.5 ? Math.min(1, 0.35 + s0.shield / (s0.maxHp * 0.4)) : 0;
+    f.fx.bubbleMat.opacity = shieldK * 0.13 + f.pulse * 0.25;
+    f.fx.wireMat.opacity = shieldK * 0.22 + f.pulse * 0.35;
+    f.fx.bubble.rotation.y += dt * 0.4;
+    f.fx.wire.rotation.y = f.fx.bubble.rotation.y;
+    const pulseScale = 1 + f.pulse * 0.08;
+    f.fx.bubble.scale.set(0.82 * pulseScale, 1.12 * pulseScale, 0.82 * pulseScale);
+    f.fx.wire.scale.copy(f.fx.bubble.scale);
+    const slow = s0 ? s0.st.slow : 0, heat = s0 ? s0.heat : 0;
+    f.fx.slowRing.material.opacity = slow > 0 ? Math.min(0.8, 0.25 + slow * 0.05) : 0;
+    f.fx.slowRing.rotation.z += dt * 0.8;
+    f.fx.slowRing.scale.setScalar(0.85 + Math.sin(t * 2) * 0.04);
+    f.fx.heatRing.material.opacity = heat > 0 ? Math.min(0.8, 0.2 + heat * 0.04) : 0;
+    f.fx.heatRing.scale.setScalar(0.7 + Math.sin(t * 5) * 0.05);
+    f.clutch = Math.max(0, f.clutch - dt * 1.5);
+    f.fx.clutchRing.material.opacity = f.clutch * 0.9;
+    f.fx.clutchRing.scale.setScalar(0.6 + (1 - f.clutch) * 1.4);
+    if (s0 && B.playing && B.T > 0 && !reduceMotion) emitStatus(f, s0, simDt);
   }
+  bolts.update(B.T, simDt);
+  particles.update(animDt);
   for (const key of Object.keys(B.flash)) {
     B.flash[key] -= dt;
     if (B.flash[key] <= 0) {
@@ -955,6 +1233,7 @@ function animateFighters(t, dt) {
     }
   }
 }
+const ICE = new THREE.Color(0x7fd6ff);
 
 /* =========================================================
    Loop
@@ -969,8 +1248,8 @@ function loop(now) {
   last = now;
   t += dt;
   if (screenEl.classList.contains('in-battle')) {
-    stepBattle(dt);
-    animateFighters(t, dt);
+    const simDt = stepBattle(dt);
+    animateFighters(t, dt, simDt);
     ar.render(as, ac);
   } else {
     if (!reduceMotion) { ttYaw += dt * 0.8; ttDirty = true; }
@@ -989,3 +1268,6 @@ render();
 dressHero(hero, S.equip, ITEMS);
 sizeHero();
 requestAnimationFrame(loop);
+
+// Test hook, only with ?debug in the URL.
+if (location.search.includes('debug')) window.__game = { S, ITEMS, inst, commit, startBattle, B };
