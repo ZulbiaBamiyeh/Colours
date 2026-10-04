@@ -1326,6 +1326,25 @@ function startBattle(ex = null) {
 }
 
 const hudCache = { A: {}, B: {} };
+// The pale trail behind a health bar marks a chunk of damage just taken. Burn and Poison drain a little every
+// tick, so small drops move the trail with the bar instead of leaving a permanent grey strip.
+function setLag(lag, pct) {
+  const prev = +(lag.dataset.p ?? 1);
+  const big = prev - pct > 0.025;
+  if (big || pct > prev) {
+    lag.style.transition = '';
+    lag.style.width = `${(pct * 100).toFixed(1)}%`;
+    lag.dataset.p = pct;
+  } else if (prev - pct > 0.0005) {
+    // Drains: follow without the trail, unless a big hit's trail is still catching up.
+    if (!lag.dataset.t || performance.now() - lag.dataset.t > 700) {
+      lag.style.transition = 'none';
+      lag.style.width = `${(pct * 100).toFixed(1)}%`;
+    }
+    lag.dataset.p = pct;
+  }
+  if (big) lag.dataset.t = performance.now();
+}
 // Health bars that float above each fighter in the arena, following them as they lunge.
 function updateOverheads() {
   const fr = B.sim?.frames[Math.max(0, B.fi)];
@@ -1342,7 +1361,7 @@ function updateOverheads() {
     const fill = el.querySelector('.ohp-fill');
     fill.style.width = `${(pct * 100).toFixed(1)}%`;
     fill.className = `ohp-fill${pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : ''}`;
-    el.querySelector('.ohp-lag').style.width = `${(pct * 100).toFixed(1)}%`;
+    setLag(el.querySelector('.ohp-lag'), pct);
     el.querySelector('.ohp-sh').style.width = `${Math.min(100, (s.shield / s.maxHp) * 100).toFixed(1)}%`;
     const txt = `${Math.ceil(s.hp)}${s.shield >= 1 ? ` +${Math.round(s.shield)}` : ''}`;
     const t = el.querySelector('.ohp-n');
@@ -1360,7 +1379,7 @@ function updateHud(force) {
     const pct = s.maxHp ? Math.max(0, s.hp / s.maxHp) : 0;
     const fill = root.querySelector('.hp-fill');
     fill.style.width = `${(pct * 100).toFixed(1)}%`;
-    root.querySelector('.hp-lag').style.width = `${(pct * 100).toFixed(1)}%`;
+    setLag(root.querySelector('.hp-lag'), pct);
     fill.className = `hp-fill${pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : ''}`;
     root.querySelector('.hp-sh').style.width = `${Math.min(100, (s.shield / s.maxHp) * 100).toFixed(1)}%`;
     root.querySelector('.hp-text').textContent = `${Math.ceil(s.hp)} / ${Math.round(s.maxHp)}${s.shield >= 1 ? ` · Shield ${Math.round(s.shield)}` : ''}`;
