@@ -1304,6 +1304,7 @@ export function buildHero(opts = {}, m = MS) {
 }
 
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
+const HELD_TURN = PI / 2;
 const R2H = new THREE.Vector3(-0.22, 0.62, 0.32);
 const N2H = new THREE.Vector3(0.55, 0.8, 0.1).normalize();
 const L2H = R2H.clone().addScaledVector(N2H, 0.35);
@@ -1336,8 +1337,8 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   hero.twoHanded = !!(wdef && wdef.weapon?.hands === 2);
   place('weapon', w, hero.twoHanded ? hero.body : hero.arms.right.socket, (h, model, def) => {
     model.position.y = -(def.model.hand ?? -0.24);
-    // One-sided heads (a single axe blade) face away from the body.
-    if (def.model.flip) model.rotation.y = PI;
+    // Models are drawn flat-on for their icons; in the hand, turn them so the edge (or an axe head) leads.
+    model.rotation.y = HELD_TURN + (def.model.flip ? PI : 0);
     if (hero.twoHanded) {
       h.position.copy(R2H);
       h.quaternion.setFromUnitVectors(UP, N2H);
@@ -1350,6 +1351,7 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   place('offhand', off, hero.arms.left.socket, (h, model, def) => {
     if (def.dual) {
       model.position.y = -(def.model.hand ?? -0.24);
+      model.rotation.y = HELD_TURN + (def.model.flip ? PI : 0);
       h.rotation.set(0.72, 0, -0.32);
       h.scale.setScalar(0.75);
     } else if (def.model.grip != null) {

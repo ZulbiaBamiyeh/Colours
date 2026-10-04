@@ -201,7 +201,7 @@ const LIST = [
   /* ---------------- Blood ---------------- */
   { id: 'bloodletter', name: 'Bloodletter', schools: [BLOOD], slot: 'weapon', rarity: C, kind: 'Axe',
     text: '35% Lifesteal.', weapon: W(2.8, 11, null, { ls: 0.35 }),
-    model: { t: 'axe', haft: 0x3a2418, blade: 0x8a8f9a, edge: 0xd8344f, socket: 0x2a1a1e, gem: 0xd8344f, hand: -0.4, hold: 0.68, flip: true } },
+    model: { t: 'axe', haft: 0x3a2418, blade: 0x8a8f9a, edge: 0xd8344f, socket: 0x2a1a1e, gem: 0xd8344f, hand: -0.4, hold: 0.68 } },
   { id: 'crimson_greataxe', name: 'Crimson Greataxe', schools: [BLOOD], slot: 'weapon', rarity: R, kind: 'Greataxe',
     text: '40% Lifesteal.', weapon: W2(4.5, 28, null, { ls: 0.4 }),
     model: { t: 'axe', two: true, double: true, haft: 0x2a1a1e, blade: 0x6b1a24, edge: 0xd8344f, socket: 0x1a1014, gem: 0xd8344f, hand: -0.72, hold: 0.58 } },
