@@ -103,7 +103,7 @@ const LIST = [
     model: { t: 'dagger', blade: 0x3f5a2e, edge: 0x8bd34a, guard: 0x2e3a22, grip: 0x2e3a22, gem: 0x8bd34a, drip: 0x8bd34a, hold: 0.85 } },
   { id: 'blightreaper', name: 'Blightreaper', schools: [VENOM], slot: 'weapon', rarity: R, kind: 'Scythe',
     text: 'On hit: apply 6 Poison.', weapon: W2(4.0, 18, c => c.apply('poison', 6)),
-    model: { t: 'scythe', haft: 0x3a2e22, blade: 0x4a5a3a, edge: 0x8bd34a, bone: 0xd8d0b0, hand: -0.5, hold: 0.6, flip: true } },
+    model: { t: 'scythe', haft: 0x3a2e22, blade: 0x4a5a3a, edge: 0x8bd34a, bone: 0xd8d0b0, hand: -0.5, hold: 0.6 } },
   { id: 'stinger', name: 'Stinger', schools: [VENOM], slot: 'offhand', rarity: C, kind: 'Parrying dagger',
     text: 'Dual wield: attacks every 1.5s for 2. On hit: apply 1 Poison.', dual: W(1.5, 2, c => c.apply('poison', 1)),
     model: { t: 'dagger', len: 0.9, curve: 0.08, blade: 0x5a6a3a, edge: 0xb8e070, guard: 0x2e3a22, grip: 0x2e3a22, gem: 0x8bd34a } },
@@ -351,7 +351,7 @@ const LIST = [
   { id: 'moon_sickle', name: 'Moon Sickle', schools: [LUNAR], slot: 'weapon', rarity: C, kind: 'Sickle',
     text: 'On hit: gain 1 Regen, up to 5 from this sickle.',
     weapon: W(1.6, 5, c => { if ((c.data.n ?? 0) >= 5) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('regen', 1); }),
-    model: { t: 'sickle', blade: 0xd8def0, edge: 0x9aa8ff, glow: 0.4, guard: 0x6a74a8, grip: 0x2c3050, gem: 0x9aa8ff, hand: -0.24, flip: true, hold: 0.9 } },
+    model: { t: 'sword', curve: 0.32, blade: 0xd8def0, edge: 0x9aa8ff, glow: 0.4, guard: 0x6a74a8, grip: 0x2c3050, gem: 0x9aa8ff, hold: 0.78 } },
   { id: 'tidecaller', name: 'Tidecaller', schools: [LUNAR], slot: 'weapon', rarity: R, kind: 'Staff',
     text: 'On hit: Cleanse 2, and gain 1 Regen for each stack removed.',
     weapon: W2(3.2, 17, c => { const n = c.cleanse(2); return n > 0 && c.gain('regen', n); }),
@@ -613,58 +613,73 @@ const NOUNS = ['Wanderer', 'Duelist', 'Pilgrim', 'Raider', 'Warden', 'Drifter', 
 
 const GEAR_RANK = { common: 1, rare: 2, epic: 3, legendary: 4 };
 
-// A same-day ghost who shopped, imperfectly. Eight gold a day, the shaped market, and only pieces
-// from one or two schools. Unspent gold carries. Gaps stay gaps.
+// A same-day ghost who shopped, imperfectly, on about a player's budget: gold every day, one reroll a day,
+// unspent gold carries. It builds around two schools but buys less of a school the more it already has,
+// takes bridge pieces that reach into a third, and fills empty slots with whatever gear is on the shelf.
 export function makeGhost(day, rng) {
   const pick = arr => arr[Math.floor(rng() * arr.length)];
   const main = pick(SCHOOLS);
-  const second = rng() < 0.55 ? pick(SCHOOLS.filter(s => s !== main)) : null;
-  const plan = new Set([main, second].filter(Boolean));
-  const onPlan = def => def.schools.includes('Prismatic') ? rng() < 0.2 : def.schools.every(s => plan.has(s));
+  const second = rng() < 0.85 ? pick(SCHOOLS.filter(s => s !== main)) : null;
+  const plan = [main, second].filter(Boolean);
   const equip = {};
+  const count = {};
   let gold = 0;
   let uid = 1;
-  const slotFor = def => {
-    if (def.slot === 'offhand' && equip.weapon && ITEMS[equip.weapon.id].weapon?.hands === 2) return null;
-    if (def.slot === 'ring') {
-      if (!equip.ring1) return 'ring1';
-      if (!equip.ring2 && equip.ring1.id !== def.id) return 'ring2';
-      if (GEAR_RANK[def.rarity] > GEAR_RANK[ITEMS[equip.ring1.id].rarity]) return 'ring1';
-      if (equip.ring2 && def.id !== equip.ring1.id && GEAR_RANK[def.rarity] > GEAR_RANK[ITEMS[equip.ring2.id].rarity]) return 'ring2';
-      return null;
-    }
-    const cur = equip[def.slot];
-    if (cur && GEAR_RANK[def.rarity] <= GEAR_RANK[ITEMS[cur.id].rarity]) return null;
-    return def.slot;
+  const tally = (def, k) => { for (const s of def.schools) count[s] = (count[s] ?? 0) + k; };
+  // How well a piece suits this build; 0 means it would not buy it.
+  const fit = def => {
+    if (def.schools.includes('Prismatic')) return 1.6;
+    const on = def.schools.filter(s => plan.includes(s));
+    if (!on.length) return 0.5;
+    let f = on.length === def.schools.length ? 2 : 1.5;
+    if (on.includes(main)) f += 0.4;
+    return Math.max(0.6, f - 0.22 * Math.max(...on.map(s => count[s] ?? 0)));
+  };
+  const value = def => fit(def) * 4 + GEAR_RANK[def.rarity] * 3;
+  const slotsFor = def => {
+    if (def.slot === 'offhand' && equip.weapon && ITEMS[equip.weapon.id].weapon?.hands === 2) return [];
+    if (def.slot === 'ring') return [equip.ring1?.id, equip.ring2?.id].includes(def.id) ? [] : ['ring1', 'ring2'];
+    return [def.slot];
+  };
+  const sellBack = slot => {
+    const cur = equip[slot];
+    if (!cur) return;
+    gold += Math.floor(ITEMS[cur.id].price / 2);
+    tally(ITEMS[cur.id], -1);
+    delete equip[slot];
   };
   for (let d = 1; d <= day; d++) {
-    gold += 8;
-    let offers = rollShopOffers(d, rng).map(id => ITEMS[id]).filter(def => def && onPlan(def));
-    let bought = 0;
-    for (let guard = 0; guard < 4; guard++) {
+    gold += d === 1 ? 10 : 9;
+    // One plain market a day, plus rerolls spent hunting its own schools.
+    const offSchool = def => !def.schools.some(sc => plan.includes(sc));
+    let offers = [...rollShopOffers(d, rng), ...rollShopOffers(d, rng, offSchool), ...rollShopOffers(d, rng, offSchool)]
+      .filter(Boolean).map(id => ITEMS[id]);
+    for (let guard = 0; guard < 6; guard++) {
       let best = null;
       for (const def of offers) {
-        const slot = slotFor(def);
-        if (!slot) continue;
-        const cur = equip[slot];
-        const sell = cur ? Math.floor(ITEMS[cur.id].price / 2) : 0;
-        if (def.price - sell > gold) continue;
-        const score = (cur ? 0 : 20) + (slot === 'weapon' && !equip.weapon ? 15 : 0) + GEAR_RANK[def.rarity];
-        if (!best || score > best.score) best = { def, slot, score };
+        for (const slot of slotsFor(def)) {
+          const cur = equip[slot];
+          const sell = cur ? Math.floor(ITEMS[cur.id].price / 2) : 0;
+          if (def.price - sell > gold) continue;
+          // An empty slot is worth filling with anything; a filled one only for a clear step up.
+          // Off-school filler only goes in a slot still empty from day 3, and is the first thing replaced.
+          const filler = fit(def) < 1;
+          if (filler && (cur || d < 3)) continue;
+          const gain = cur ? value(def) - value(ITEMS[cur.id]) - 2 : value(def) + (slot === 'weapon' ? 12 : 4) - (filler ? 6 : 0);
+          if (gain <= 0) continue;
+          const score = gain + rng() * 3;
+          if (!best || score > best.score) best = { def, slot, score };
+        }
       }
       if (!best) break;
-      // Often stop after one piece, so a ghost does not clear the shelf.
-      if (bought >= 1 && rng() < 0.45) break;
-      const cur = equip[best.slot];
-      if (cur) gold += Math.floor(ITEMS[cur.id].price / 2);
+      // Once kitted out for the day, it sometimes stops early and banks the gold.
+      if (Object.keys(equip).length > d && rng() < 0.15) break;
+      sellBack(best.slot);
       gold -= best.def.price;
       equip[best.slot] = { uid: uid++, id: best.def.id };
-      if (best.slot === 'weapon' && best.def.weapon?.hands === 2 && equip.offhand) {
-        gold += Math.floor(ITEMS[equip.offhand.id].price / 2);
-        delete equip.offhand;
-      }
+      tally(best.def, 1);
+      if (best.slot === 'weapon' && best.def.weapon?.hands === 2) sellBack('offhand');
       offers = offers.filter(def => def !== best.def);
-      bought++;
     }
   }
   if (!equip.weapon) {

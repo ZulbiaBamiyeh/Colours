@@ -395,21 +395,6 @@ function sword(m, p) {
   hilt(g, m, p, p.hilt ?? 0.4);
   return g;
 }
-function sickle(m, p) {
-  const g = new THREE.Group();
-  // A hooked crescent that opens toward +x; held with flip so the hook faces forward.
-  const s = new THREE.Shape();
-  s.moveTo(-0.07, 0);
-  s.quadraticCurveTo(-0.16, 0.86, 0.6, 0.66);
-  s.quadraticCurveTo(0.06, 0.6, 0.07, 0);
-  s.closePath();
-  g.add(mesh(extrude(s, 0.05, 0.012), m(p.blade), [0, 0.05, 0]));
-  if (p.edge) g.add(mesh(extrude(s, 0.022, 0), m(p.edge, { glow: p.glow ?? 0.5 }), [0.02, 0.04, 0], [0, 0, 0], [1.06, 1.03, 1]));
-  g.add(mesh(cyl(0.085, 0.07, 0.1, 10), m(p.guard), [0, 0.02, 0]));
-  if (p.gem) g.add(mesh(octa(0.06), m(p.gem, { glow: 0.5 }), [-0.04, 0.42, 0.05]));
-  hilt(g, m, p, 0.46);
-  return g;
-}
 function mace(m, p) {
   const g = new THREE.Group();
   g.add(mesh(cyl(0.05, 0.06, 1.15), m(p.haft)));
@@ -1026,7 +1011,7 @@ function lockstone(m) {
 
 const RECIPES = {
   cinder: (m) => cinder(m), maul: (m) => maul(m), kindling: (m) => kindling(m), haloHelm: (m) => haloHelm(m), prismStaff: (m) => prismStaff(m),
-  dagger, sword, sickle, mace, hammer, axe, cleaver, scythe, glaive,
+  dagger, sword, mace, hammer, axe, cleaver, scythe, glaive,
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,
@@ -1319,12 +1304,24 @@ export function buildHero(opts = {}, m = MS) {
 }
 
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
-const HELD_TURN = PI / 2;
 const R2H = new THREE.Vector3(-0.22, 0.62, 0.32);
 const N2H = new THREE.Vector3(0.55, 0.8, 0.1).normalize();
 const L2H = R2H.clone().addScaledVector(N2H, 0.35);
 function aimArm(arm, target) {
   arm.pivot.quaternion.setFromUnitVectors(DOWN, target.clone().sub(arm.pivot.position).normalize());
+}
+// Turn a held weapon about its own length so its edge (or head) leads toward hero.aim, an angle in the
+// hero's own frame: 0 is straight ahead, positive turns toward the hero's left. Weapon models are drawn
+// flat-on with the leading side (an axe head, a scythe blade, a curved blade's hook) at +x; flip marks
+// models that should lead with the other side.
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _vx = new THREE.Vector3(), _vz = new THREE.Vector3();
+function aimHeld(hero, model, def) {
+  hero.root.updateMatrixWorld(true);
+  hero.root.getWorldQuaternion(_qa).invert().multiply(model.parent.getWorldQuaternion(_qb));
+  _vx.set(1, 0, 0).applyQuaternion(_qa);
+  _vz.set(0, 0, 1).applyQuaternion(_qa);
+  const a = hero.aim ?? 0, dx = Math.sin(a), dz = Math.cos(a);
+  model.rotation.y = Math.atan2(-(_vz.x * dx + _vz.z * dz), _vx.x * dx + _vx.z * dz) + (def.model.flip ? PI : 0);
 }
 function tint(list, hex, m) { for (const o of list) o.material = m(hex); }
 
@@ -1345,6 +1342,7 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
     holder.userData.base = holder.scale.x;
     holder.userData.pop = item.uid === freshUid ? 0 : 1;
     parent.add(holder);
+    if (key === 'weapon' || def.dual) aimHeld(hero, model, def);
     hero.worn[key] = { uid: item.uid, holder, model };
   };
   const w = equip.weapon;
@@ -1352,8 +1350,6 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   hero.twoHanded = !!(wdef && wdef.weapon?.hands === 2);
   place('weapon', w, hero.twoHanded ? hero.body : hero.arms.right.socket, (h, model, def) => {
     model.position.y = -(def.model.hand ?? -0.24);
-    // Models are drawn flat-on for their icons; in the hand, turn them so the edge (or an axe head) leads.
-    model.rotation.y = HELD_TURN + (def.model.flip ? PI : 0);
     if (hero.twoHanded) {
       h.position.copy(R2H);
       h.quaternion.setFromUnitVectors(UP, N2H);
@@ -1366,7 +1362,6 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   place('offhand', off, hero.arms.left.socket, (h, model, def) => {
     if (def.dual) {
       model.position.y = -(def.model.hand ?? -0.24);
-      model.rotation.y = HELD_TURN + (def.model.flip ? PI : 0);
       h.rotation.set(0.72, 0, -0.32);
       h.scale.setScalar(0.75);
     } else if (def.model.grip != null) {

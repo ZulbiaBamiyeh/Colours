@@ -1217,10 +1217,14 @@ function weaponColor(equip, main) {
   const sc = ITEMS[e.id].schools[0];
   return { Fire: 0xffa050, Frost: 0xbfefff, Venom: 0xb8f070, Desert: 0xffe0a0, Holy: 0xfff0b0, Blood: 0xff7080, Fortune: 0x9ff0c8, Prismatic: 0xf0c0ff }[sc] ?? 0xfff4e0;
 }
+// Fighters stand turned 0.8 rad toward the camera, so the opponent sits this far off their straight-ahead;
+// held weapons aim their edge there.
+const FACE_AIM = Math.PI / 2 - 0.8;
 function makeFighterView(side, equip, look) {
   const h = buildHero(look, matFor(S.ttStyle));
-  dressHero(h, equip, ITEMS);
   const dir = side === 'A' ? 1 : -1;
+  h.aim = dir * FACE_AIM;
+  dressHero(h, equip, ITEMS);
   const holder = new THREE.Group();
   holder.position.x = -dir * HOME_X;
   const ped = pedestal();
@@ -2113,6 +2117,7 @@ function restyleHeroes() {
     if (f.flashOn) for (const mt of f.mats) { mt.emissive.copy(mt.userData.em0); mt.emissiveIntensity = mt.userData.ei0; }
     f.holder.remove(f.hero.root);
     const h = buildHero(f.look, m);
+    h.aim = f.dir * FACE_AIM;
     dressHero(h, f.equip, ITEMS);
     h.root.rotation.y = f.dir * 0.8;
     f.holder.add(h.root);
