@@ -4,7 +4,7 @@ import {
   ITEMS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
 } from './items.js';
 import { simulate, mulberry32, RULES } from './engine.js';
-import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh } from './models.js';
+import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 
 const $ = id => document.getElementById(id);
@@ -49,10 +49,13 @@ const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slo
    ========================================================= */
 let uidN = 1;
 const inst = id => ({ uid: uidN++, id });
+function loadStyle() { try { return localStorage.getItem('artStyle') === 'pixel' ? 'pixel' : 'smooth'; } catch { return 'smooth'; } }
+const MP = materialFactory('pixel');
+const matFor = style => (style === 'pixel' ? MP : MS);
 const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
 const S = {
   day: 1, gold: 10, lives: 5, maxLives: 5, wins: 0, goal: 10,
-  equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: 'smooth', record: [],
+  equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), record: [],
 };
 
 const getItem = loc => {
@@ -527,16 +530,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet()
 const tt = $('turntable');
 const ttCtx = tt.getContext('2d');
 function syncTTSeg() {
-  $('tt-seg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.ttStyle)));
-  tt.classList.toggle('pixel', S.ttStyle === 'pixel');
+  document.querySelectorAll('[data-style-seg] button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.ttStyle)));
+  for (const el of [tt, $('hero'), $('arena')]) el.classList.toggle('pixel', S.ttStyle === 'pixel');
 }
-$('tt-seg').addEventListener('click', e => {
+document.querySelectorAll('[data-style-seg]').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button');
-  if (!b) return;
+  if (!b || b.dataset.v === S.ttStyle) return;
   S.ttStyle = b.dataset.v;
+  try { localStorage.setItem('artStyle', S.ttStyle); } catch { /* storage unavailable */ }
   syncTTSeg();
   ttDirty = true;
-});
+  restyleHeroes();
+}));
 
 /* =========================================================
    Market character
@@ -549,14 +554,16 @@ hr.setClearColor(0x000000, 0);
 const hs = new THREE.Scene();
 heroLights(hs);
 const hc = new THREE.PerspectiveCamera(28, 1, 0.1, 60);
-const hero = buildHero();
+let hero = buildHero({}, matFor(S.ttStyle));
 hs.add(hero.root);
+const hpx = new PixelPass(hr);
 hs.add(pedestal());
 let heroYaw = 0.38;
 function sizeHero() {
   const w = stage.clientWidth, h = stage.clientHeight;
   if (!w || !h) return;
   hr.setSize(w, h, false);
+  hpx.setSize(w, h);
   hc.aspect = w / h;
   const tanH = Math.tan(THREE.MathUtils.degToRad(hc.fov / 2));
   const d = Math.max(1.6 / tanH, 1.05 / (tanH * hc.aspect));
@@ -594,6 +601,7 @@ const ac = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
 const GHOST_LOOK = { skin: 0xc4bfe6, hair: 0x5a5a8a, tunic: 0x6a5a8a, eyes: 0x8fe3ff, eyesGlow: 0.9, blush: 0x9a8fd0 };
 const F = { A: null, B: null };
 const particles = new Particles(as);
+const apx = new PixelPass(ar);
 const bolts = new Bolts(as, particles);
 const HOME_X = 1.5;
 function collectMats(root) {
@@ -618,7 +626,7 @@ function weaponColor(equip, main) {
   return { Fire: 0xffa050, Frost: 0xbfefff, Venom: 0xb8f070, Desert: 0xffe0a0, Holy: 0xfff0b0, Blood: 0xff7080, Fortune: 0x9ff0c8, Prismatic: 0xf0c0ff }[sc] ?? 0xfff4e0;
 }
 function makeFighterView(side, equip, look) {
-  const h = buildHero(look);
+  const h = buildHero(look, matFor(S.ttStyle));
   dressHero(h, equip, ITEMS);
   const dir = side === 'A' ? 1 : -1;
   const holder = new THREE.Group();
@@ -638,7 +646,7 @@ function makeFighterView(side, equip, look) {
   holder.add(fx.group);
   as.add(holder);
   return {
-    side, equip, hero: h, holder, pedWrap, ice, fx, dir, x: -dir * HOME_X, mats: collectMats(h.root),
+    side, equip, look, hero: h, holder, pedWrap, ice, fx, dir, x: -dir * HOME_X, mats: collectMats(h.root),
     attack: null, cast: null, knock: 0, dodge: 0, flash: 0, flashColor: new THREE.Color(1, 1, 1), flashOn: false,
     pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, dead: false, deathT: 0, win: false, winT: 0,
   };
@@ -653,6 +661,7 @@ function sizeArena() {
   const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
   if (!w || !h) return;
   ar.setSize(w, h, false);
+  apx.setSize(w, h);
   ac.aspect = w / h;
   const tanH = Math.tan(THREE.MathUtils.degToRad(ac.fov / 2));
   const d = Math.max(1.75 / tanH, 2.9 / (tanH * ac.aspect));
@@ -1235,6 +1244,30 @@ function animateFighters(t, dt, simDt) {
 }
 const ICE = new THREE.Color(0x7fd6ff);
 
+// Rebuild the characters with the materials for the chosen art style.
+function restyleHeroes() {
+  const m = matFor(S.ttStyle);
+  hs.remove(hero.root);
+  const yaw = hero.root.rotation.y;
+  hero = buildHero({}, m);
+  hero.root.rotation.y = yaw;
+  hs.add(hero.root);
+  dressHero(hero, S.equip, ITEMS);
+  for (const k of ['A', 'B']) {
+    const f = F[k];
+    if (!f) continue;
+    if (f.flashOn) for (const mt of f.mats) { mt.emissive.copy(mt.userData.em0); mt.emissiveIntensity = mt.userData.ei0; }
+    f.holder.remove(f.hero.root);
+    const h = buildHero(f.look, m);
+    dressHero(h, f.equip, ITEMS);
+    h.root.rotation.y = f.dir * 0.8;
+    f.holder.add(h.root);
+    f.hero = h;
+    f.mats = collectMats(h.root);
+    f.flashOn = false;
+  }
+}
+
 /* =========================================================
    Loop
    ========================================================= */
@@ -1250,13 +1283,13 @@ function loop(now) {
   if (screenEl.classList.contains('in-battle')) {
     const simDt = stepBattle(dt);
     animateFighters(t, dt, simDt);
-    ar.render(as, ac);
+    if (S.ttStyle === 'pixel') apx.render(as, ac); else ar.render(as, ac);
   } else {
     if (!reduceMotion) { ttYaw += dt * 0.8; ttDirty = true; }
     if (ttDirty) { drawTurntable(); ttDirty = false; }
     animateHero(hero, t, dt, reduceMotion);
     hero.root.rotation.y += (heroYaw - hero.root.rotation.y) * 0.18;
-    hr.render(hs, hc);
+    if (S.ttStyle === 'pixel') hpx.render(hs, hc); else hr.render(hs, hc);
   }
   requestAnimationFrame(loop);
 }

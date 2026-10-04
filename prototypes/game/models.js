@@ -1043,8 +1043,7 @@ export function createStudio(ITEMS) {
 
 /* ---------------- Character ---------------- */
 const SKIN = 0xf3c7a0, TUNIC = 0x5f7fa8, HAIR = 0x7a4524, PANTS = 0x5a4a3d, BOOTS = 0x4a3427;
-export function buildHero(opts = {}) {
-  const m = MS;
+export function buildHero(opts = {}, m = MS) {
   const skin = opts.skin ?? SKIN;
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';
@@ -1101,7 +1100,7 @@ export function buildHero(opts = {}) {
   body.add(gear.body, gear.boots);
   arms.right.pivot.add(gear.gloves[0]);
   arms.left.pivot.add(gear.gloves[1]);
-  return { root, body, arms, head, hair, helm, back, parts, gear, gearKeys: {}, base: { tunic: opts.tunic ?? TUNIC, skin, boots: BOOTS }, worn: {}, twoHanded: false, hasOff: false };
+  return { m, opts, root, body, arms, head, hair, helm, back, parts, gear, gearKeys: {}, base: { tunic: opts.tunic ?? TUNIC, skin, boots: BOOTS }, worn: {}, twoHanded: false, hasOff: false };
 }
 
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
@@ -1111,10 +1110,11 @@ const L2H = R2H.clone().addScaledVector(N2H, 0.35);
 function aimArm(arm, target) {
   arm.pivot.quaternion.setFromUnitVectors(DOWN, target.clone().sub(arm.pivot.position).normalize());
 }
-function tint(list, hex) { for (const o of list) o.material = MS(hex); }
+function tint(list, hex, m) { for (const o of list) o.material = m(hex); }
 
 // Dress a hero with equipment. equip maps slot -> { uid, id } or null.
 export function dressHero(hero, equip, ITEMS, freshUid = null) {
+  const M = hero.m;
   const place = (key, item, parent, setup) => {
     const prev = hero.worn[key];
     if (prev && item && prev.uid === item.uid) return;
@@ -1123,7 +1123,7 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
     if (!item) return;
     const def = ITEMS[item.id];
     const holder = new THREE.Group();
-    const model = buildItemModel(def, MS);
+    const model = buildItemModel(def, M);
     holder.add(model);
     setup(holder, model, def);
     holder.userData.base = holder.scale.x;
@@ -1175,9 +1175,9 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
     h.scale.set(1.0, 0.72, 0.7);
   });
   const tintOf = (item) => item && (ITEMS[item.id].model.tint ?? ITEMS[item.id].model.a);
-  tint(hero.parts.tunic, tintOf(equip.body) ?? hero.base.tunic);
-  tint(hero.parts.hands, tintOf(equip.gloves) ?? hero.base.skin);
-  tint(hero.parts.feet, tintOf(equip.boots) ?? hero.base.boots);
+  tint(hero.parts.tunic, tintOf(equip.body) ?? hero.base.tunic, M);
+  tint(hero.parts.hands, tintOf(equip.gloves) ?? hero.base.skin, M);
+  tint(hero.parts.feet, tintOf(equip.boots) ?? hero.base.boots, M);
   hero.hasOff = !!off;
   const key = it => (it ? it.uid : 0);
   const clear = grp => { while (grp.children.length) grp.remove(grp.children[0]); };
@@ -1190,16 +1190,16 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
       if (p.kind === 'plate' || p.kind === 'carapace' || p.kind === 'mail') {
         const r = p.kind === 'mail' ? 0.12 : 0.15;
         for (const k of [-1, 1]) {
-          hero.gear.body.add(mesh(new THREE.SphereGeometry(r, 10, 6, 0, PI * 2, 0, PI / 2), MS(trim), [0.34 * k, 1.03, 0], [0, 0, -0.35 * k], [1.25, 0.85, 1.2]));
-          if (p.kind === 'carapace') hero.gear.body.add(mesh(cone(0.04, 0.16, 5), MS(p.c ?? trim), [0.42 * k, 1.12, 0], [0, 0, -0.9 * k]));
+          hero.gear.body.add(mesh(new THREE.SphereGeometry(r, 10, 6, 0, PI * 2, 0, PI / 2), M(trim), [0.34 * k, 1.03, 0], [0, 0, -0.35 * k], [1.25, 0.85, 1.2]));
+          if (p.kind === 'carapace') hero.gear.body.add(mesh(cone(0.04, 0.16, 5), M(p.c ?? trim), [0.42 * k, 1.12, 0], [0, 0, -0.9 * k]));
         }
-        hero.gear.body.add(mesh(torus(0.3, 0.035, 5, 16), MS(trim), [0, 1.06, 0], [PI / 2, 0, 0]));
+        hero.gear.body.add(mesh(torus(0.3, 0.035, 5, 16), M(trim), [0, 1.06, 0], [PI / 2, 0, 0]));
       }
-      if (p.kind === 'robe') hero.gear.body.add(mesh(cyl(0.36, 0.44, 0.34, 10, true), MS(p.a, { double: true }), [0, 0.3, 0]));
-      if (p.emblem) hero.gear.body.add(mesh(octa(0.06), MS(p.emblem, { glow: 0.7 }), [0, 0.84, 0.29], [0, 0, 0], [1, 1.3, 0.6]));
-      if (p.flame) flames(hero.gear.body, MS, 0, 0.78, 0.29, 0.3);
-      if (p.snow) snowflake(hero.gear.body, MS, p.snow, 0, 0.84, 0.29, 0.08);
-      if (p.clover) clover(hero.gear.body, MS, p.clover, -0.1, 0.88, 0.28, 0.035);
+      if (p.kind === 'robe') hero.gear.body.add(mesh(cyl(0.36, 0.44, 0.34, 10, true), M(p.a, { double: true }), [0, 0.3, 0]));
+      if (p.emblem) hero.gear.body.add(mesh(octa(0.06), M(p.emblem, { glow: 0.7 }), [0, 0.84, 0.29], [0, 0, 0], [1, 1.3, 0.6]));
+      if (p.flame) flames(hero.gear.body, M, 0, 0.78, 0.29, 0.3);
+      if (p.snow) snowflake(hero.gear.body, M, p.snow, 0, 0.84, 0.29, 0.08);
+      if (p.clover) clover(hero.gear.body, M, p.clover, -0.1, 0.88, 0.28, 0.035);
     }
   }
   if (hero.gearKeys.gloves !== key(equip.gloves)) {
@@ -1208,8 +1208,8 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
     if (equip.gloves) {
       const p = ITEMS[equip.gloves.id].model;
       for (const grp of hero.gear.gloves) {
-        grp.add(mesh(cyl(0.085, 0.1, 0.12, 8), MS(p.b), [0, -0.42, 0]));
-        if (p.knuckle || p.gem || p.frost) grp.add(mesh(p.spike ? cone(0.025, 0.08, 5) : octa(0.035), MS(p.knuckle ?? p.gem ?? p.frost, { glow: 0.5 }), [0, -0.55, 0.08], p.spike ? [PI / 2, 0, 0] : [0, 0, 0]));
+        grp.add(mesh(cyl(0.085, 0.1, 0.12, 8), M(p.b), [0, -0.42, 0]));
+        if (p.knuckle || p.gem || p.frost) grp.add(mesh(p.spike ? cone(0.025, 0.08, 5) : octa(0.035), M(p.knuckle ?? p.gem ?? p.frost, { glow: 0.5 }), [0, -0.55, 0.08], p.spike ? [PI / 2, 0, 0] : [0, 0, 0]));
       }
     }
   }
@@ -1219,11 +1219,11 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
     if (equip.boots) {
       const p = ITEMS[equip.boots.id].model;
       for (const k of [-1, 1]) {
-        hero.gear.boots.add(mesh(cyl(0.125, 0.12, 0.26, 8), MS(p.sandal ? (p.wrap ?? 0xe8dcc0) : p.a), [0.13 * k, 0.2, 0]));
-        hero.gear.boots.add(mesh(torus(0.125, 0.03, 5, 12), MS(p.sandal ? p.a : p.b), [0.13 * k, 0.33, 0], [PI / 2, 0, 0]));
-        if (p.extra === 'fur') hero.gear.boots.add(mesh(torus(0.13, 0.05, 5, 10), MS(0xffffff), [0.13 * k, 0.34, 0], [PI / 2, 0, 0]));
-        if (p.extra === 'flames') flames(hero.gear.boots, MS, 0.13 * k, 0.32, -0.04, 0.25);
-        if (p.extra === 'wings') hero.gear.boots.add(mesh(extrude(shapeFrom(WING, k), 0.02, 0.005), MS(0xffffff), [0.22 * k, 0.24, -0.03], [0, -0.4 * k, 0], [0.32, 0.32, 1]));
+        hero.gear.boots.add(mesh(cyl(0.125, 0.12, 0.26, 8), M(p.sandal ? (p.wrap ?? 0xe8dcc0) : p.a), [0.13 * k, 0.2, 0]));
+        hero.gear.boots.add(mesh(torus(0.125, 0.03, 5, 12), M(p.sandal ? p.a : p.b), [0.13 * k, 0.33, 0], [PI / 2, 0, 0]));
+        if (p.extra === 'fur') hero.gear.boots.add(mesh(torus(0.13, 0.05, 5, 10), M(0xffffff), [0.13 * k, 0.34, 0], [PI / 2, 0, 0]));
+        if (p.extra === 'flames') flames(hero.gear.boots, M, 0.13 * k, 0.32, -0.04, 0.25);
+        if (p.extra === 'wings') hero.gear.boots.add(mesh(extrude(shapeFrom(WING, k), 0.02, 0.005), M(0xffffff), [0.22 * k, 0.24, -0.03], [0, -0.4 * k, 0], [0.32, 0.32, 1]));
       }
     }
   }
@@ -1292,4 +1292,80 @@ export function iceBlock() {
   const g = new THREE.Group();
   g.add(mesh(new THREE.IcosahedronGeometry(1.0, 0), mat, [0, 0.95, 0], [0.2, 0.4, 0], [0.75, 1.2, 0.7]));
   return g;
+}
+
+/* ---------------- Pixel pass ----------------
+   Renders a scene at low resolution, outlines silhouettes and depth edges
+   in a darker shade of the colour in front, then scales up with hard pixels. */
+export class PixelPass {
+  constructor(renderer, px = 3) {
+    this.r = renderer;
+    this.px = px;
+    this.rt = null;
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: { tColor: { value: null }, tDepth: { value: null }, texel: { value: new THREE.Vector2() }, cameraNear: { value: 0.1 }, cameraFar: { value: 80 } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: `
+        #include <packing>
+        uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 texel; uniform float cameraNear; uniform float cameraFar;
+        varying vec2 vUv;
+        float dist(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, cameraNear, cameraFar); }
+        void probe(vec2 uv, vec4 c, float z, inout vec4 edge, inout float best) {
+          vec4 n = texture2D(tColor, uv);
+          if (n.a < 0.5) return;
+          float nz = dist(uv);
+          float gap = c.a < 0.5 ? 1e3 : z - nz;
+          if (gap > 0.22 + nz * 0.02 && gap > best) { best = gap; edge = vec4(n.rgb * 0.22 + vec3(0.012, 0.008, 0.02), 1.0); }
+        }
+        void main() {
+          vec4 c = texture2D(tColor, vUv);
+          float z = dist(vUv);
+          vec4 edge = vec4(0.0); float best = 0.0;
+          probe(vUv + vec2(texel.x, 0.0), c, z, edge, best);
+          probe(vUv - vec2(texel.x, 0.0), c, z, edge, best);
+          probe(vUv + vec2(0.0, texel.y), c, z, edge, best);
+          probe(vUv - vec2(0.0, texel.y), c, z, edge, best);
+          vec4 col;
+          if (best > 0.0) col = edge;
+          else if (c.a >= 0.5) col = vec4(c.rgb, 1.0);
+          else {
+            float g = max(c.r, max(c.g, c.b));
+            if (g < 0.03) discard;
+            col = vec4(c.rgb, min(1.0, g));
+          }
+          gl_FragColor = col;
+          #include <colorspace_fragment>
+        }`,
+      depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat);
+    this.quad.frustumCulled = false;
+    this.scene = new THREE.Scene();
+    this.scene.add(this.quad);
+    this.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  }
+  setSize(cssW, cssH) {
+    const w = Math.max(1, Math.round(cssW / this.px)), h = Math.max(1, Math.round(cssH / this.px));
+    if (this.rt && this.rt.width === w && this.rt.height === h) return;
+    this.rt?.dispose();
+    this.rt = new THREE.WebGLRenderTarget(w, h, {
+      type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthTexture: new THREE.DepthTexture(w, h),
+    });
+    this.mat.uniforms.tColor.value = this.rt.texture;
+    this.mat.uniforms.tDepth.value = this.rt.depthTexture;
+    this.mat.uniforms.texel.value.set(1 / w, 1 / h);
+  }
+  render(scene, camera) {
+    if (!this.rt) return;
+    const r = this.r;
+    r.setRenderTarget(this.rt);
+    r.setClearColor(0x000000, 0);
+    r.clear();
+    r.render(scene, camera);
+    r.setRenderTarget(null);
+    r.clear();
+    this.mat.uniforms.cameraNear.value = camera.near;
+    this.mat.uniforms.cameraFar.value = camera.far;
+    r.render(this.scene, this.cam);
+  }
 }

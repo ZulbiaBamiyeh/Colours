@@ -682,6 +682,13 @@
     .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; padding: 4px 7px; }
     .stat .k { font-size: 0.625rem; letter-spacing: 0.08em; }
   }
+  .seg.phone-only { display: none; }
+  @media (max-width: 640px) {
+    .seg.phone-only { display: inline-flex; }
+    .wide-only { display: none; }
+  }
+  .top .seg button { padding: 4px 10px; }
+  #hero.pixel, #arena.pixel { image-rendering: pixelated; }
 </style>
 
 <main class="screen" id="screen">
@@ -692,6 +699,7 @@
       <div class="meter"><span class="cap">Lives</span><span class="val hearts" id="lives"></span></div>
       <div class="meter"><span class="cap">Wins <span id="wins-num"></span></span><span class="val wins-track" id="wins"></span></div>
     </div>
+    <div class="meter wide-only"><span class="cap" id="style-label">Art style</span><div class="seg" role="group" aria-labelledby="style-label" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div></div>
     <div class="fight-wrap">
       <button type="button" class="fight" id="fight">Fight</button>
       <span class="fight-sub" id="fight-sub">vs. a Day 1 ghost</span>
@@ -730,7 +738,7 @@
       <div class="ph"><h2>Inspect</h2><span class="rule"></span><button type="button" class="sheet-close" id="sheet-close" aria-label="Close inspector">&times;</button></div>
       <div class="tt-wrap">
         <canvas id="turntable" width="576" height="576" aria-label="Rotating view of the selected item"></canvas>
-        <div class="seg" role="group" aria-label="Turntable style" id="tt-seg">
+        <div class="seg phone-only" role="group" aria-label="Art style" data-style-seg>
           <button type="button" data-v="smooth">Low-poly</button>
           <button type="button" data-v="pixel">Pixel</button>
         </div>
