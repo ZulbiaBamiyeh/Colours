@@ -45,7 +45,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0 }, clutchShield: 0,
+      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0 },
+      // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
+      // plus what this fighter took, blocked with Shield, healed and gained.
+      stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
     };
     for (const slot of SLOT_ORDER) {
       const e = build.equip[slot];
@@ -132,6 +135,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       }
     }
     tgt.hp -= n - absorbed;
+    tgt.stats.taken += n - absorbed;
+    tgt.stats.blocked += absorbed;
+    if (!src) tgt.stats.fatigue += n;
+    else if (src !== tgt) credit(src, kind === 'hit' || kind === 'pure' ? (meta.slot ? `slot:${meta.slot}` : 'other') : kind, n);
     ev('dmg', { side: tgt.side, n: r1(n), kind, absorbed: r1(absorbed), crit: !!meta.crit });
     if (src && src !== tgt && src.flags.chalice && kind !== 'hit' && kind !== 'self' && kind !== 'burn' && kind !== 'poison') {
       const ls = mod(src, 'lifesteal', src.ls, { d: tgt });
@@ -140,6 +147,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     checkClutch(tgt);
     return n;
   }
+  function credit(f, key, n) { f.stats.dealt[key] = (f.stats.dealt[key] ?? 0) + n; }
   function heal(f, n, o = {}) {
     if (!(n > 0) || f.dead) return false;
     n = mod(f, 'heal', n);
@@ -149,6 +157,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     const real = Math.min(room, n);
     let over = n - real;
     f.hp += real;
+    f.stats.healed += real;
+    if (o.ls) f.stats.lifesteal += real;
     ev('heal', { side: f.side, n: r1(n), ls: !!o.ls });
     if (over > 0.05) {
       if (f.flags.reliquary) { f.maxHp += over; f.hp += over; over = 0; }
@@ -162,6 +172,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (type === 'shield') {
       if (f.flags.shieldCrit && critRoll(f)) n *= 2;
       f.shield += n;
+      f.stats.shield += n;
       ev('shield', { side: f.side, n: r1(n) });
       fire(f, 'gainedShield', { n });
     } else if (type === 'heat') {
@@ -259,7 +270,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       addRaw: (type, n) => { foe.st[type] += n; ev('status', { side: foe.side, type, n }); return true; },
       gain: (type, n) => gain(me, type, n),
       heal: n => heal(me, n),
-      hit: n => damage(me, foe, n, 'pure') > 0,
+      hit: n => damage(me, foe, n, 'pure', { slot: it?.slot }) > 0,
       selfDamage: n => damage(me, me, n, 'self') > 0,
       chance: p => chance(me, p),
       freeze: dur => freeze(foe, dur, true, me),
@@ -277,6 +288,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     const miss = rng() < 0.04 * a.st.sand;
     fire(d, 'attacked', { miss });
     if (miss) {
+      a.stats.missed++;
       ev('miss', { side: d.side });
       fire(d, 'enemyMiss');
       if (d.flags.mirage) {
@@ -295,7 +307,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (a.flags.juggernaut) dmg += a.shield * 0.25;
     dmg = mod(a, 'hitDmg', dmg);
     if (crit) dmg *= Math.max(2, w.critMult || 2, mod(a, 'critMult', 2));
-    const dealt = damage(a, d, dmg, 'hit', { crit });
+    a.stats.hits++;
+    if (crit) a.stats.crits++;
+    const dealt = damage(a, d, dmg, 'hit', { crit, slot: wp.slot });
     let ls = (w.ls || 0) + mod(a, 'lifesteal', a.ls, { d });
     if (a.fullLs > 0) { ls = 1; a.fullLs--; }
     if (crit && a.flags.knuckles) ls *= 2;
@@ -322,6 +336,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       if (f.shield < 0.05) { f.shield = 0; fire(f, 'shieldBreak'); }
     }
     f.hp -= n - absorbed;
+    f.stats.taken += n - absorbed;
+    f.stats.blocked += absorbed;
+    credit(other(f), kind, n);
     f.tick[kind] += n;
     f.shown[kind] += n;
     checkClutch(f);
@@ -464,5 +481,5 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     else if (t >= MAX_TIME) result = 'draw';
   }
   ev('end', { result });
-  return { result, duration: t, frames, events };
+  return { result, duration: t, frames, events, stats: { A: A.stats, B: B.stats } };
 }

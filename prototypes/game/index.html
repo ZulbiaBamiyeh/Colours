@@ -800,6 +800,36 @@
   html.maple .hitem img, html.maple .ri img { image-rendering: pixelated; }
   html.maple .ri { background: linear-gradient(var(--slot-in), var(--slot)); }
 
+
+  /* ---------- Post-fight damage breakdown ---------- */
+  .result .result-card { width: min(680px, 100%); max-height: 100%; overflow: auto; }
+  .report { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; text-align: left; margin: 2px 0 4px; }
+  .rep-side { display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .rep-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--brass-dim); padding-bottom: 4px; }
+  .rep-who { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rep-side.b .rep-who { color: #c9b8ff; }
+  .rep-total { font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rep-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .rep-rows li { display: grid; grid-template-columns: 24px minmax(0, 1.4fr) minmax(36px, 0.7fr) 34px; align-items: center; gap: 6px; font-size: 0.82rem; }
+  .rep-ico img, .rep-ico .fist, .rep-st { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 5px; background: radial-gradient(circle at 50% 40%, var(--slot-in), var(--slot) 72%); }
+  .rep-ico img { display: block; }
+  .rep-ico .fist { font-size: 0.8rem; }
+  .rep-st svg { width: 15px; height: 15px; }
+  .rep-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rep-name.r-rare { color: var(--r-rare); } .rep-name.r-epic { color: var(--r-epic); } .rep-name.r-legendary { color: var(--r-legendary); }
+  .rep-bar { height: 7px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
+  .rep-bar i { display: block; height: 100%; border-radius: 4px; transform-origin: left; animation: repgrow 0.6s cubic-bezier(.2, .8, .3, 1); }
+  @keyframes repgrow { from { transform: scaleX(0); } }
+  .rep-n { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .rep-none { color: var(--parch-faint); font-size: 0.82rem; }
+  .rep-extra { margin: 0; font-size: 0.75rem; color: var(--parch-faint); line-height: 1.35; }
+  @media (max-width: 640px) { .report { grid-template-columns: minmax(0, 1fr); } }
+  @media (prefers-reduced-motion: reduce) { .rep-bar i { animation: none; } }
+  html.maple .rep-ico img, html.maple .rep-st, html.maple .rep-ico .fist { background: linear-gradient(var(--slot-in), var(--slot)); }
+  html.maple .rep-ico img { image-rendering: pixelated; }
+  html.maple .rep-side.b .rep-who { color: #6a4fc0; }
+  html.maple.dark .rep-side.b .rep-who { color: #b7a4ff; }
+
   /* ---------- Backdrops: behind your character on the menu, in the market and on your side of the arena ----------
      Each sets a painted background plus an optional drifting particle layer (::before). Particle tiles divide 192px
      so the loop is seamless. */

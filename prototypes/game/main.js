@@ -1483,6 +1483,47 @@ function playEvent(e, quiet) {
       break;
   }
 }
+/* ---------- Damage breakdown shown with the result ---------- */
+const SRC_META = {
+  burn: ['Burn', '--s-fire', 'burn'], poison: ['Poison', '--s-venom', 'poison'], thorns: ['Thorns', '--s-thorn', 'thorns'],
+  reflect: ['Reflected hits', '--s-desert', null], other: ['Other effects', '--s-prism', null],
+};
+const stIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
+function reportRows(stats, equip) {
+  return Object.entries(stats.dealt).map(([k, n]) => {
+    if (k.startsWith('slot:')) {
+      const it = equip[k.slice(5)];
+      const def = it && ITEMS[it.id];
+      return { n, label: def ? def.name : 'Fists', cls: def ? `r-${def.rarity}` : '', color: 'var(--gold)', icon: def ? `<img src="${iconFor(it.id)}" alt="">` : '<span class="fist" aria-hidden="true">✊</span>' };
+    }
+    const [label, v, ic] = SRC_META[k] ?? [k, '--parch-dim', null];
+    return { n, label, cls: '', color: `var(${v})`, icon: ic ? `<span class="rep-st" style="color: var(${v})">${stIcon(ic)}</span>` : '<span class="rep-st"></span>' };
+  }).filter(r => r.n >= 0.5).sort((a, b) => b.n - a.n);
+}
+function reportHTML() {
+  const st = B.sim.stats;
+  const sides = [['A', playerName(), B.playerEquip], ['B', B.ghost.name, B.ghost.equip]];
+  const rows = Object.fromEntries(sides.map(([k, , eq]) => [k, reportRows(st[k], eq)]));
+  const max = Math.max(1, ...Object.values(rows).flat().map(r => r.n));
+  const fmt = n => Math.round(n);
+  const col = ([k, name]) => {
+    const s = st[k];
+    const total = rows[k].reduce((a, r) => a + r.n, 0);
+    const extras = [
+      s.blocked >= 1 && `Shield blocked ${fmt(s.blocked)}`,
+      s.healed >= 1 && `Healed ${fmt(s.healed)}${s.lifesteal >= 1 ? ` (${fmt(s.lifesteal)} Lifesteal)` : ''}`,
+      s.hits && `${s.crits} crit${s.crits === 1 ? '' : 's'} in ${s.hits} hit${s.hits === 1 ? '' : 's'}`,
+      s.missed && `${s.missed} miss${s.missed === 1 ? '' : 'es'}`,
+      s.fatigue >= 1 && `Fatigue took ${fmt(s.fatigue)}`,
+    ].filter(Boolean);
+    return `<section class="rep-side ${k === 'B' ? 'b' : ''}" aria-label="${name}: damage dealt">
+      <div class="rep-head"><span class="rep-who">${name}</span><span class="rep-total">${fmt(total)} dealt</span></div>
+      <ul class="rep-rows">${rows[k].length ? rows[k].map(r => `<li><span class="rep-ico">${r.icon}</span><span class="rep-name ${r.cls}">${r.label}</span><span class="rep-bar"><i style="width:${((r.n / max) * 100).toFixed(1)}%; background:${r.color}"></i></span><span class="rep-n">${fmt(r.n)}</span></li>`).join('') : '<li class="rep-none">No damage dealt</li>'}</ul>
+      ${extras.length ? `<p class="rep-extra">${extras.join(' · ')}</p>` : ''}
+    </section>`;
+  };
+  return `<div class="report">${sides.map(col).join('')}</div>`;
+}
 function finishBattle() {
   if (B.done) return;
   B.done = true;
@@ -1494,7 +1535,7 @@ function finishBattle() {
     const sub = { win: `You beat ${B.ghost.name}'s Hall of Fame set.`, loss: `${B.ghost.name}'s Hall of Fame set won this one.`, draw: 'Nobody survived the fight.' }[outcome];
     logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
     const res = $('result');
-    res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">Exhibitions are just for fun: no gold, lives or wins change.</span><button type="button" class="btn primary" id="continue">Back to the Hall of Fame</button></div>`;
+    res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">Exhibitions are just for fun: no gold, lives or wins change.</span>${reportHTML()}<button type="button" class="btn primary" id="continue">Back to the Hall of Fame</button></div>`;
     res.hidden = false;
     $('continue').addEventListener('click', () => endExhibition(outcome));
     $('continue').focus({ preventScroll: true });
@@ -1508,7 +1549,7 @@ function finishBattle() {
   const runEnds = (outcome === 'win' && S.wins + 1 >= S.goal) || (outcome === 'loss' && S.lives - 1 <= 0);
   logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
   const res = $('result');
-  res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">The fight lasted ${B.sim.duration.toFixed(1)}s.</span><button type="button" class="btn primary" id="continue">${runEnds ? 'See run results' : `Continue to Day ${S.day + 1}`}</button></div>`;
+  res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">The fight lasted ${B.sim.duration.toFixed(1)}s.</span>${reportHTML()}<button type="button" class="btn primary" id="continue">${runEnds ? 'See run results' : `Continue to Day ${S.day + 1}`}</button></div>`;
   res.hidden = false;
   $('continue').addEventListener('click', () => continueRun(outcome));
   $('continue').focus({ preventScroll: true });
