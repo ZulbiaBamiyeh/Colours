@@ -1166,23 +1166,25 @@ function hudHTML(side, name, sub, equip) {
     <div class="schips"></div>
     <ul class="hud-items">${rows.join('')}</ul>`;
 }
-function startBattle() {
+// ex: an exhibition against another player's Hall of Fame avatar { equip, ghost, look, backdrop }.
+function startBattle(ex = null) {
   closeSheet();
   hideTip();
   statusTip = null;
-  const ghost = makeGhost(S.day, rng);
-  upgradeGhost(ghost, S.day, rng);
-  const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, S.equip[k] ? { ...S.equip[k] } : null]));
+  const ghost = ex ? ex.ghost : makeGhost(S.day, rng);
+  if (!ex) upgradeGhost(ghost, S.day, rng);
+  const src = ex ? ex.equip : S.equip;
+  const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, src[k] ? { ...src[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
   const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
-  Object.assign(B, { sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
+  Object.assign(B, { ex, sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
   clearArena();
   F.A = makeFighterView('A', playerEquip, lookOf(P));
-  F.B = makeFighterView('B', ghost.equip, GHOST_LOOK);
-  $('hud-A').innerHTML = hudHTML('A', playerName(), `Day ${S.day} build`, playerEquip);
+  F.B = makeFighterView('B', ghost.equip, ex ? ex.look : GHOST_LOOK);
+  $('hud-A').innerHTML = hudHTML('A', playerName(), ex ? 'Exhibition set' : `Day ${S.day} build`, playerEquip);
   setBackdrop($('bd-a'), P.backdrop);
-  setBackdrop($('bd-b'), BACKDROPS[Math.floor(rng() * BACKDROPS.length)][0]);
-  $('hud-B').innerHTML = hudHTML('B', ghost.name, `Ghost · Day ${S.day}`, ghost.equip);
+  setBackdrop($('bd-b'), ex ? ex.backdrop : BACKDROPS[Math.floor(rng() * BACKDROPS.length)][0]);
+  $('hud-B').innerHTML = hudHTML('B', ghost.name, ex ? 'Hall of Fame' : `Ghost · Day ${S.day}`, ghost.equip);
   $('vs-a').textContent = playerName();
   $('vs-b').textContent = ghost.name;
   $('log').innerHTML = '';
@@ -1191,9 +1193,10 @@ function startBattle() {
   $('fight').disabled = true;
   $('fight').textContent = 'Fighting';
   screenEl.classList.add('in-battle');
-  $('phase').textContent = 'Battle';
+  screenEl.classList.toggle('ex', !!ex);
+  $('phase').textContent = ex ? 'Exhibition' : 'Battle';
   sizeArena();
-  logLine(`<b>${ghost.name}</b> enters: a ${ghost.schools.join(' and ')} build.`);
+  logLine(ex ? `<b>${ghost.name}</b> steps up with their Hall of Fame set (${ghost.schools.join(' and ')}).` : `<b>${ghost.name}</b> enters: a ${ghost.schools.join(' and ')} build.`);
   updateHud(true);
 }
 
@@ -1487,6 +1490,16 @@ function finishBattle() {
   const r = B.sim.result;
   const outcome = r === 'A' ? 'win' : r === 'B' ? 'loss' : 'draw';
   const title = { win: 'Victory', loss: 'Defeat', draw: 'Draw' }[outcome];
+  if (B.ex) {
+    const sub = { win: `You beat ${B.ghost.name}'s Hall of Fame set.`, loss: `${B.ghost.name}'s Hall of Fame set won this one.`, draw: 'Nobody survived the fight.' }[outcome];
+    logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
+    const res = $('result');
+    res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">Exhibitions are just for fun: no gold, lives or wins change.</span><button type="button" class="btn primary" id="continue">Back to the Hall of Fame</button></div>`;
+    res.hidden = false;
+    $('continue').addEventListener('click', () => endExhibition(outcome));
+    $('continue').focus({ preventScroll: true });
+    return;
+  }
   const sub = {
     win: `You beat the ${B.ghost.name}. +1 win.`,
     loss: `The ${B.ghost.name} beat you. You lose a life.`,
@@ -1519,19 +1532,56 @@ function continueRun(outcome) {
   sizeHero();
   toast(`Day ${S.day}: +10 gold and a new market.`);
 }
+let keepPick = null;
+function runItems() { return [...ALL_SLOTS.map(k => S.equip[k]), ...S.bag].filter(Boolean); }
 function showRunOver() {
   const won = S.wins >= S.goal;
   const m = $('runover');
   const rec = S.record.map(r => `<i class="${r[0]}" title="${r}"></i>`).join('');
-  m.innerHTML = `<div class="result-card" role="dialog" aria-modal="true" aria-labelledby="ro-title">
+  const items = won ? runItems() : [];
+  keepPick = null;
+  const keep = items.length ? `<span class="result-sub">Choose one item to keep in your Hall of Fame. It keeps its scroll steps and potential.</span>
+    <div class="keep-grid">${items.map(it => `<div class="slot">${hofBtn(it, 'keep')}</div>`).join('')}</div>
+    <span class="keep-name" id="keep-name">Pick an item.</span>
+    <div class="en-foot centered"><button type="button" class="btn primary" id="keep-btn" aria-disabled="true">Keep in Hall of Fame</button><button type="button" class="btn" id="keep-skip">Skip</button></div>` : '';
+  m.innerHTML = `<div class="result-card runover-card" role="dialog" aria-modal="true" aria-labelledby="ro-title">
     <span class="result-title ${won ? 'win' : 'loss'}" id="ro-title">${won ? 'Run complete' : 'Out of lives'}</span>
     <span class="result-sub">${won ? `You reached ${S.goal} wins on Day ${S.day}.` : `Your run ended on Day ${S.day} with ${S.wins} win${S.wins === 1 ? '' : 's'}.`}</span>
     <div class="record" aria-label="Fight record">${rec}</div>
-    <button type="button" class="btn primary" id="newrun">Start a new run</button></div>`;
+    ${keep || '<div class="en-foot centered" id="ro-end"><button type="button" class="btn primary" id="newrun">Start a new run</button></div>'}</div>`;
   m.hidden = false;
-  $('newrun').addEventListener('click', () => { m.hidden = true; newRun(); });
+  m.querySelector('.btn.primary')?.focus();
+}
+function runOverDone(kept) {
+  const card = $('runover').querySelector('.result-card');
+  card.querySelector('.keep-grid')?.remove();
+  card.querySelectorAll('.keep-name, .en-foot').forEach(el => el.remove());
+  card.querySelectorAll('.result-sub')[1]?.remove();
+  card.insertAdjacentHTML('beforeend', `${kept ? `<span class="result-sub">Kept <b class="r-${ITEMS[kept.id].rarity}">${ITEMS[kept.id].name}</b> in your Hall of Fame.</span>` : ''}
+    <div class="en-foot centered"><button type="button" class="btn primary" id="newrun">Start a new run</button>${kept ? '<button type="button" class="btn" id="ro-hof">Visit the Hall of Fame</button>' : ''}</div>`);
   $('newrun').focus();
 }
+$('runover').addEventListener('click', e => {
+  const m = $('runover');
+  const pick = e.target.closest('[data-keep]');
+  if (pick) {
+    keepPick = pick.dataset.keep;
+    m.querySelectorAll('[data-keep]').forEach(b => b.classList.toggle('picked', b === pick));
+    const it = runItems().find(i => String(i.uid) === keepPick);
+    $('keep-name').innerHTML = `<b class="r-${ITEMS[it.id].rarity}">${ITEMS[it.id].name}</b>${steps(it) ? ` ${signed(steps(it))}` : ''}${it.pot ? ` · ${TIERS[it.pot.tier]} potential` : ''}`;
+    $('keep-btn').removeAttribute('aria-disabled');
+    return;
+  }
+  if (e.target.closest('#keep-btn')) {
+    const it = runItems().find(i => String(i.uid) === keepPick);
+    if (!it) return toast('Pick an item to keep first.');
+    runOverDone(keepInHof(it, { date: new Date().toISOString().slice(0, 10), day: S.day, name: playerName() }));
+    return;
+  }
+  if (e.target.closest('#keep-skip')) return runOverDone(null);
+  if (e.target.closest('#newrun')) { m.hidden = true; hideTip(); newRun(); return; }
+  if (e.target.closest('#ro-hof')) { m.hidden = true; hideTip(); newRun(); S.started = false; showMenu('hof'); }
+});
 function newRun() {
   Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null), shards: 0 });
   refreshShop();
@@ -1539,7 +1589,7 @@ function newRun() {
   sizeHero();
 }
 
-$('fight').addEventListener('click', startBattle);
+$('fight').addEventListener('click', () => startBattle());
 $('skip').addEventListener('click', () => {
   if (!B.sim || B.done) return;
   const evs = B.sim.events;
@@ -1853,7 +1903,8 @@ function buildMenuHero() {
   const yaw = menuHero ? menuHero.root.rotation.y : menuYaw;
   if (menuHero) mscene.remove(menuHero.root);
   menuHero = buildHero(lookOf(P), matFor(S.ttStyle));
-  dressHero(menuHero, S.equip, ITEMS);
+  // On the Hall of Fame tab you wear your exhibition set; otherwise your current run's gear.
+  dressHero(menuHero, menuTab === 'hof' ? hofEquip() : S.equip, ITEMS);
   menuHero.root.rotation.y = yaw;
   mscene.add(menuHero.root);
 }
@@ -1885,6 +1936,7 @@ function renderMenu() {
   $('nameplate').textContent = playerName();
   $('play').textContent = S.started ? 'Continue run' : 'Play';
   $('menu-newrun').hidden = !S.started;
+  $('hof-count').textContent = HOF.items.length || '';
   $('menu-run').textContent = S.started ? `Day ${S.day} · ${S.wins} win${S.wins === 1 ? '' : 's'} · ${S.lives} li${S.lives === 1 ? 'fe' : 'ves'} left` : 'Reach 10 wins before you run out of lives.';
   setBackdrop(menuStage, P.backdrop);
 }
@@ -1894,12 +1946,12 @@ function applyLook() {
   restyleHeroes();
   renderMenu();
 }
-function showMenu() {
+function showMenu(tab = menuTab) {
   if (screenEl.classList.contains('in-battle')) return;
   closeSheet();
   hideTip();
   document.body.classList.add('on-menu');
-  buildMenuHero();
+  setTab(tab);
   renderMenu();
   sizeMenu();
   $('play').focus({ preventScroll: true });
@@ -1918,6 +1970,20 @@ $('menu').addEventListener('click', e => {
     applyLook();
     return;
   }
+  const tab = e.target.closest('[data-tab]');
+  if (tab) return setTab(tab.dataset.tab);
+  const h = e.target.closest('[data-hof]');
+  if (h) return toggleLoadout(h.dataset.hof);
+  if (e.target.closest('#ex-fight')) return startExhibition();
+  if (e.target.closest('#ex-next')) { rival = makeRival(); return renderHof(); }
+  if (e.target.closest('#dev-hof')) return devHofItem();
+  if (e.target.closest('#dev-wins')) {
+    S.wins = Math.max(S.wins, S.goal - 1);
+    S.started = true;
+    renderMenu();
+    render();
+    return toast(`Wins set to ${S.wins}. Win the next fight to finish the run.`);
+  }
   if (e.target.closest('#play')) hideMenu();
   else if (e.target.closest('#menu-newrun')) { newRun(); hideMenu(); }
   else if (e.target.closest('#randomise')) {
@@ -1933,7 +1999,163 @@ $('pname').addEventListener('input', e => {
   saveProfile();
   $('nameplate').textContent = playerName();
 });
-$('menu-btn').addEventListener('click', showMenu);
+$('menu-btn').addEventListener('click', () => showMenu());
+
+/* =========================================================
+   Hall of Fame: keep one item per won run, build an exhibition set, fight other players' sets
+   ========================================================= */
+const HOF_KEY = 'hallOfFame';
+function loadHof() {
+  try {
+    const h = JSON.parse(localStorage.getItem(HOF_KEY) || 'null');
+    if (h && Array.isArray(h.items)) return { loadout: {}, record: { w: 0, l: 0, d: 0 }, ...h };
+  } catch { /* storage unavailable or corrupt */ }
+  return { items: [], loadout: {}, record: { w: 0, l: 0, d: 0 } };
+}
+const HOF = loadHof();
+const saveHof = () => { try { localStorage.setItem(HOF_KEY, JSON.stringify(HOF)); } catch { /* storage unavailable */ } };
+const hofItem = uid => HOF.items.find(i => i.uid === uid) ?? null;
+const clone = o => (o ? JSON.parse(JSON.stringify(o)) : undefined);
+// Upgrades are copied as steps and lines, so kept items follow future balance changes.
+function keepInHof(item, meta) {
+  const kept = { uid: `h${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`, id: item.id, up: clone(item.up), pot: clone(item.pot), kept: meta };
+  HOF.items.unshift(kept);
+  rival = null;
+  saveHof();
+  return kept;
+}
+const hofEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, HOF.loadout[k] ? hofItem(HOF.loadout[k]) : null]));
+const loadoutCount = () => ALL_SLOTS.filter(k => HOF.loadout[k] && hofItem(HOF.loadout[k])).length;
+function toggleLoadout(uid) {
+  const item = hofItem(uid);
+  if (!item) return;
+  const at = ALL_SLOTS.find(k => HOF.loadout[k] === uid);
+  if (at) {
+    delete HOF.loadout[at];
+  } else {
+    const def = ITEMS[item.id];
+    const slot = def.slot === 'ring' ? (!HOF.loadout.ring1 ? 'ring1' : !HOF.loadout.ring2 ? 'ring2' : 'ring1') : def.slot;
+    if (slot === 'weapon' && def.weapon?.hands === 2) delete HOF.loadout.offhand;
+    if (slot === 'offhand') { const w = hofItem(HOF.loadout.weapon); if (w && ITEMS[w.id].weapon?.hands === 2) delete HOF.loadout.weapon; }
+    HOF.loadout[slot] = uid;
+  }
+  hideTip();
+  saveHof();
+  renderHof();
+  buildMenuHero();
+}
+
+// Other players' Hall of Fame avatars. There's no server yet, so these are generated: late-run builds with
+// upgrades, trimmed to the same number of items as your set so the fight stays fair.
+const RIVAL_NAMES = ['Kestrel', 'Mossbrook', 'Ivy', 'Tallow', 'Quill', 'Juniper', 'Brannoc', 'Saffi', 'Oro', 'Wren', 'Hollis', 'Marigold', 'Thane', 'Pip', 'Cobalt', 'Rue'];
+let rival = null;
+function makeRival() {
+  const n = Math.max(1, loadoutCount());
+  const day = 10 + Math.floor(rng() * 6);
+  const g = makeGhost(day, rng);
+  upgradeGhost(g, day, rng);
+  const have = ALL_SLOTS.filter(k => g.equip[k]);
+  const keep = [...have.filter(k => k === 'weapon'), ...have.filter(k => k !== 'weapon').sort(() => rng() - 0.5)].slice(0, n);
+  const pick = a => a[Math.floor(rng() * a.length)];
+  return {
+    n, name: pick(RIVAL_NAMES), schools: g.schools, backdrop: pick(BACKDROPS)[0],
+    equip: Object.fromEntries(ALL_SLOTS.map(k => [k, keep.includes(k) ? g.equip[k] : null])),
+    look: { skin: pick(LOOKS.skin), hair: pick(LOOKS.hair), eyes: pick(LOOKS.eyes), tunic: pick(LOOKS.tunic), hairStyle: pick(HAIR_STYLES)[0] },
+  };
+}
+function hofBtn(item, mode = 'hof') {
+  const def = ITEMS[item.id];
+  return `<button type="button" class="hitem r-${def.rarity}" data-${mode}="${item.uid}" aria-label="${def.name}"><img src="${iconFor(item.id)}" alt="" draggable="false">${badges(item)}</button>`;
+}
+const HOF_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
+function renderHof() {
+  const el = $('tab-hof');
+  $('hof-count').textContent = HOF.items.length || '';
+  const r = HOF.record;
+  const head = `<div class="ph"><h2>Hall of Fame</h2><span class="rule"></span><span class="aside">${r.w + r.l + r.d ? `Exhibitions ${r.w}W · ${r.l}L${r.d ? ` · ${r.d}D` : ''}` : `${HOF.items.length} kept`}</span></div>`;
+  if (!HOF.items.length) {
+    el.innerHTML = `${head}<div class="hof-empty"><p><b>Win a run</b> (${S.goal} wins) to keep one item you finished with. It keeps its scroll steps and potential lines.</p><p>Then build an <b>exhibition set</b> from your kept items and fight other players' Hall of Fame avatars, just for fun. Hall of Fame items never enter runs.</p></div>`;
+    return;
+  }
+  if (!rival || rival.n !== Math.max(1, loadoutCount())) rival = makeRival();
+  const eq = hofEquip();
+  const inSet = new Set(Object.values(HOF.loadout));
+  const ri = HOF_ORDER.filter(k => rival.equip[k]).map(k => `<span class="ri r-${ITEMS[rival.equip[k].id].rarity}" data-rival="${k}"><img src="${iconFor(rival.equip[k].id)}" alt="${ITEMS[rival.equip[k].id].name}"></span>`).join('');
+  el.innerHTML = `${head}
+    <div class="hof-top">
+      <div class="hof-set-wrap"><span class="opt-cap">Exhibition set · ${loadoutCount()} / 10</span>
+        <div class="hof-set">${HOF_ORDER.map(k => `<div class="slot" title="${SLOT_NAME[k]}">${eq[k] ? hofBtn(eq[k]) : glyph(k)}</div>`).join('')}</div>
+      </div>
+      <div class="rival">
+        <span class="bd bd-${rival.backdrop} rival-bd" aria-hidden="true"></span>
+        <span class="opt-cap">Next opponent</span>
+        <b class="rival-name">${rival.name}</b>
+        <span class="rival-sub">${rival.schools.join(' · ')} · ${rival.n}-item set</span>
+        <div class="rival-items">${ri}</div>
+        <div class="rival-btns"><button type="button" class="fight" id="ex-fight"${loadoutCount() ? '' : ' disabled title="Add items to your exhibition set first"'}>Fight</button><button type="button" class="btn mini-plain" id="ex-next">Find another</button></div>
+      </div>
+    </div>
+    <div class="ph sub"><h3>Vault</h3><span class="rule"></span><span class="aside">Click an item to add it to your set or take it out</span></div>
+    <div class="hof-vault">${HOF.items.map(i => `<div class="slot${inSet.has(i.uid) ? ' in-set' : ''}">${hofBtn(i)}</div>`).join('')}</div>`;
+}
+let menuTab = 'look';
+function setTab(tab) {
+  menuTab = tab;
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  $('tab-look').hidden = tab !== 'look';
+  $('tab-hof').hidden = tab !== 'hof';
+  if (tab === 'hof') renderHof();
+  buildMenuHero();
+  sizeMenu();
+}
+function startExhibition() {
+  if (!rival || !loadoutCount()) return;
+  document.body.classList.remove('on-menu');
+  hideTip();
+  startBattle({ equip: hofEquip(), ghost: { name: rival.name, equip: rival.equip, schools: rival.schools }, look: rival.look, backdrop: rival.backdrop });
+}
+function endExhibition(outcome) {
+  HOF.record[outcome[0]]++;
+  saveHof();
+  rival = null;
+  hideStatusTip();
+  screenEl.classList.remove('in-battle', 'ex');
+  $('phase').textContent = 'The Market';
+  $('fight').disabled = false;
+  $('fight').textContent = 'Fight';
+  clearArena();
+  B.ex = null;
+  showMenu('hof');
+  toast({ win: 'Exhibition won.', loss: 'Exhibition lost.', draw: 'Exhibition drawn.' }[outcome]);
+}
+// Dev: a random Rare-or-better item with run-like upgrades, so the Hall of Fame can be tried without winning runs.
+function devHofItem() {
+  const pool = ITEM_IDS.filter(id => ITEMS[id].rarity !== 'common');
+  const item = inst(pool[Math.floor(rng() * pool.length)]);
+  upgradeGhost({ equip: { weapon: item } }, 15, rng);
+  if (!item.pot && rng() < 0.7) item.pot = rollCube(item, USE.bright_cube, rng).pot;
+  keepInHof(item, { date: new Date().toISOString().slice(0, 10), dev: true });
+  renderHof();
+  renderMenu();
+  toast(`Added ${ITEMS[item.id].name} to the Hall of Fame.`);
+}
+// Tooltips for Hall of Fame items, run-over picks and rival gear.
+function hitemData(el) {
+  if (el.dataset.hof) return hofItem(el.dataset.hof);
+  if (el.dataset.keep) return runItems().find(i => String(i.uid) === el.dataset.keep);
+  if (el.dataset.rival) return rival?.equip[el.dataset.rival];
+  return null;
+}
+document.addEventListener('pointerover', e => {
+  if (e.pointerType !== 'mouse') return;
+  const el = e.target.closest('.hitem, .ri');
+  const item = el && hitemData(el);
+  if (item) showTipFor(el, ITEMS[item.id], item);
+});
+document.addEventListener('pointerout', e => {
+  const el = e.target.closest('.hitem, .ri');
+  if (el && !el.contains(e.relatedTarget)) hideTip();
+});
 function drawMenu(dt) {
   if (!reduceMotion && menuDrag === null) menuYaw += dt * 0.3;
   animateHero(menuHero, t, dt, reduceMotion);
@@ -1981,7 +2203,7 @@ else showMenu();
 requestAnimationFrame(loop);
 
 // Test hook, only with ?debug in the URL.
-if (location.search.includes('debug')) window.__game = { S, P, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge, showMenu };
+if (location.search.includes('debug')) window.__game = { S, P, HOF, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge, showMenu, showRunOver, devHofItem };
 
 // Ambient background: embers rise in Low-poly mode; in Pixel mode the same motes become falling leaves under drifting clouds.
 {

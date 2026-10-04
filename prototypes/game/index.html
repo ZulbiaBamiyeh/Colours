@@ -687,7 +687,7 @@
 
 
   /* ---------- Main menu ---------- */
-  .menu { display: none; position: relative; z-index: 1; min-height: 100%; padding: 18px 14px; }
+  .menu { display: none; position: relative; z-index: 1; min-height: 100%; padding: 12px 14px; }
   body.on-menu .menu { display: block; }
   body.on-menu .screen { display: none; }
   .menu-inner { max-width: 1120px; margin: 0 auto; display: grid; gap: 14px; }
@@ -696,7 +696,9 @@
   .tagline { color: var(--parch-dim); }
   .menu-grid { display: grid; grid-template-columns: minmax(0, 430px) minmax(0, 1fr); gap: 12px; align-items: start; }
   .menu-preview { display: grid; gap: 10px; }
-  #menu-stage { min-height: 0; height: min(60vh, 540px); }
+  #menu-stage { min-height: 0; height: min(50vh, 470px); }
+  /* Exhibitions don't touch the run, so its day, gold, lives and wins stay out of view. */
+  .screen.ex .meters, .screen.ex .fight-wrap, .screen.ex #day { visibility: hidden; }
   .nameplate { position: absolute; top: 12px; left: 0; right: 0; text-align: center; font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; color: #fff6e0; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 0, 0, 0.5); pointer-events: none; }
   .menu-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .menu-actions .fight { flex: 1 1 160px; font-size: 1.35rem; padding: 9px 20px; }
@@ -738,6 +740,65 @@
   html.maple .bdcard, html.maple .menu-btn { background: #ffffff; border-color: #c3c9d3; color: #4a5263; }
   html.maple .bdcard.on { border-color: #f39a1e; box-shadow: 0 0 0 1px #f39a1e; }
   html.maple .sw.on, html.maple .bdcard:focus-visible { outline-color: #f39a1e; }
+
+
+  /* ---------- Title menu: tabs, dev tools, Hall of Fame ---------- */
+  .panel[hidden] { display: none; }
+  .menu-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .menu-nav button { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--brass-dim); background: rgba(0, 0, 0, 0.2); color: var(--parch-dim); font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; cursor: pointer; }
+  .menu-nav button[aria-selected="true"] { border-color: var(--gold); color: var(--parch); background: rgba(244, 198, 82, 0.12); box-shadow: inset 0 -3px 0 var(--gold); }
+  .menu-nav button:focus-visible, .dev summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .menu-nav .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--gold); color: #22180e; font-family: var(--font-body); font-size: 0.72rem; font-weight: 800; vertical-align: 2px; }
+  .menu-nav .count:empty { display: none; }
+  .dev { border-top: 1px dashed var(--brass-dim); padding-top: 6px; font-size: 0.8rem; color: var(--parch-faint); }
+  .dev summary { cursor: pointer; width: max-content; letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.68rem; }
+  .dev-body { display: grid; gap: 8px; margin-top: 8px; }
+  .dev .opt { grid-template-columns: 70px minmax(0, 1fr); }
+  .dev-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .menu-hof { display: grid; gap: 11px; align-content: start; }
+  .hof-empty { display: grid; gap: 8px; color: var(--parch-dim); max-width: 60ch; }
+  .hof-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; }
+  .hof-set-wrap { display: grid; gap: 6px; }
+  .hof-set { display: grid; grid-template-columns: repeat(5, var(--slot-size)); gap: 7px; }
+  .hof-vault { display: flex; flex-wrap: wrap; gap: 7px; }
+  .hof-vault .slot.in-set { box-shadow: inset 2px 2px 0 var(--slot-dark), inset -2px -2px 0 var(--slot-hi), 0 0 0 2px var(--gold); }
+  .hitem { position: absolute; inset: 0; border: 0; padding: 0; margin: 0; background: none; border-radius: 8px; cursor: pointer; }
+  .hitem img { width: 100%; height: 100%; display: block; pointer-events: none; }
+  .hitem::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 5px; height: 2px; border-radius: 2px; background: var(--rc); opacity: 0.85; }
+  .hitem.r-common { --rc: var(--r-common); } .hitem.r-rare { --rc: var(--r-rare); } .hitem.r-epic { --rc: var(--r-epic); } .hitem.r-legendary { --rc: var(--r-legendary); }
+  .hitem:hover { background: rgba(255, 228, 176, 0.06); }
+  .hitem:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .hitem.picked { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(244, 198, 82, 0.5); }
+  .rival { position: relative; isolation: isolate; overflow: hidden; display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--brass-dim); min-width: 0; }
+  .rival-bd { position: absolute; inset: 0; z-index: -1; opacity: 0.45; }
+  .rival-name { font-family: var(--font-display); font-size: 1.3rem; line-height: 1.1; color: #fff6e0; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7); }
+  .rival-sub { font-size: 0.82rem; color: var(--parch-dim); }
+  .rival .opt-cap, .rival-sub { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
+  .rival-items { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 4px; }
+  .ri { width: 32px; height: 32px; border-radius: 6px; background: radial-gradient(circle at 50% 40%, var(--slot-in), var(--slot) 72%); box-shadow: inset 0 0 0 1px var(--rc, rgba(0, 0, 0, 0.5)); }
+  .ri.r-rare { --rc: var(--r-rare); } .ri.r-epic { --rc: var(--r-epic); } .ri.r-legendary { --rc: var(--r-legendary); }
+  .ri img { width: 100%; height: 100%; display: block; }
+  .rival-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .rival-btns .fight { padding: 5px 26px; font-size: 1.05rem; }
+  .runover-card { width: min(520px, 100%); }
+  .keep-grid { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+  .keep-name { min-height: 1.4em; color: var(--parch-dim); }
+  .en-foot.centered { justify-content: center; }
+  b.r-common { color: var(--r-common); } b.r-rare { color: var(--r-rare); } b.r-epic { color: var(--r-epic); } b.r-legendary { color: var(--r-legendary); }
+  @media (max-width: 800px) { .hof-top { grid-template-columns: minmax(0, 1fr); } }
+  html.maple .menu-nav button { background: #ffffff; border-color: #c3c9d3; color: #4a5263; }
+  html.maple .menu-nav button[aria-selected="true"] { background: #fff1dc; border-color: #f39a1e; color: #6a3300; box-shadow: inset 0 -3px 0 #f39a1e; }
+  html.maple.dark .menu-nav button { background: #1f2740; border-color: #3a4566; color: #b7c0d6; }
+  html.maple.dark .menu-nav button[aria-selected="true"] { background: #3a2f1c; border-color: #f39a1e; color: #ffcf6b; }
+  html.maple .hitem::after { display: none; }
+  html.maple .hitem.r-common { box-shadow: inset 0 0 0 2px #8f96a3; }
+  html.maple .hitem.r-rare { box-shadow: inset 0 0 0 2px #3f8fff, inset 0 0 14px rgba(63, 143, 255, 0.45); }
+  html.maple .hitem.r-epic { box-shadow: inset 0 0 0 2px #a25cff, inset 0 0 16px rgba(162, 92, 255, 0.55); }
+  html.maple .hitem.r-legendary { box-shadow: inset 0 0 0 2px #ffb020, inset 0 0 18px rgba(255, 176, 32, 0.6); }
+  html.maple .hitem.picked { box-shadow: 0 0 0 2px #f39a1e, 0 0 14px rgba(243, 154, 30, 0.6); }
+  html.maple .hof-vault .slot.in-set { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 0 0 2px #f39a1e; }
+  html.maple .hitem img, html.maple .ri img { image-rendering: pixelated; }
+  html.maple .ri { background: linear-gradient(var(--slot-in), var(--slot)); }
 
   /* ---------- Backdrops: behind your character on the menu, in the market and on your side of the arena ----------
      Each sets a painted background plus an optional drifting particle layer (::before). Particle tiles divide 192px
@@ -1293,11 +1354,24 @@
         <div class="menu-actions">
           <button type="button" class="fight" id="play">Play</button>
           <button type="button" class="btn" id="menu-newrun" hidden>New run</button>
-          <button type="button" class="btn" disabled title="Win a run to keep an item here">Hall of Fame &middot; soon</button>
         </div>
         <span class="menu-run" id="menu-run"></span>
+        <div class="menu-nav" role="tablist" aria-label="Title menu">
+          <button type="button" role="tab" data-tab="look" aria-selected="true" aria-controls="tab-look">Character</button>
+          <button type="button" role="tab" data-tab="hof" aria-selected="false" aria-controls="tab-hof">Hall of Fame <span class="count" id="hof-count"></span></button>
+        </div>
+        <details class="dev">
+          <summary>Dev tools</summary>
+          <div class="dev-body">
+            <div class="opt"><span class="opt-cap">Art style</span><div class="segs"><div class="seg" role="group" aria-label="Art style" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div><div class="seg theme-seg" role="group" aria-label="Pixel theme" data-theme-seg><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div></div></div>
+            <div class="dev-btns">
+              <button type="button" class="btn mini-plain" id="dev-hof">Add a Hall of Fame item</button>
+              <button type="button" class="btn mini-plain" id="dev-wins">Set wins to 9</button>
+            </div>
+          </div>
+        </details>
       </div>
-      <div class="panel menu-custom">
+      <div class="panel menu-custom" id="tab-look" role="tabpanel">
         <div class="ph"><h2>Your look</h2><span class="rule"></span><button type="button" class="btn mini-plain" id="randomise">Randomise</button></div>
         <label class="field"><span class="opt-cap">Name</span><input id="pname" maxlength="16" autocomplete="off" spellcheck="false"></label>
         <div class="opt"><span class="opt-cap">Skin</span><div class="swatches" id="sw-skin"></div></div>
@@ -1307,8 +1381,8 @@
         <div class="opt"><span class="opt-cap">Outfit</span><div class="swatches" id="sw-tunic"></div></div>
         <div class="ph sub"><h3>Backdrop</h3><span class="rule"></span><span class="aside">Behind you in the market and in battle</span></div>
         <div class="backdrops" id="backdrops"></div>
-        <div class="opt"><span class="opt-cap">Art style</span><div class="segs"><div class="seg" role="group" aria-label="Art style" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div><div class="seg theme-seg" role="group" aria-label="Pixel theme" data-theme-seg><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div></div></div>
       </div>
+      <div class="panel menu-hof" id="tab-hof" role="tabpanel" hidden></div>
     </div>
   </div>
 </section>
@@ -1322,7 +1396,6 @@
       <div class="meter"><span class="cap">Lives</span><span class="val hearts" id="lives"></span></div>
       <div class="meter"><span class="cap">Wins <span id="wins-num"></span></span><span class="val wins-track" id="wins"></span></div>
     </div>
-    <div class="meter wide-only"><span class="cap" id="style-label">Art style</span><div class="segs"><div class="seg" role="group" aria-labelledby="style-label" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div><div class="seg theme-seg" role="group" aria-label="Pixel theme" data-theme-seg><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div></div></div>
     <div class="fight-wrap">
       <button type="button" class="fight" id="fight">Fight</button>
       <span class="fight-sub" id="fight-sub">vs. a Day 1 ghost</span>
@@ -1366,10 +1439,6 @@
       <div class="ph"><h2>Inspect</h2><span class="rule"></span><button type="button" class="sheet-close" id="sheet-close" aria-label="Close inspector">&times;</button></div>
       <div class="tt-wrap">
         <canvas id="turntable" width="576" height="576" aria-label="Rotating view of the selected item"></canvas>
-        <div class="seg phone-only" role="group" aria-label="Art style" data-style-seg>
-          <button type="button" data-v="smooth">Low-poly</button>
-          <button type="button" data-v="pixel">Pixel</button>
-        </div>
       </div>
       <div class="ins-body">
         <div class="card" id="card" aria-live="polite"></div>

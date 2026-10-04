@@ -527,6 +527,9 @@ Runs end, but a player's best items shouldn't vanish. This is what gives scroll 
 - **Exhibition 1v1:** at any time, equip a set from your Hall of Fame (one item per slot) and fight another player's Hall of Fame avatar. No gold, lives or run progress: it's for fun and bragging rights.
 - **Hall of Fame items never enter runs.** Runs stay fair for everyone, and the hall stays a collection.
 - **Upgrades are stored as steps and lines, not final numbers**, so Hall of Fame items follow future balance changes automatically.
+- **Fair exhibitions:** your opponent's set is trimmed to the same number of items as yours, so a three-item set meets a three-item set.
+
+**In the prototype:** the Hall of Fame tab on the title menu shows your exhibition set (10 slots), the vault of kept items (click to add or remove, hover for upgrades), your exhibition record, and the next opponent with their gear and backdrop ("Find another" rerolls). Your title-screen character wears the exhibition set on that tab. With no server yet, opponents are generated: late-run builds with upgrades, a random look, name and backdrop. Kept items, the set and the record are saved in the browser.
 
 **Later:**
 - **Trading:** swap Hall of Fame items with other players, upgrades intact.
@@ -538,11 +541,11 @@ Runs end, but a player's best items shouldn't vanish. This is what gives scroll 
 
 ## 12. Main menu and cosmetics
 
-The game opens on a main menu with a live, turnable preview of your character. From there you play (or continue a run), start a new run, and later reach the Hall of Fame.
+The game opens on a title menu with a live, turnable preview of your character, Play (or Continue run and New run), and two tabs: **Character** (appearance and backdrop) and **Hall of Fame**. The ☰ button in the market returns to it.
 
 - **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
 - **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
-- **Art style:** Low-poly (dark leather UI) or Pixel (MapleStory-style UI), and Pixel has a light and a dark theme. Dark Pixel is the default.
+- **Art style:** dark Pixel (MapleStory-style UI) is the game's look. The Low-poly style and the light Pixel theme stay available as **dev tools** in a collapsed section of the title menu, next to dev shortcuts for testing the Hall of Fame (add a kept item, set wins to 9).
 - **Cosmetics never affect stats.** They're the natural home for rewards that must stay fair: Hall of Fame milestones, seasonal backdrops and event outfits. Your Hall of Fame avatar in exhibitions shows your look and backdrop.
 
 ---
