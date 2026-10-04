@@ -2178,7 +2178,7 @@ function showRunEnd() {
   const won = run.wins >= WINS_TO_WIN;
   showModal(`<div class="sheet panel" role="dialog" aria-labelledby="end-h">
     <h2 id="end-h" class="${won ? 'win' : 'loss'}">${won ? 'Ten wins!' : 'Out of lives'}</h2>
-    <p class="lede">${won ? `Your beasts took the crown in ${run.round} rounds with ${run.lives} ${run.lives === 1 ? 'life' : 'lives'} to spare.` : `You reached ${run.wins} ${run.wins === 1 ? 'win' : 'wins'} in ${run.round} rounds.`}</p>
+    <p class="lede">${won ? `Your beasts took the crown in ${run.round} ${run.round === 1 ? 'round' : 'rounds'} with ${run.lives} ${run.lives === 1 ? 'life' : 'lives'} to spare.` : `You reached ${run.wins} ${run.wins === 1 ? 'win' : 'wins'} in ${run.round} ${run.round === 1 ? 'round' : 'rounds'}.`}</p>
     <div class="recap">
       <div><h4>Rounds</h4><div class="history">${run.history.map((h) => `<i class="${h}">${h.toUpperCase()}</i>`).join('')}</div></div>
       <div><h4>Final team</h4><div class="team">${run.board.filter(Boolean).map((b) => `<div class="portrait" style="--fc:${FAM[DEF[b.id].fam].color}" title="${DEF[b.id].name}, level ${b.lvl}"><img src="${PORTRAIT[b.id]}" alt="${DEF[b.id].name}"></div>`).join('')}</div></div>
