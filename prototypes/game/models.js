@@ -1338,6 +1338,13 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
       model.position.y = -(def.model.hand ?? -0.24);
       h.rotation.set(0.72, 0, -0.32);
       h.scale.setScalar(0.75);
+    } else if (def.model.grip != null) {
+      // Carried by a handle, ring or drawstring: put that point in the hand and keep the item upright,
+      // undoing the arm's resting angle so it hangs (or sits) straight.
+      model.position.y = -def.model.grip;
+      h.position.set(0.02, -0.03, 0.05);
+      h.quaternion.setFromEuler(new THREE.Euler(-0.4, 0, 0.2)).invert().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -0.4, 0)));
+      h.scale.setScalar(def.model.hold ?? 0.42);
     } else {
       h.position.set(0.08, 0.02, 0.1);
       h.rotation.set(0, -0.5, 0);
