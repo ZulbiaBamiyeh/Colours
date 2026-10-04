@@ -49,8 +49,25 @@ const STATUS_ICON = {
   luck: '<circle cx="9" cy="9" r="3"/><circle cx="15" cy="9" r="3"/><circle cx="9" cy="15" r="3"/><circle cx="15" cy="15" r="3"/>',
   frozen: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/>',
   thorns: '<path d="M4 20C9 15 15 9 20 4"/><path d="M8 16l-3.5-1M10.5 13.5l.5-4M14 10l4 .5M16.5 7.5l-.5-3.5"/>',
+  shield: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
+  heal: '<path d="M12 5v14M5 12h14"/>',
+  ls: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/><path d="M9.5 13.5l2.5 3 2.5-3"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood' };
+// Keyword symbols: inline in item text, and as small badges on item icons.
+const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Shield|Lifesteal|[Hh]eals?|[Hh]ealing)\b/g;
+const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l === 'lifesteal' ? 'ls' : l; };
+const kwIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
+const kwText = text => text.replace(KW_RE, w => { const k = kwKey(w); return `<span class="kw" style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}${w}</span>`; });
+function itemKws(def) {
+  if (!def._kws) {
+    const seen = [];
+    for (const m of (def.text ?? '').matchAll(KW_RE)) { const k = kwKey(m[1]); if (!seen.includes(k)) seen.push(k); }
+    def._kws = seen.slice(0, 2);
+  }
+  return def._kws;
+}
+const kwBadges = def => (isUse(def.id) ? '' : `<span class="kw-badges">${itemKws(def).map(k => `<i style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}</i>`).join('')}</span>`);
 const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns' };
 
 /* =========================================================
@@ -470,7 +487,7 @@ function renderEnchant() {
   let body = '', foot = '';
   if (E.kind === 'forge') {
     body = `<div class="en-title"><span class="en-name r-legendary" id="en-title">The Forge</span><span class="en-sub">3 Shards make a legendary. Choose one.</span></div>
-      <div class="forge">${E.picks.map(id => `<button type="button" class="forge-pick" data-pick="${id}"><span class="en-ico item r-legendary"><img src="${iconFor(id)}" alt=""></span><b class="r-legendary">${ITEMS[id].name}</b><span>${slotLabel(ITEMS[id])}</span><span class="fp-text">${ITEMS[id].text}</span></button>`).join('')}</div>`;
+      <div class="forge">${E.picks.map(id => `<button type="button" class="forge-pick" data-pick="${id}"><span class="en-ico item r-legendary"><img src="${iconFor(id)}" alt=""></span><b class="r-legendary">${ITEMS[id].name}</b><span>${slotLabel(ITEMS[id])}</span><span class="fp-text">${kwText(ITEMS[id].text)}</span></button>`).join('')}</div>`;
     foot = btn('close', 'Later', false);
   } else {
     const def = USE[E.useId];
@@ -649,7 +666,7 @@ function itemBtn(item, loc, extraLabel = '') {
   const cls = ['item', `r-${def.rarity}`];
   if (S.sel === loc) cls.push('sel');
   if (item.uid === freshUid) cls.push('pop');
-  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false">${badges(item)}</button>`;
+  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false">${kwBadges(def)}${badges(item)}</button>`;
 }
 function renderTop() {
   $('day').textContent = `Day ${S.day}`;
@@ -745,7 +762,7 @@ function renderInspector() {
     const price = w === 'ench' ? enchPrice(item) : def.price;
     card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
       <div class="chips"><span class="chip">Enchanter</span><span class="chip">${{ scroll: 'Scroll', chaos: 'Scroll', hammer: 'Hammer', cube: 'Cube', lock: 'Lockstone' }[def.kind]}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
-      <p class="c-effect">${def.text}</p>
+      <p class="c-effect">${kwText(def.text)}</p>
       <span class="c-value">${w === 'ench' ? `In the Enchanter · Costs ${price} gold${item.lucky ? ' (Lucky Merchant: 1 off)' : ''}` : `In your Use row · ${item.n} held · Sells for ${sellValue(item)} each`}</span>`;
     if (w === 'ench') actions.innerHTML = btn('buyuse', `${COIN.replace('<svg', '<svg width="16" height="16"')}Buy for ${price}`, true, S.gold < price ? 'aria-disabled="true"' : '');
     else actions.innerHTML = (def.kind === 'lock' ? '' : btn('use', 'Use on an item', true)) + btn('sell', `Sell 1 for ${sellValue(item)}`, false);
@@ -757,7 +774,7 @@ function renderInspector() {
   card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
     <div class="chips">${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
     <span class="c-stats">${statLine(def)}</span>
-    <p class="c-effect">${def.text}</p>
+    <p class="c-effect">${kwText(def.text)}</p>
     ${w === 'shop' ? '' : upgradeHTML(item)}
     <span class="c-value">${where} · ${value}</span>`;
   if (w === 'shop') {
@@ -810,7 +827,7 @@ function showTipFor(el, def, item = null) {
     ? `<span class="t-name r-${def.rarity}">${def.name}</span><span class="t-meta">Enchanter · ${RARITY_NAME[def.rarity]}${item?.n > 1 ? ` · ${item.n} held` : ''}</span><span>${def.text}</span>`
     : `<span class="t-name r-${def.rarity}">${def.name}</span>
     <span class="t-meta">${def.schools.join(' · ')} · ${slotLabel(def)} · ${RARITY_NAME[def.rarity]}</span>
-    <span>${statLine(def)}</span><span>${def.text}</span>${upgradeHTML(item, true)}`;
+    <span>${statLine(def)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
   tip.hidden = false;
   const r = el.getBoundingClientRect();
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -2137,7 +2154,7 @@ function makeRival() {
 }
 function hofBtn(item, mode = 'hof') {
   const def = ITEMS[item.id];
-  return `<button type="button" class="hitem r-${def.rarity}" data-${mode}="${item.uid}" aria-label="${def.name}"><img src="${iconFor(item.id)}" alt="" draggable="false">${badges(item)}</button>`;
+  return `<button type="button" class="hitem r-${def.rarity}" data-${mode}="${item.uid}" aria-label="${def.name}"><img src="${iconFor(item.id)}" alt="" draggable="false">${kwBadges(def)}${badges(item)}</button>`;
 }
 const HOF_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 function renderHof() {

@@ -36,6 +36,8 @@
     --s-fortune: #4fc79c;
     --s-prism: #e58cff;
     --s-thorn: #f08cb0;
+    --s-shield: #8fd0ff;
+    --s-heal: #8fe08a;
     --font-display: "Almendra", "Palatino Linotype", Georgia, serif;
     --font-body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
     --slot-size: clamp(40px, 6.1vh, 54px);
@@ -813,6 +815,17 @@
   .ohp-n { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; line-height: 1; color: #ffffff; text-shadow: 0 1px 0 #000000, 0 0 3px #000000; font-variant-numeric: tabular-nums; }
   .ohp.b { box-shadow: 0 0 0 1px rgba(201, 184, 255, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45); }
   @media (max-width: 800px) { .ohp { width: 96px; height: 15px; } .ohp-n { font-size: 0.7rem; } }
+
+
+  /* ---------- Keyword symbols ---------- */
+  .kw { white-space: nowrap; font-weight: 700; }
+  .kw svg { width: 0.95em; height: 0.95em; margin-right: 0.18em; vertical-align: -0.12em; color: var(--sc); }
+  .kw-badges { position: absolute; z-index: 1; left: 3px; bottom: 3px; display: flex; flex-direction: column-reverse; gap: 2px; pointer-events: none; }
+  .kw-badges i { width: 14px; height: 14px; display: grid; place-items: center; border-radius: 50%; color: var(--sc); background: rgba(12, 9, 6, 0.85); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sc) 70%, transparent); }
+  .kw-badges svg { width: 9px; height: 9px; }
+  .item::after, .hitem::after { left: 32%; }
+  html.maple .kw-badges i { background: rgba(22, 28, 48, 0.88); }
+  html.maple:not(.dark) .kw svg { filter: brightness(0.72) saturate(1.4); }
 
   /* ---------- Post-fight damage breakdown ---------- */
   .result .result-card { width: min(680px, 100%); max-height: 100%; overflow: auto; }
