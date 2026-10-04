@@ -545,7 +545,7 @@ The game opens on a title menu with a live, turnable preview of your character, 
 
 - **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
 - **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
-- **Art style:** dark Pixel (MapleStory-style UI) is the game's look. The Low-poly style and the light Pixel theme stay available as **dev tools** in a collapsed section of the title menu, next to dev shortcuts for testing the Hall of Fame (add a kept item, set wins to 9).
+- **Graphics:** dark Pixel (MapleStory-style UI) is the default look. A Graphics switch on the title menu (and only there) changes to Low-poly or to the light Pixel theme. A collapsed Dev tools section holds shortcuts for testing the Hall of Fame (add a kept item, set wins to 9).
 - **Cosmetics never affect stats.** They're the natural home for rewards that must stay fair: Hall of Fame milestones, seasonal backdrops and event outfits. Your Hall of Fame avatar in exhibitions shows your look and backdrop.
 
 ---
