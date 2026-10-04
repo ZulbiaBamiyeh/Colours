@@ -24,7 +24,7 @@ const LIST = [
     text: 'On hit: apply 1 Burn.', weapon: W(1.0, 3, c => c.apply('burn', 1)),
     model: { t: 'cinder', hand: -0.24, hold: 0.85 } },
   { id: 'sunbrand', name: 'Sunbrand', schools: [FIRE], slot: 'weapon', rarity: R, kind: 'Greatsword',
-    text: 'On hit: apply 2 Burn and gain 1 Heat.', weapon: W2(4.0, 20, c => { c.apply('burn', 2); c.gain('heat', 1); }),
+    text: 'On hit: apply 4 Burn and gain 2 Heat.', weapon: W2(4.0, 20, c => { c.apply('burn', 4); c.gain('heat', 2); }),
     model: { t: 'sword', len: 1.85, w: 0.15, blade: 0x5a4f5a, edge: 0xff7a2a, glow: 0.6, fuller: 0xffb04a, guard: 0x8a4b22, guardW: 0.72, tips: 0xff8a2a, grip: 0x5c2d1c, gem: 0xffa31a, gemGlow: 0.9, hilt: 0.55, hand: -0.3, hold: 0.55 } },
   { id: 'ember_censer', name: 'Ember Censer', schools: [FIRE], slot: 'offhand', rarity: C, kind: 'Censer',
     text: 'Every 4s: apply 4 Burn.', cd: 4, act: c => c.apply('burn', 4),
@@ -52,11 +52,12 @@ const LIST = [
     text: 'Burn ticks deal +1 damage per 5 Heat you have.', flags: { ashen: true },
     model: { t: 'ring', band: 0x47414f, gem: 0xff5320, deco: 'flame' } },
   { id: 'wildfire', name: 'Wildfire', schools: [FIRE], slot: 'amulet', rarity: L,
-    text: "While you have 15+ Heat, Burn on the enemy doesn't decay.", flags: { wildfire: true },
+    text: "While you have 8+ Heat, Burn on the enemy doesn't decay.", flags: { wildfire: true },
     model: { t: 'amulet', shape: 'flame' } },
   { id: 'molten_core', name: 'Molten Core', schools: [FIRE], slot: 'amulet', rarity: L,
-    text: 'Heat has no cap. You lose 1 HP per second per 5 Heat.', flags: { molten: true },
-    hooks: { second: c => { const n = Math.floor(c.me.heat / 5); return n > 0 && c.selfDamage(n); } },
+    text: 'Heat has no cap. Weapon hits deal +10% damage per 5 Heat. You lose 1 HP per second per 10 Heat.', flags: { molten: true },
+    mods: { hitDmg: (c, d) => d * (1 + 0.1 * Math.floor(c.me.heat / 5)) },
+    hooks: { second: c => { const n = Math.floor(c.me.heat / 10); return n > 0 && c.selfDamage(n); } },
     model: { t: 'amulet', shape: 'core' } },
 
   /* ---------------- Frost ---------------- */
@@ -101,7 +102,7 @@ const LIST = [
     text: 'On hit: apply 1 Poison.', weapon: W(1.2, 3, c => c.apply('poison', 1)),
     model: { t: 'dagger', blade: 0x3f5a2e, edge: 0x8bd34a, guard: 0x2e3a22, grip: 0x2e3a22, gem: 0x8bd34a, drip: 0x8bd34a, hold: 0.85 } },
   { id: 'blightreaper', name: 'Blightreaper', schools: [VENOM], slot: 'weapon', rarity: R, kind: 'Scythe',
-    text: 'On hit: apply 3 Poison.', weapon: W2(4.0, 18, c => c.apply('poison', 3)),
+    text: 'On hit: apply 6 Poison.', weapon: W2(4.0, 18, c => c.apply('poison', 6)),
     model: { t: 'scythe', haft: 0x3a2e22, blade: 0x4a5a3a, edge: 0x8bd34a, bone: 0xd8d0b0, hand: -0.5, hold: 0.55 } },
   { id: 'stinger', name: 'Stinger', schools: [VENOM], slot: 'offhand', rarity: C, kind: 'Parrying dagger',
     text: 'Dual wield: attacks every 1.5s for 2. On hit: apply 1 Poison.', dual: W(1.5, 2, c => c.apply('poison', 1)),
@@ -119,14 +120,11 @@ const LIST = [
   { id: 'mire_boots', name: 'Mire Boots', schools: [VENOM], slot: 'boots', rarity: C,
     text: 'Start of fight: apply 3 Poison.', hooks: { start: c => c.apply('poison', 3) },
     model: { t: 'boot', a: 0x3f4a2a, b: 0x2a3020, c: 0x8bd34a, extra: 'drips' } },
-  { id: 'last_bite', name: 'Last Bite', schools: [VENOM], slot: 'cape', rarity: E,
-    text: "Clutch: double the enemy's Poison.", hooks: { clutch: c => c.foe.st.poison > 0 && c.apply('poison', c.foe.st.poison) },
-    model: { t: 'cape', a: 0x2e3a22, b: 0x1a2014, hem: 0x8bd34a, emblem: 'fang' } },
   { id: 'festering_ring', name: 'Festering Ring', schools: [VENOM], slot: 'ring', rarity: R,
     text: 'Whenever Poison ticks: 25% chance to apply 1 Poison.', hooks: { poisonTick: c => c.chance(0.25) && c.apply('poison', 1) },
     model: { t: 'ring', band: 0x3f5a2e, gem: 0x8bd34a, shape: 'sphere', deco: 'drop' } },
   { id: 'coiled_serpent', name: 'Coiled Serpent', schools: [VENOM], slot: 'amulet', rarity: L,
-    text: 'Poison ticks deal no damage. Instead, every 5th tick strikes for 6× its stacks, and the strike can crit.', flags: { serpent: true },
+    text: 'Every 5th Poison tick also strikes for 5× current stacks. The strike can crit.', flags: { serpent: true },
     model: { t: 'amulet', shape: 'serpent' } },
 
   /* ---------------- Desert ---------------- */
@@ -140,7 +138,8 @@ const LIST = [
     text: 'Every 3s: apply 3 Sand.', cd: 3, act: c => c.apply('sand', 3),
     model: { t: 'pouch', a: 0xb08a5a, b: 0x6a4424, c: 0xdbb470, hold: 0.45 } },
   { id: 'nomads_wrap', name: "Nomad's Wrap", schools: [DESERT], slot: 'helm', rarity: R,
-    text: "While the enemy has 10+ Sand, their Sand doesn't decay.", mods: { sandHold: (c, v) => v || c.foe.st.sand >= 10 },
+    text: "While the enemy has 10+ Sand, their Sand doesn't decay and their weapon hits deal 15% less damage.", flags: { sandTax: true },
+    mods: { sandHold: (c, v) => v || c.foe.st.sand >= 10 },
     model: { t: 'wrap', a: 0xe8d8b0, b: 0xc0392b, c: 0x4fb2e8, wear: { y: 0.06, s: 0.82 } } },
   { id: 'dustveil_robe', name: 'Dustveil Robe', schools: [DESERT], slot: 'body', rarity: C,
     text: 'When hit: apply 3 Sand to the attacker.', hooks: { whenHit: c => c.apply('sand', 3) },
@@ -205,7 +204,7 @@ const LIST = [
     text: '35% Lifesteal.', weapon: W(2.8, 11, null, { ls: 0.35 }),
     model: { t: 'axe', haft: 0x3a2418, blade: 0x8a8f9a, edge: 0xd8344f, socket: 0x2a1a1e, gem: 0xd8344f, hand: -0.4, hold: 0.75 } },
   { id: 'crimson_greataxe', name: 'Crimson Greataxe', schools: [BLOOD], slot: 'weapon', rarity: R, kind: 'Greataxe',
-    text: '40% Lifesteal.', weapon: W2(4.5, 26, null, { ls: 0.4 }),
+    text: '40% Lifesteal.', weapon: W2(4.5, 28, null, { ls: 0.4 }),
     model: { t: 'axe', two: true, double: true, haft: 0x2a1a1e, blade: 0x6b1a24, edge: 0xd8344f, socket: 0x1a1014, gem: 0xd8344f, hand: -0.72, hold: 0.58 } },
   { id: 'sacrificial_dirk', name: 'Sacrificial Dirk', schools: [BLOOD], slot: 'offhand', rarity: C, kind: 'Ritual dagger',
     text: 'Dual wield: attacks every 1.6s for 4, with 40% Lifesteal.', dual: W(1.6, 4, null, { ls: 0.4 }),
@@ -226,7 +225,9 @@ const LIST = [
     hooks: { start: c => { c.selfDamage(10); c.me.fullLs += 5; return true; } },
     model: { t: 'boot', a: 0x6b1a24, b: 0x2a1a1e, c: 0xd8d0c0, extra: 'spikes' } },
   { id: 'blood_moon_cloak', name: 'Blood Moon Cloak', schools: [BLOOD], slot: 'cape', rarity: E,
-    text: 'Clutch: your next 3 weapon hits have 100% Lifesteal.', hooks: { clutch: c => { c.me.fullLs += 3; return true; } },
+    text: 'Weapon hits deal +2 damage. Clutch: your next 3 weapon hits have 100% Lifesteal.',
+    mods: { hitDmg: (c, d) => d + 2 },
+    hooks: { clutch: c => { c.me.fullLs += 3; return true; } },
     model: { t: 'cape', a: 0x3a1018, b: 0x1a0a0e, hem: 0x8a1a2a, emblem: 'moon' } },
   { id: 'sanguine_ring', name: 'Sanguine Ring', schools: [BLOOD], slot: 'ring', rarity: R,
     text: 'Whenever you Lifesteal at full HP, deal the overheal to the enemy as damage.',
@@ -266,8 +267,8 @@ const LIST = [
     text: 'Whenever a chance roll fails (including crits), gain 1 Luck (max 10 per fight).', flags: { loadedDice: true },
     model: { t: 'ring', band: 0xf2c14e, gem: 0xf4ecd8, shape: 'cube', glow: 0.1 } },
   { id: 'fatebound_talisman', name: 'Fatebound Talisman', schools: [FORTUNE], slot: 'amulet', rarity: L,
-    text: 'Everything can crit: heals, Shield gains and status applications. A crit doubles them.',
-    flags: { statusCrit: true, healCrit: true, shieldCrit: true },
+    text: 'Weapon hits deal +1 damage per 5 Luck you have past 10.',
+    mods: { hitDmg: (c, d) => d + Math.floor(Math.max(0, c.luck() - 10) / 5) },
     model: { t: 'amulet', shape: 'star' } },
 
   /* ---------------- Prismatic ---------------- */
@@ -308,12 +309,12 @@ const LIST = [
      builds, weak against Burn and Poison (no hits) and Sand (misses never trigger it), which
      Ironbark Plate and the Sandbriar Ring answer. */
   { id: 'briar_whip', name: 'Briar Whip', schools: [THORN], slot: 'weapon', rarity: C, kind: 'Whip',
-    text: 'On hit: gain 1 Thorns, up to 6 from this whip.',
-    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 6) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
+    text: 'On hit: gain 1 Thorns, up to 1 from this whip.',
+    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 1) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
     model: { t: 'whip', grip: 0x5a3a24, vine: 0x4f6a2a, thorn: 0xe9d9b0, bloom: 0xe86f9e, hand: -0.3, hold: 0.85 } },
   { id: 'bramble_maul', name: 'Bramble Maul', schools: [THORN], slot: 'weapon', rarity: R, kind: 'Maul',
-    text: 'On hit: deal bonus damage equal to your Thorns.',
-    weapon: W2(3.8, 16, c => c.me.thorns > 0 && c.hit(c.me.thorns)),
+    text: 'On hit: deal bonus damage equal to your Thorns, then gain 2 Thorns.',
+    weapon: W2(3.8, 16, c => { const hit = c.me.thorns > 0 && c.hit(c.me.thorns); return c.gain('thorns', 2) || hit; }),
     model: { t: 'mace', haft: 0x5a3a24, grip: 0x3a2618, head: 0x4f3a28, flange: 0x6f8a3a, gem: 0xe86f9e, spikes: { n: 16, color: 0xe9d9b0, size: 0.11, seed: 3, minY: 0.35 }, hand: -0.4, hold: 1.15 } },
   { id: 'hedgehog_shield', name: 'Hedgehog Shield', schools: [THORN], slot: 'offhand', rarity: C, kind: 'Shield',
     text: 'Every 4s: gain 1 Thorns and 4 Shield.', cd: 4, act: c => { c.gain('shield', 4); return c.gain('thorns', 1); },
@@ -322,26 +323,26 @@ const LIST = [
     text: 'When hit: 30% chance to gain 1 Thorns.', hooks: { whenHit: c => c.chance(0.3) && c.gain('thorns', 1) },
     model: { t: 'crown', a: 0x5a3a24, b: 0x6f8a3a, c: 0xe86f9e, spikes: { n: 14, color: 0xe9d9b0, size: 0.08, seed: 9 }, wear: { y: 0.3, s: 0.82 } } },
   { id: 'briar_mail', name: 'Briar Mail', schools: [THORN], slot: 'body', rarity: C,
-    text: 'Start of fight: gain 4 Thorns.', hooks: { start: c => c.gain('thorns', 4) },
+    text: 'Start of fight: gain 1 Thorns.', hooks: { start: c => c.gain('thorns', 1) },
     model: { t: 'armor', kind: 'vest', a: 0x5a4a2e, b: 0x3a2a1c, c: 0x6f8a3a, tint: 0x5a4a2e, spikes: { n: 16, color: 0xe9d9b0, size: 0.08, seed: 11, front: true } } },
   { id: 'ironbark_plate', name: 'Ironbark Plate', schools: [THORN], slot: 'body', rarity: E,
-    text: 'Every 3s: your Thorns strike the enemy. This counts as Thorns triggering.', cd: 3, act: c => c.thorns(),
+    text: 'Every 3s: your Thorns strike the enemy. This strike does not grant you Thorns.', cd: 3, act: c => c.thorns(true),
     model: { t: 'armor', kind: 'plate', a: 0x4f3a28, b: 0x6f8a3a, c: 0xe86f9e, tint: 0x4f3a28, spikes: { n: 22, color: 0xe9d9b0, size: 0.1, seed: 13, front: true } } },
   { id: 'spinefist', name: 'Spinefist', schools: [THORN], slot: 'gloves', rarity: R,
     text: 'Your weapon hits deal bonus damage equal to half your Thorns.',
     mods: { hitDmg: (c, d) => d + c.me.thorns * 0.5 },
     model: { t: 'glove', a: 0x5a4a2e, b: 0x3a2a1c, spikes: { n: 8, color: 0xe9d9b0, size: 0.07, seed: 17 } } },
   { id: 'nettle_treads', name: 'Nettle Treads', schools: [THORN], slot: 'boots', rarity: C,
-    text: 'Start of fight: gain 2 Thorns. When an enemy attack misses you, gain 1 Thorns.',
-    hooks: { start: c => c.gain('thorns', 2), enemyMiss: c => c.gain('thorns', 1) },
+    text: 'When an enemy attack misses you, gain 1 Thorns.',
+    hooks: { enemyMiss: c => c.gain('thorns', 1) },
     model: { t: 'boot', a: 0x4f6a2a, b: 0x3a2a1c, spikes: { n: 10, color: 0xe9d9b0, size: 0.07, seed: 19 } } },
   { id: 'briar_cloak', name: 'Briar Cloak', schools: [THORN], slot: 'cape', rarity: E,
     text: 'Clutch: double your Thorns, then gain 3 more.',
     hooks: { clutch: c => { c.gain('thorns', c.me.thorns); return c.gain('thorns', 3); } },
     model: { t: 'cape', a: 0x3f5a2a, b: 0x2a1c14, hem: 0xe86f9e, emblem: 'rose', spikes: { n: 14, color: 0xe9d9b0, size: 0.08, seed: 23 } } },
   { id: 'briarheart', name: 'Briarheart', schools: [THORN], slot: 'amulet', rarity: L,
-    text: 'Whenever your Thorns trigger, gain 1 Thorns. Your Thorns cap rises from 20 to 40.',
-    flags: { briarheart: true }, hooks: { thorned: c => c.gain('thorns', 1) },
+    text: 'Whenever an enemy weapon hit triggers your Thorns, gain 1 Thorns on every third trigger.',
+    hooks: { thorned: (c, o) => { if (o?.pulse) return false; c.data.n = (c.data.n ?? 0) + 1; return c.data.n % 3 === 0 && c.gain('thorns', 1); } },
     model: { t: 'amulet', shape: 'rose' } },
 
   /* ---------------- Bridge rings ---------------- */
@@ -484,7 +485,7 @@ for (const def of LIST) {
 export const ITEM_IDS = LIST.map(d => d.id);
 
 // Prism Cloak borrows a random school's clutch cape.
-const CLUTCH_CAPES = ['phoenix_cloak', 'winters_shroud', 'last_bite', 'sirocco_cloak', 'guardians_mantle', 'blood_moon_cloak', 'last_gamble'];
+const CLUTCH_CAPES = ['phoenix_cloak', 'winters_shroud', 'sirocco_cloak', 'guardians_mantle', 'blood_moon_cloak', 'last_gamble'];
 ITEMS.prism_cloak.hooks.clutch = c => ITEMS[CLUTCH_CAPES[Math.floor(c.rng() * CLUTCH_CAPES.length)]].hooks.clutch(c);
 
 export const slotLabel = def => {
@@ -511,10 +512,32 @@ const RARITY_WEIGHT = { common: 10, rare: 6, epic: 3, legendary: 1 };
 export function rollShopId(day, rng, filter = () => true) {
   const open = rarityOpen(day);
   const pool = LIST.filter(d => open.includes(d.rarity) && filter(d));
+  if (!pool.length) return null;
   const total = pool.reduce((s, d) => s + RARITY_WEIGHT[d.rarity], 0);
   let r = rng() * total;
   for (const d of pool) { if ((r -= RARITY_WEIGHT[d.rarity]) < 0) return d.id; }
-  return pool[0].id;
+  return pool[pool.length - 1].id;
+}
+
+// One weapon, one offhand, two armor pieces, and one piece of jewelry. The same shape the ghost shops from.
+const SHOP_FILTERS = [
+  d => d.slot === 'weapon',
+  d => d.slot === 'offhand',
+  d => ARMOR_SLOTS.includes(d.slot),
+  d => ARMOR_SLOTS.includes(d.slot),
+  d => d.slot === 'ring' || d.slot === 'amulet',
+];
+export function rollShopOffers(day, rng, exclude = () => false) {
+  const used = new Set();
+  const ids = [];
+  for (const filter of SHOP_FILTERS) {
+    const id = rollShopId(day, rng, d => filter(d) && !used.has(d.id) && !exclude(d))
+      || rollShopId(day, rng, d => filter(d) && !exclude(d))
+      || rollShopId(day, rng, filter);
+    if (id) used.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 const TITLES = {
@@ -524,32 +547,66 @@ const TITLES = {
 };
 const NOUNS = ['Wanderer', 'Duelist', 'Pilgrim', 'Raider', 'Warden', 'Drifter', 'Knight', 'Hexer'];
 
-// A ghost build for a given day: one or two schools, spending a gold budget similar to a player's.
+const GEAR_RANK = { common: 1, rare: 2, epic: 3, legendary: 4 };
+
+// A same-day ghost who shopped, imperfectly. Eight gold a day, the shaped market, and only pieces
+// from one or two schools. Unspent gold carries. Gaps stay gaps.
 export function makeGhost(day, rng) {
   const pick = arr => arr[Math.floor(rng() * arr.length)];
   const main = pick(SCHOOLS);
   const second = rng() < 0.55 ? pick(SCHOOLS.filter(s => s !== main)) : null;
-  const wanted = new Set([main, second].filter(Boolean));
-  const open = rarityOpen(day);
-  let budget = day * 10 - 2 + Math.floor(rng() * 5);
-  const fits = d => open.includes(d.rarity) && d.schools.every(s => wanted.has(s) || (s === 'Prismatic' && rng() < 0.08));
+  const plan = new Set([main, second].filter(Boolean));
+  const onPlan = def => def.schools.includes('Prismatic') ? rng() < 0.2 : def.schools.every(s => plan.has(s));
   const equip = {};
-  const order = ['weapon', ...['helm', 'body', 'boots', 'offhand', 'gloves', 'cape', 'ring1', 'amulet', 'ring2'].sort(() => rng() - 0.5)];
+  let gold = 0;
   let uid = 1;
-  for (const slot of order) {
-    if (slot === 'offhand' && equip.weapon && ITEMS[equip.weapon.id].weapon.hands === 2) continue;
-    const want = slot.startsWith('ring') ? 'ring' : slot;
-    let cands = LIST.filter(d => d.slot === want && fits(d) && d.price <= budget);
-    if (slot === 'weapon' && !cands.length) cands = LIST.filter(d => d.slot === 'weapon' && d.rarity === C);
-    if (!cands.length) continue;
-    // Prefer the best rarity it can afford most of the time.
-    cands.sort((a, b) => b.price - a.price);
-    const d = rng() < 0.6 ? cands[0] : pick(cands);
-    if (Object.values(equip).some(e => e.id === d.id) && d.slot === 'ring') continue;
-    equip[slot] = { uid: uid++, id: d.id };
-    budget -= d.price;
-    if (budget < 3) break;
+  const slotFor = def => {
+    if (def.slot === 'offhand' && equip.weapon && ITEMS[equip.weapon.id].weapon?.hands === 2) return null;
+    if (def.slot === 'ring') {
+      if (!equip.ring1) return 'ring1';
+      if (!equip.ring2 && equip.ring1.id !== def.id) return 'ring2';
+      if (GEAR_RANK[def.rarity] > GEAR_RANK[ITEMS[equip.ring1.id].rarity]) return 'ring1';
+      if (equip.ring2 && def.id !== equip.ring1.id && GEAR_RANK[def.rarity] > GEAR_RANK[ITEMS[equip.ring2.id].rarity]) return 'ring2';
+      return null;
+    }
+    const cur = equip[def.slot];
+    if (cur && GEAR_RANK[def.rarity] <= GEAR_RANK[ITEMS[cur.id].rarity]) return null;
+    return def.slot;
+  };
+  for (let d = 1; d <= day; d++) {
+    gold += 8;
+    let offers = rollShopOffers(d, rng).map(id => ITEMS[id]).filter(def => def && onPlan(def));
+    let bought = 0;
+    for (let guard = 0; guard < 4; guard++) {
+      let best = null;
+      for (const def of offers) {
+        const slot = slotFor(def);
+        if (!slot) continue;
+        const cur = equip[slot];
+        const sell = cur ? Math.floor(ITEMS[cur.id].price / 2) : 0;
+        if (def.price - sell > gold) continue;
+        const score = (cur ? 0 : 20) + (slot === 'weapon' && !equip.weapon ? 15 : 0) + GEAR_RANK[def.rarity];
+        if (!best || score > best.score) best = { def, slot, score };
+      }
+      if (!best) break;
+      // Often stop after one piece, so a ghost does not clear the shelf.
+      if (bought >= 1 && rng() < 0.45) break;
+      const cur = equip[best.slot];
+      if (cur) gold += Math.floor(ITEMS[cur.id].price / 2);
+      gold -= best.def.price;
+      equip[best.slot] = { uid: uid++, id: best.def.id };
+      if (best.slot === 'weapon' && best.def.weapon?.hands === 2 && equip.offhand) {
+        gold += Math.floor(ITEMS[equip.offhand.id].price / 2);
+        delete equip.offhand;
+      }
+      offers = offers.filter(def => def !== best.def);
+      bought++;
+    }
+  }
+  if (!equip.weapon) {
+    const w = LIST.find(d => d.slot === 'weapon' && d.rarity === C && d.schools.includes(main));
+    if (w) equip.weapon = { uid: uid++, id: w.id };
   }
   const name = `${pick(TITLES[main])} ${pick(NOUNS)}`;
-  return { name, equip, schools: [...wanted] };
+  return { name, equip, schools: [...plan] };
 }

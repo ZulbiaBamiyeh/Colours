@@ -249,20 +249,6 @@
     touch-action: none;
   }
   .item img { width: 100%; height: 100%; display: block; pointer-events: none; -webkit-user-drag: none; user-select: none; }
-  .item::after {
-    content: "";
-    position: absolute;
-    left: 22%;
-    right: 22%;
-    bottom: 5px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--rc);
-    opacity: 0.85;
-  }
-  .item.r-common { --rc: var(--r-common); }
-  .item.r-rare { --rc: var(--r-rare); }
-  .item.r-epic { --rc: var(--r-epic); }
   .item:hover { background: rgba(255, 228, 176, 0.06); }
   .item.sel { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(244, 198, 82, 0.45); }
   .item:focus-visible, .btn:focus-visible, .lock:focus-visible, .fight:focus-visible, .seg button:focus-visible, .reroll:focus-visible {
@@ -773,8 +759,6 @@
   .hof-vault .slot.in-set { box-shadow: inset 2px 2px 0 var(--slot-dark), inset -2px -2px 0 var(--slot-hi), 0 0 0 2px var(--gold); }
   .hitem { position: absolute; inset: 0; border: 0; padding: 0; margin: 0; background: none; border-radius: 8px; cursor: pointer; }
   .hitem img { width: 100%; height: 100%; display: block; pointer-events: none; }
-  .hitem::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 5px; height: 2px; border-radius: 2px; background: var(--rc); opacity: 0.85; }
-  .hitem.r-common { --rc: var(--r-common); } .hitem.r-rare { --rc: var(--r-rare); } .hitem.r-epic { --rc: var(--r-epic); } .hitem.r-legendary { --rc: var(--r-legendary); }
   .hitem:hover { background: rgba(255, 228, 176, 0.06); }
   .hitem:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .hitem.picked { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(244, 198, 82, 0.5); }
@@ -799,7 +783,6 @@
   html.maple .menu-nav button[aria-selected="true"] { background: #fff1dc; border-color: #f39a1e; color: #6a3300; box-shadow: inset 0 -3px 0 #f39a1e; }
   html.maple.dark .menu-nav button { background: #1f2740; border-color: #3a4566; color: #b7c0d6; }
   html.maple.dark .menu-nav button[aria-selected="true"] { background: #3a2f1c; border-color: #f39a1e; color: #ffcf6b; }
-  html.maple .hitem::after { display: none; }
   html.maple .hitem.r-common { box-shadow: inset 0 0 0 2px #8f96a3; }
   html.maple .hitem.r-rare { box-shadow: inset 0 0 0 2px #3f8fff, inset 0 0 14px rgba(63, 143, 255, 0.45); }
   html.maple .hitem.r-epic { box-shadow: inset 0 0 0 2px #a25cff, inset 0 0 16px rgba(162, 92, 255, 0.55); }
@@ -830,7 +813,6 @@
   .kw-badges { position: absolute; z-index: 1; left: 3px; bottom: 3px; display: flex; flex-direction: column-reverse; gap: 2px; pointer-events: none; }
   .kw-badges i { width: 14px; height: 14px; display: grid; place-items: center; border-radius: 50%; color: var(--sc); background: rgba(12, 9, 6, 0.85); box-shadow: 0 0 0 1px color-mix(in srgb, var(--sc) 70%, transparent); }
   .kw-badges svg { width: 9px; height: 9px; }
-  .item::after, .hitem::after { left: 32%; }
   html.maple .kw-badges i { background: rgba(22, 28, 48, 0.88); }
   html.maple:not(.dark) .kw svg { filter: brightness(0.72) saturate(1.4); }
 
@@ -978,7 +960,6 @@
 
   /* ---------- Legendary rarity ---------- */
   :root { --r-legendary: #ffb84a; }
-  .item.r-legendary { --rc: var(--r-legendary); }
   .o-name.r-legendary, .c-name.r-legendary, .tip .t-name.r-legendary, .hi .nm.r-legendary { color: var(--r-legendary); }
   .o-name.r-epic, .hi .nm.r-epic { color: var(--r-epic); }
   .hi .nm.r-rare { color: var(--r-rare); }
@@ -1271,7 +1252,6 @@
   html.maple .slot .glyph { color: #ffffff; opacity: 0.7; }
   html.maple .slot.can-drop { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 0 0 2px rgba(243, 154, 30, 0.5); }
   html.maple .slot.over { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 0 0 2px #f39a1e, 0 0 16px rgba(243, 154, 30, 0.6); }
-  html.maple .item::after { display: none; }
   html.maple .item.r-common { box-shadow: inset 0 0 0 2px #8f96a3; }
   html.maple .item.r-rare { box-shadow: inset 0 0 0 2px #3f8fff, inset 0 0 14px rgba(63, 143, 255, 0.45); }
   html.maple .item.r-epic { box-shadow: inset 0 0 0 2px #a25cff, inset 0 0 16px rgba(162, 92, 255, 0.55); }

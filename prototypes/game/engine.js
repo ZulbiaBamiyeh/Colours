@@ -14,9 +14,10 @@ export function mulberry32(a) {
 const DT = 0.1;
 const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20;
 const FATIGUE_AT = 25, MAX_TIME = 75;
-const POISON_EVERY = 3, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 2;
+const POISON_EVERY = 3, POISON_DECAY = 2, POISON_CAP = 20, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 2;
+const WILDFIRE_AT = 8;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { THORNS_CAP, THORNS_CAP_HEART: 40, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03 };
+export const RULES = { THORNS_CAP, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, POISON_DECAY, POISON_CAP, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT };
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [
@@ -43,7 +44,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       heat: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0, sandHold: 0,
-      burnT: 0, poisonT: 0, slowT: 0, sandT: 0, poisonTicks: 0,
+      burnT: 0, poisonT: 0, poisonDecay: 0, slowT: 0, sandT: 0, poisonTicks: 0,
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
@@ -127,8 +128,14 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (f.clutchShield) gain(f, 'shield', f.clutchShield);
     }
   }
+  // Nomad's Wrap taxes weapon hits only. Burn and Poison are how you hit someone through Sand.
+  function incoming(src, tgt, n) {
+    if (src && src !== tgt && tgt.flags.sandTax && src.st.sand >= 10) return n * 0.85;
+    return n;
+  }
   function damage(src, tgt, n, kind, meta = {}) {
     if (!(n > 0) || tgt.dead) return 0;
+    if (kind === 'hit') n = incoming(src, tgt, n);
     let absorbed = 0;
     if (kind !== 'poison' && kind !== 'fatigue' && kind !== 'self') {
       absorbed = Math.min(tgt.shield, n);
@@ -189,8 +196,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       ev('boon', { side: f.side, k: 'heat', n: add });
       fire(f, 'gainedHeat', { n: add });
     } else if (type === 'thorns') {
-      const cap = f.flags.briarheart ? RULES.THORNS_CAP_HEART : THORNS_CAP;
-      const add = Math.min(n, Math.max(0, cap - f.thorns));
+      const add = Math.min(n, Math.max(0, THORNS_CAP - f.thorns));
       if (add <= 0) return false;
       f.thorns += add;
       ev('boon', { side: f.side, k: 'thorns', n: add });
@@ -230,6 +236,11 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         tgt.st.slow = Math.min(SLOW_CAP, tgt.st.slow + n - c);
       } else if (type === 'sand') {
         tgt.st.sand = Math.min(SAND_CAP, tgt.st.sand + n);
+      } else if (type === 'poison') {
+        const room = Math.max(0, POISON_CAP - tgt.st.poison);
+        n = Math.min(n, room);
+        if (n <= 0) return false;
+        tgt.st.poison += n;
       } else {
         tgt.st[type] += n;
       }
@@ -243,14 +254,15 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   }
   // Thorns: the owner strikes back for their Thorns stacks. Thorns damage is not a weapon hit,
   // so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop.
-  function thornsStrike(owner, tgt) {
+  // pulse is Ironbark's timer. It still strikes, and bridge rings still notice, but it does not grow Thorns.
+  function thornsStrike(owner, tgt, pulse) {
     if (owner.dead || tgt.dead || !(owner.thorns > 0)) return false;
     let n = owner.thorns;
     let crit = false;
     if (owner.flags.thornCrit && critRoll(owner)) { n *= 2; crit = true; }
     ev('thorns', { side: owner.side });
     damage(owner, tgt, n, 'thorns', { crit });
-    fire(owner, 'thorned', { dmg: n });
+    fire(owner, 'thorned', { dmg: n, pulse: !!pulse });
     return true;
   }
   function boon(f) {
@@ -270,7 +282,13 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       me, foe, data: it ? it.data : {}, t,
       rng,
       apply: (type, n) => apply(me, foe, type, n),
-      addRaw: (type, n) => { foe.st[type] += n; ev('status', { side: foe.side, st: type, n }); return true; },
+      addRaw: (type, n) => {
+        if (type === 'poison') n = Math.min(n, Math.max(0, POISON_CAP - foe.st.poison));
+        if (!(n > 0)) return false;
+        foe.st[type] += n;
+        ev('status', { side: foe.side, st: type, n });
+        return true;
+      },
       gain: (type, n) => gain(me, type, n),
       heal: n => heal(me, n),
       hit: n => damage(me, foe, n, 'pure', { slot: it?.slot }) > 0,
@@ -281,7 +299,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       randomStatus: n => apply(me, foe, pickStatus(me), n * (me.flags.foolsOpal ? 2 : 1)),
       randomBoon: () => boon(me),
       luck: () => luckOf(me),
-      thorns: () => thornsStrike(me, foe),
+      thorns: pulse => thornsStrike(me, foe, pulse),
     };
   }
 
@@ -355,29 +373,29 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (dmg > 0 && src.flags.chalice) chaliceHeal(src, f, dmg);
     if (dmg > 0) ev('dotTick', { side: f.side, kind: 'burn', n: r1(dmg) });
     fire(src, 'burnTick', { dmg });
-    if (!(src.flags.wildfire && src.heat >= 15)) f.st.burn = Math.max(0, f.st.burn - 1);
+    if (!(src.flags.wildfire && src.heat >= WILDFIRE_AT)) f.st.burn = Math.max(0, f.st.burn - 1);
   }
   function poisonTick(f) {
     const src = other(f);
     f.poisonTicks++;
     let dmg = f.tick.poison;
     f.tick.poison = 0;
-    if (src.flags.serpent) {
-      dmg = 0;
-      if (f.poisonTicks % 5 === 0) {
-        let strike = f.st.poison * 6;
-        const crit = critRoll(src);
-        if (crit) strike *= 2;
-        if (strike > 0) damage(src, f, strike, 'poison', { crit });
-        dmg = strike;
-      }
-    } else if (dmg > 0 && src.flags.poisonCrit && critRoll(src)) {
+    if (dmg > 0 && src.flags.poisonCrit && critRoll(src)) {
       damage(src, f, dmg, 'poison', { crit: true });
       dmg *= 2;
     }
-    if (dmg > 0 && src.flags.chalice) chaliceHeal(src, f, dmg);
-    if (dmg > 0 && !src.flags.serpent) ev('dotTick', { side: f.side, kind: 'poison', n: r1(dmg) });
-    fire(src, 'poisonTick', { dmg });
+    // Serpent adds a bite on top of the drain. Replacing the drain made short fights deal nothing.
+    let strike = 0;
+    if (src.flags.serpent && f.poisonTicks % 5 === 0 && f.st.poison > 0) {
+      strike = f.st.poison * 5;
+      const crit = critRoll(src);
+      if (crit) strike *= 2;
+      damage(src, f, strike, 'poison', { crit });
+    }
+    const total = dmg + strike;
+    if (total > 0 && src.flags.chalice) chaliceHeal(src, f, total);
+    if (dmg > 0) ev('dotTick', { side: f.side, kind: 'poison', n: r1(dmg) });
+    fire(src, 'poisonTick', { dmg: total });
   }
   function chaliceHeal(src, tgt, n) {
     const ls = mod(src, 'lifesteal', src.ls, { d: tgt });
@@ -416,11 +434,13 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     for (const f of [A, B]) {
       const src = other(f);
       if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * DT);
-      if (f.st.poison > 0 && !src.flags.serpent) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
+      if (f.st.poison > 0) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
       f.burnT += DT;
       if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0 || f.tick.burn > 0) burnTick(f); }
       f.poisonT += DT;
       if (f.poisonT >= POISON_EVERY - 0.001) { f.poisonT -= POISON_EVERY; if (f.st.poison > 0 || f.tick.poison > 0) poisonTick(f); }
+      f.poisonDecay += DT;
+      if (f.poisonDecay >= POISON_DECAY - 0.001) { f.poisonDecay -= POISON_DECAY; f.st.poison = Math.max(0, f.st.poison - 1); }
       // Report the drained damage twice a second, so the UI can float small numbers at a calm pace.
       if (tick % 5 === 0) {
         for (const k of ['burn', 'poison']) {

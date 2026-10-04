@@ -1,7 +1,7 @@
 // Game screens: the market (shop, bag, equipment, inspector) and battles against ghost builds.
 import * as THREE from 'three';
 import {
-  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
+  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost,
 } from './items.js';
 import {
   USE, isUse, rollUseId, family, STATS, FAMILY_STATS, TIERS, lineText, slotsTotal, slotsLeft, steps, scrollChance,
@@ -127,15 +127,11 @@ const sellValue = item => Math.floor(ALL[item.id].price / 2) + (isUse(item.id) ?
 const freeBag = (except = -1) => S.bag.map((v, i) => (v === null && i !== except ? i : -1)).filter(i => i >= 0);
 const isTwoHanded = item => !!(item && ITEMS[item.id].weapon?.hands === 2);
 
-function rollOffer(filter) { return { ...inst(rollShopId(S.day, rng, filter)), locked: false, sold: false }; }
 function refreshShop() {
   const old = S.shop;
-  S.shop = Array.from({ length: 5 }, (_, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : rollOffer()));
-  const hasWeapon = S.equip.weapon || S.bag.some(b => b && ITEMS[b.id].slot === 'weapon') || S.shop.some(o => ITEMS[o.id].slot === 'weapon');
-  if (!hasWeapon) {
-    const i = S.shop.findIndex(o => !o.locked);
-    if (i >= 0) S.shop[i] = rollOffer(d => d.slot === 'weapon' && d.price <= Math.max(3, S.gold));
-  }
+  const locked = new Set((old || []).filter(o => o && o.locked && !o.sold).map(o => o.id));
+  const ids = rollShopOffers(S.day, rng, d => locked.has(d.id));
+  S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : { ...inst(id), locked: false, sold: false }));
   rollEnch();
 }
 // The Enchanter shelf: 3 consumables. Every 3rd day the Lucky Merchant puts a rare one in the last spot at 1 gold off.
@@ -267,8 +263,7 @@ function swapBag(a, b) {
 }
 function reroll() {
   if (!pay(1)) return;
-  S.shop = S.shop.map(o => (o.locked && !o.sold ? o : rollOffer()));
-  rollEnch();
+  refreshShop();
   if (S.sel?.startsWith('shop:') || S.sel?.startsWith('ench:')) S.sel = null;
   toast('New offers in the market.');
   commit();
@@ -1394,7 +1389,7 @@ function statusInfo(k, s) {
   const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : s.st[k];
   switch (k) {
     case 'burn': return [`Burn ${n}`, `Takes ${n} damage per second, dealt continuously, and loses 1 stack each second. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
-    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off and ignores Shield.`];
+    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Loses 1 stack every ${RULES.POISON_DECAY}s, caps at ${RULES.POISON_CAP}, and ignores Shield.`];
     case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
     case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Loses 1 stack every 2s, and cancels Heat 1 for 1.`];
     case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Loses 1 stack every 2s.`];
@@ -2202,7 +2197,14 @@ const HOF_KEY = 'hallOfFame';
 function loadHof() {
   try {
     const h = JSON.parse(localStorage.getItem(HOF_KEY) || 'null');
-    if (h && Array.isArray(h.items)) return { loadout: {}, record: { w: 0, l: 0, d: 0 }, ...h };
+    if (h && Array.isArray(h.items)) {
+      // Drop items removed from the catalog, and any loadout slots that pointed at them.
+      h.items = h.items.filter(it => it && ITEMS[it.id]);
+      for (const k of Object.keys(h.loadout || {})) {
+        if (!h.items.some(it => it.uid === h.loadout[k])) delete h.loadout[k];
+      }
+      return { loadout: {}, record: { w: 0, l: 0, d: 0 }, ...h };
+    }
   } catch { /* storage unavailable or corrupt */ }
   return { items: [], loadout: {}, record: { w: 0, l: 0, d: 0 } };
 }
