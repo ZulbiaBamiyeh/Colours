@@ -20,8 +20,9 @@ The depth comes from three layers:
 | Day | Shop phase, then one fight. |
 | Opponent | An asynchronous ghost: a snapshot of another player's build from the same day number. |
 | Gold | 10 per day. Unspent gold carries over. |
-| Shop | 5 offers. Reroll 1 gold. Lock offers between days. Sell items for 50%. |
-| Bag | 6 slots. Holds items, scrolls and cubes you're working on (a bench, not a build slot). |
+| Shop | 5 gear offers plus 3 Enchanter offers (scrolls and cubes). Reroll 1 gold rerolls both shelves. Lock gear offers between days. Sell items for 50%, plus 1 gold per successful scroll. |
+| Lucky Merchant | Every 3rd day, one Enchanter offer is a guaranteed rare consumable (Chaos Scroll, Mirror Cube or Golden Hammer) at 1 gold off. |
+| Bag | Two tabs. **Equip:** 6 slots for items you're holding (a bench, not a build slot). **Use:** 6 slots for scrolls and cubes, stacking up to 9 of each. |
 | Rarity by day | Common and Rare from day 1, Epic from day 3, Legendary from day 5 (rare). |
 | Relic days | Days 5 and 10: choose 1 of 3 legendaries. |
 | Classes | Not yet. Weapon choice and school stacking act as soft classes for now. |
@@ -129,6 +130,8 @@ Single-school builds reach tier 6 and hit hardest, but they're fragile against t
 ## 7. Item catalog: single-school items
 
 Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
+
+*The prototype's first tuning pass changed some numbers (for example Poison ticks every 3s and several Fire and Venom items are weaker). The prototype's `items.js` is the source of truth for current values; this catalog shows the original design.*
 
 ### Fire (Burn, Heat)
 
@@ -403,40 +406,88 @@ Every build should have at least two good and two bad matchups. Speed Thief curr
 
 ---
 
-## 10. Scrolls, cubes and the bag
+## 10. Scrolls, cubes and the Use tab
 
-Scrolls and cubes are applied to items in your bag or while equipped.
+Upgrades are consumables bought from the **Enchanter** shelf and kept in the bag's **Use** tab. Drag one onto any item, in the bag or equipped, or select it and click Use, then pick the item. A window shows the odds and possible results before you confirm.
 
-### Scrolls: stats with risk
+### Scrolls: stats, with risk
 
-| Scroll | Success | On success | On failure |
-|---|---|---|---|
-| Blessed | 100% | +1 | — |
-| Standard | 60% | +2 | Uses up the slot |
-| Daring | 30% | +4 | Uses up the slot, and 50% chance the item is destroyed |
-| Chaos | 60% | Random −2 to +4 | Uses up the slot |
+Every item has **upgrade slots by rarity: Common 2, Rare 3, Epic 4, Legendary 3.** Each scroll attempt uses a slot whether it works or not. Successful steps show as a **+N** badge on the item.
 
-- **What scrolls add:** weapons gain damage, everything else gains HP. Speed scrolls (weapons and offhands only) take 0.1s off the interval or cooldown.
-- **Scroll slots by rarity:** Common 2, Rare 3, Epic 4, Legendary 3.
-- **Luck doesn't affect scroll rolls.** Luck is a combat stat, which keeps the shop economy predictable.
+**What a scroll improves depends on the slot.** You choose which of the two stats when you apply it:
 
-### Cubes: reroll potential lines
+| Slot | Stat | One step |
+|---|---|---|
+| Weapon, dual-wield offhand | Attack | +6% of the weapon's base damage |
+| | Haste | −3% attack time |
+| Other offhands | Focus | −4% cooldown |
+| | Vitality | +5 HP |
+| Helm, body, gloves, boots, cape | Vitality | +5 HP |
+| | Ward | Start each fight with +4 Shield |
+| Ring, amulet | Fortune | +1 Luck |
+| | Leech | +1.5% Lifesteal |
 
-- Each item has 0 to 3 **potential lines**, by tier: Rare (1 line), Epic (2), Unique (3), Legendary (3, stronger). Using a cube rerolls all lines, with a small chance to raise the tier.
-- **Lines are stats or sources only**, for example "+8 HP", "+2 Luck", "+5% Lifesteal", "Start of fight: gain 2 Heat", "On hit: apply 1 Burn" (weapons only).
-- **Lines never add a school tag, never contain rule text, and never contain bridges.** Cubes can make an item stronger, but they can't create combinations nobody designed. Hitting a top-tier source line is the jackpot.
+| Scroll | Odds | On success | On failure | Price |
+|---|---|---|---|---|
+| Blessed Scroll | 100% | +1 step | – | 2 |
+| Scroll | 60% | +2 steps | Slot used | 3 |
+| Dark Scroll | 30% | +5 steps | Slot used, and 50% chance the item is destroyed | 4 |
+| Chaos Scroll | 60% | Both of the item's stats change by −2 to +4 steps | Slot used | 5 |
+| Golden Hammer | 100% | +1 upgrade slot (once per item, uses no slot) | – | 6 |
 
-### Shards
+- **Bad-luck protection:** each failed scroll on an item adds +5% to that item's next attempt.
+- **Shards:** a destroyed item leaves a Shard. 3 Shards forge a legendary: choose 1 of 3.
+- **Luck doesn't affect scroll or cube rolls.** Luck is a combat stat.
+- There is deliberately no protection scroll and no slot recovery. Risk is the point, and the Dark Scroll is the only way to lose an item.
 
-A destroyed item leaves a **Shard**. 3 Shards forge a legendary: choose 1 of 3. Bad luck builds toward something instead of only ending a run.
+### Cubes: potential lines
 
-### Bag (bench)
+An item has a **potential tier** with lines: Rare (1 line), Epic (2), Unique (3), Legendary (3, strongest values). A new item has no potential; the first cube gives it Rare.
 
-6 slots for items, scrolls and cubes. Bag items have no effect in combat.
+| Cube | Effect | Price |
+|---|---|---|
+| Plain Cube | Rerolls all lines. The tier never rises. | 3 |
+| Bright Cube | Rerolls, with a chance to raise the tier: Rare→Epic 10%, Epic→Unique 6%, Unique→Legendary 3%. | 5 |
+| Mirror Cube | Works like a Bright Cube, then shows old and new lines side by side and you keep either set. | 7 |
+| Lockstone | When cubing, tick a line to lock: it stays through the reroll and one Lockstone is used. | 3 |
+
+**Line pools** (values at Rare / Epic / Unique / Legendary). Lines are stats and status sources only. They never add a school tag, never contain rule text and never act as bridges.
+
+| Family | Lines |
+|---|---|
+| Weapon | Weapon damage +4/7/10/14% · Attack time −3/5/7/10% · Lifesteal +2/3/5/7% · Luck +1/2/3/4 · On hit: apply 1/1/2 of a status (Epic and up) |
+| Armour | HP +8/12/18/25 · Start with Shield 6/10/15/22 · Start with Heat 2/3/4 (Epic and up) · Clutch: gain Shield 10/15/22 (Epic and up) · Luck +1/1/2/3 |
+| Offhand | Cooldown −4/6/9/12% · HP +6/10/14/20 · Start with Shield 5/8/12/18 · Luck +1/2/2/3 |
+| Accessory | Luck +1/2/3/4 · Lifesteal +2/3/4/6% · HP +6/10/14/20 · Start with Heat 1/2/3/4 · Start: apply Slow 2/3/4/6 · Start: apply Sand 3/4/6 (Epic and up) |
+
+**Caps across all items:** weapon damage +30%, attack time −25%, cooldown −25%. The jackpot is a source line like "On hit: apply 2 Burn" on a non-Fire weapon, which lets a build borrow a status without a bridge ring.
+
+### Ghosts upgrade too
+
+Ghost builds get scroll steps and potential tiers that scale with the day, so they keep pace with what players invest.
+
+### The Enchanter shelf
+
+3 offers, rerolled together with the gear offers. Blessed Scrolls, Scrolls, Plain Cubes and Lockstones are common; Dark Scrolls and Bright Cubes uncommon; Chaos Scrolls, Mirror Cubes and Golden Hammers rare and only from Day 3.
+
+## 11. Hall of Fame, exhibitions and trading
+
+Runs end, but a player's best items shouldn't vanish. This is what gives scroll and cube results lasting value.
+
+- **Hall of Fame:** after winning a run (10 wins), choose **one item** you finished with, equipped or in the bag, to keep. It keeps its scroll steps and potential lines.
+- **Exhibition 1v1:** at any time, equip a set from your Hall of Fame (one item per slot) and fight another player's Hall of Fame avatar. No gold, lives or run progress: it's for fun and bragging rights.
+- **Hall of Fame items never enter runs.** Runs stay fair for everyone, and the hall stays a collection.
+- **Upgrades are stored as steps and lines, not final numbers**, so Hall of Fame items follow future balance changes automatically.
+
+**Later:**
+- **Trading:** swap Hall of Fame items with other players, upgrades intact.
+- **Wagers:** both players stake Hall of Fame items on an exhibition fight, and the winner takes both. Stakes should only ever be in-game items that can't be bought with real money, to stay clear of gambling rules.
+- **Seasons and events:** seasonal items that join the shop pool for a limited time, event shop days with special consumables, and seasonal Hall of Fame boards. Seasonal items keep working in exhibitions after their season ends.
+- **Star Force for Hall of Fame items** (possible endgame): a stepwise enhancement where each level is harder to reach and can slip back, giving collectors a long-term goal outside runs.
 
 ---
 
-## 11. Guardrails
+## 12. Guardrails
 
 These rules protect the design so balance work is about numbers, not redesigns.
 
@@ -452,8 +503,9 @@ These rules protect the design so balance work is about numbers, not redesigns.
 10. **Scroll and cube lines are stats and sources only**, and never add school tags.
 11. **All scaling resets every fight.** Progression across the run comes from the shop, scrolls and cubes, not from permanent buffs.
 12. **Deterministic resolution order**, so ghost fights replay identically.
+13. **Hall of Fame items never enter runs.** They're for exhibitions, trading and wagers only.
 
-## 12. Value reference (starting budget)
+## 13. Value reference (starting budget)
 
 Approximate worth of one unit of each effect in damage-equivalent, used to budget items by rarity. The simulator should replace these with measured values.
 
@@ -470,7 +522,7 @@ Approximate worth of one unit of each effect in damage-equivalent, used to budge
 | 1 Heat | about 3% of your output for the rest of the fight |
 | 1 Luck | about 3% weapon damage, plus chance effects |
 
-## 13. Open questions
+## 14. Open questions
 
 - **Burn's 30% healing cut** is what gives Heal a natural weakness. Is 30% the right size?
 - **Luck as a universal chance stat** makes it a strong hub. It's also the stat most likely to dominate.
@@ -478,7 +530,7 @@ Approximate worth of one unit of each effect in damage-equivalent, used to budge
 - **Fire · Holy has four bridges** while every other pair has one or two. Keep it as the flagship pair, or trim it?
 - **Classes:** when they arrive, they could bias the shop toward schools and add a passive, without changing any item.
 
-## 14. Next step: combat simulator
+## 15. Next step: combat simulator
 
 Build a headless simulator before tuning numbers:
 
