@@ -515,7 +515,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0,
+      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),

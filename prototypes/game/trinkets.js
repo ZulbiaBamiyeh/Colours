@@ -54,5 +54,16 @@ const LIST = [
   { id: 'rainbow_prism', name: 'Rainbow Prism', rarity: 'epic', price: 6, flags: { rainbow: { mode: 'equal', pool: ['burn', 'poison', 'slow'], chance: 0.5, bonus: 0.3, self: 0.3 } },
     text: 'Each Burn, Poison or Slow you apply has a 50% chance to become a random one of the three, with 30% more stacks. Each time it does, 30% chance you suffer 1 random one yourself.' },
 ];
+// Icon and in-hand models (models.js 'trinket' recipe).
+const MODEL = {
+  gilded_hourglass: { shape: 'hourglass', a: 0xe8b73a, b: 0xfff0b0 },
+  chronoshard: { shape: 'shard', a: 0x7fb0ff, b: 0xd8e8ff },
+  anchor_chain: { shape: 'anchor', a: 0x6f7f95, b: 0xbfefff },
+  pearl_of_the_deep: { shape: 'pearl', a: 0xf4f0ff, b: 0x3a6a9a },
+  volcanic_heart: { shape: 'heart', a: 0x3a2a24, b: 0xff6a1a },
+  berserkers_totem: { shape: 'totem', a: 0x8a5a3a, b: 0xd8344f },
+  rainbow_prism: { shape: 'prism', a: 0xffffff, b: 0xf0c0ff },
+};
 export const TRINKETS = {};
-for (const d of LIST) { d.slot = 'trinket'; d.schools = []; TRINKETS[d.id] = d; }
+for (const d of LIST) { Object.assign(d, { slot: 'trinket', schools: [], kind: 'Trinket', model: { t: 'trinket', ...MODEL[d.id] } }); TRINKETS[d.id] = d; }
+export const TRINKET_LIST = LIST;

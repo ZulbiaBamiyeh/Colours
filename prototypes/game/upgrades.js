@@ -117,7 +117,7 @@ export const USE = GEMS;
 export const isUse = id => !!GEMS[id];
 export const isGem = isUse;
 export const gemText = (gemId, def) => GEMS[gemId].text[gemKind(def)];
-export const socketsOf = item => SOCKETS[ITEMS[item.id].rarity] ?? 1;
+export const socketsOf = item => (ITEMS[item.id].slot === 'trinket' ? 0 : SOCKETS[ITEMS[item.id].rarity] ?? 1);
 export const gemsOf = item => (item.gems ?? []).filter(id => GEMS[id]);
 export const SCHOOL_GEMS = LIST.filter(d => d.school).map(d => d.id);
 
@@ -130,7 +130,7 @@ export function rollUseId(day, rng, filter = () => true) {
 
 // Ghosts socket gems roughly as a player would by that day: mostly gems of their own schools, some rare ones later.
 export function gemGhost(ghost, day, rng) {
-  const items = Object.values(ghost.equip).filter(Boolean);
+  const items = Object.values(ghost.equip).filter(e => e && socketsOf(e) > 0);
   if (!items.length) return;
   const schools = ghost.schools ?? [];
   const own = SCHOOL_GEMS.filter(id => schools.includes(GEMS[id].school));

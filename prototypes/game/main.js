@@ -1,7 +1,7 @@
 // Game screens: the market (shop, bag, equipment, inspector) and battles against ghost builds.
 import * as THREE from 'three';
 import {
-  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost,
+  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost, rollTrinketId, TRINKET2_DAY, TRINKET_DAY,
 } from './items.js';
 import {
   USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
@@ -22,8 +22,14 @@ const rng = mulberry32((Date.now() ^ 0x5eed1e) >>> 0);
 
 const LEFT = ['helm', 'amulet', 'body', 'cape', 'boots'];
 const RIGHT = ['weapon', 'offhand', 'gloves', 'ring1', 'ring2'];
-const ALL_SLOTS = [...RIGHT, ...LEFT];
+const TRINKET_SLOTS = ['trinket1', 'trinket2'];
+const ALL_SLOTS = [...RIGHT, ...LEFT, ...TRINKET_SLOTS];
+// The second trinket slot opens on TRINKET2_DAY.
+const slotOpen = k => k !== 'trinket2' || S.day >= TRINKET2_DAY;
 const GLYPH = {
+  trinket1: '<path d="M8 3h8M8 21h8"/><path d="M9 3c0 5 6 5 6 9s-6 4-6 9M15 3c0 5-6 5-6 9s6 4 6 9"/>',
+  trinket2: '<path d="M8 3h8M8 21h8"/><path d="M9 3c0 5 6 5 6 9s-6 4-6 9M15 3c0 5-6 5-6 9s6 4 6 9"/>',
+  locked: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   helm: '<path d="M4 15a8 8 0 0 1 16 0v4h-5v-4H9v4H4z"/><path d="M12 7v5"/>',
   amulet: '<path d="M6 3c0 6 2.7 9 6 9s6-3 6-9"/><path d="M12 12l3 4-3 4-3-4z"/>',
   body: '<path d="M9 3h6l5 3-2 5-2-1v11H8V10l-2 1-2-5z"/>',
@@ -132,8 +138,9 @@ const isTwoHanded = item => !!(item && ITEMS[item.id].weapon?.hands === 2);
 function refreshShop() {
   const old = S.shop;
   const locked = new Set((old || []).filter(o => o && o.locked && !o.sold).map(o => o.id));
-  const ids = rollShopOffers(S.day, rng, d => locked.has(d.id));
-  S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : { ...inst(id), locked: false, sold: false }));
+  // Five gear offers, then the day's trinket (none before TRINKET_DAY).
+  const ids = [...rollShopOffers(S.day, rng, d => locked.has(d.id)), rollTrinketId(S.day, rng, d => locked.has(d.id))];
+  S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : id ? { ...inst(id), locked: false, sold: false } : null));
   rollEnch();
 }
 // The Jeweler's shelf: 3 gems. Every 3rd day the Lucky Merchant puts a rare gem in the last spot at 1 gold off.
@@ -175,6 +182,7 @@ function placeEquip(item, slot, srcBag) {
 }
 function defaultSlot(id) {
   const s = ITEMS[id].slot;
+  if (s === 'trinket') return !S.equip.trinket1 ? 'trinket1' : slotOpen('trinket2') && !S.equip.trinket2 ? 'trinket2' : 'trinket1';
   if (s !== 'ring') return s;
   return !S.equip.ring1 ? 'ring1' : !S.equip.ring2 ? 'ring2' : 'ring1';
 }
@@ -190,6 +198,7 @@ function buy(i, dest) {
   }
   if (target.where === 'bag' && S.bag[target.key]) return toast('That bag slot is taken.');
   if (target.where === 'equip' && !fitsSlot(o.id, target.key)) return toast(`${def.name} goes in the ${slotLabel(def).toLowerCase()} slot.`);
+  if (target.where === 'equip' && !slotOpen(target.key)) return toast(`Your second trinket slot opens on day ${TRINKET2_DAY}.`);
   if (S.gold < def.price) return toast(`You need ${def.price} gold and have ${S.gold}.`);
   const item = { uid: o.uid, id: o.id };
   if (target.where === 'equip') { if (!placeEquip(item, target.key, null)) return; }
@@ -207,6 +216,7 @@ function equipFrom(loc, slot) {
   const def = ITEMS[item.id];
   slot = slot || defaultSlot(item.id);
   if (!fitsSlot(item.id, slot)) return toast(`${def.name} goes in the ${slotLabel(def).toLowerCase()} slot.`);
+  if (!slotOpen(slot)) return toast(`Your second trinket slot opens on day ${TRINKET2_DAY}.`);
   const [w, k] = loc.split(':');
   if (w === 'equip') {
     if (k === slot) return;
@@ -298,12 +308,12 @@ function canDrop(from, target) {
   }
   if (tw === 'use') return false;
   if (tw === 'sell') return fw !== 'shop';
-  if (tw === 'equip') return fitsSlot(item.id, tk) && !(fw === 'equip' && fk === tk);
+  if (tw === 'equip') return fitsSlot(item.id, tk) && slotOpen(tk) && !(fw === 'equip' && fk === tk);
   if (tw === 'bag') {
     if (fw === 'shop') return !S.bag[+tk];
     if (fw === 'bag') return fk !== tk;
     const occ = S.bag[+tk];
-    return !occ || fitsSlot(occ.id, fk);
+    return !occ || (fitsSlot(occ.id, fk) && slotOpen(fk));
   }
   return false;
 }
@@ -370,6 +380,7 @@ function moveUse(a, b) {
 // Why a gem can't go into this item, or null when it can. A full item can still take one: it replaces a gem.
 function useCheck(useId, item) {
   if (!item || isUse(item.id)) return 'Gems go into gear: an equipped item or one in your bag.';
+  if (!socketsOf(item)) return `${ITEMS[item.id].name} has no sockets.`;
   return null;
 }
 function spendUse(i) {
@@ -447,6 +458,7 @@ function socketsHTML(item, pry = false) {
   const n = socketsOf(item);
   const rows = gems.map((id, i) => `<div class="sock">${gemIcon(id)}<span><b class="${GEMS[id].cursed ? 'cursed' : ''}">${GEMS[id].name}</b> ${kwText(gemText(id, def))}</span>${pry ? `<button type="button" class="btn mini-plain" data-pry="${i}" title="${GEMS[id].cursed ? 'Cursed: can only be replaced' : `Take it out for ${PRY_COST} gold`}"${GEMS[id].cursed ? ' aria-disabled="true"' : ''}>${GEMS[id].cursed ? 'Cursed' : `Remove · ${PRY_COST}`}</button>` : ''}</div>`);
   for (let i = gems.length; i < n; i++) rows.push('<div class="sock empty"><span class="gem-ico"></span><span>Empty socket</span></div>');
+  if (!rows.length) return legacyHTML(item);
   return `<div class="socks"><span class="socks-cap">Sockets · ${GEM_KINDS[gemKind(def)]}</span>${rows.join('')}</div>${legacyHTML(item)}`;
 }
 // Back-compat name used by tooltips.
@@ -548,6 +560,13 @@ for (const [colId, keys] of [['col-left', LEFT], ['col-right', RIGHT]]) {
     equipCells[k] = cell;
   }
 }
+for (const k of TRINKET_SLOTS) {
+  const cell = document.createElement('div');
+  cell.className = 'slot';
+  cell.dataset.drop = `equip:${k}`;
+  $('trinket-cells').append(cell);
+  equipCells[k] = cell;
+}
 const bagCells = [];
 for (let i = 0; i < 6; i++) {
   const cell = document.createElement('div');
@@ -577,6 +596,13 @@ for (let i = 0; i < 3; i++) {
   el.className = 'eoffer';
   $('ench').append(el);
   enchEls.push(el);
+}
+// The trinket offer sits at the end of the Jeweler's shelf, but it's bought like gear (shop:5).
+{
+  const el = document.createElement('div');
+  el.className = 'eoffer toffer';
+  $('ench').append(el);
+  offerEls.push(el);
 }
 const glyph = k => `<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${GLYPH[k]}</svg>`;
 const schoolDot = sc => `<span class="dot" style="--sc: var(${SCHOOL_VAR[sc]})"></span>`;
@@ -609,8 +635,10 @@ function renderTop() {
 function renderEquip() {
   for (const k of ALL_SLOTS) {
     const it = S.equip[k];
-    equipCells[k].innerHTML = it ? itemBtn(it, `equip:${k}`, `, equipped as ${SLOT_NAME[k]}`) : glyph(k);
-    equipCells[k].title = it ? '' : SLOT_NAME[k];
+    const open = slotOpen(k);
+    equipCells[k].innerHTML = it ? itemBtn(it, `equip:${k}`, `, equipped as ${SLOT_NAME[k]}`) : glyph(open ? k : 'locked');
+    equipCells[k].title = it ? '' : open ? SLOT_NAME[k] : `Second trinket slot: opens on day ${TRINKET2_DAY}`;
+    equipCells[k].classList.toggle('locked', !open);
   }
 }
 function renderBag() {
@@ -619,8 +647,10 @@ function renderBag() {
   $('bag-count').textContent = `${S.bag.filter(Boolean).length} / 6`;
 }
 function renderShop() {
-  S.shop.forEach((o, i) => {
-    const el = offerEls[i];
+  offerEls.forEach((el, i) => {
+    const o = S.shop[i];
+    if (i === 5) return renderTrinketOffer(el, o);
+    if (!o) { el.innerHTML = ''; return; }
     const def = ITEMS[o.id];
     el.classList.toggle('locked', o.locked);
     el.classList.toggle('sold', o.sold);
@@ -637,6 +667,7 @@ function renderShop() {
   });
   S.ench.forEach((o, i) => {
     const el = enchEls[i];
+    if (!el) return;
     const def = USE[o.id];
     const price = enchPrice(o);
     el.classList.toggle('sold', o.sold);
@@ -649,6 +680,22 @@ function renderShop() {
   });
   const until = 3 - (S.day % 3);
   $('ench-note').textContent = luckyDay(S.day) ? 'The Lucky Merchant brought a rare gem' : `Lucky Merchant in ${until} day${until > 1 ? 's' : ''}`;
+}
+// The day's trinket, on the Jeweler's shelf: shaped like a gem offer, bought like gear.
+function renderTrinketOffer(el, o) {
+  el.classList.toggle('sold', !!o?.sold);
+  el.classList.toggle('locked', !!o?.locked);
+  if (!o) {
+    el.innerHTML = `<div class="slot">${glyph('trinket1')}</div><div class="e-txt"><span class="e-name">Trinkets</span><span class="e-sub">From day ${TRINKET_DAY}</span></div>`;
+    return;
+  }
+  const def = ITEMS[o.id];
+  const lockBtn = `<button type="button" class="lock" data-lock="5" aria-pressed="${o.locked}" aria-label="${o.locked ? 'Unlock' : 'Lock'} ${def.name}" title="${o.locked ? 'Locked: kept on reroll' : 'Lock to keep on reroll'}">${o.locked ? LOCK : UNLOCK}</button>`;
+  el.innerHTML = o.sold
+    ? '<div class="slot"></div><div class="e-txt"><span class="e-name sold-tag">Sold</span></div>'
+    : `${lockBtn}<div class="slot">${itemBtn(o, 'shop:5', `, trinket, ${def.price} gold`)}</div>
+      <div class="e-txt"><span class="e-name r-${def.rarity}">${def.name}</span><span class="price${S.gold < def.price ? ' short' : ''}">${COIN}${def.price}</span></div>
+      <span class="trinket-tag">Trinket</span>`;
 }
 /* ---------- Stats: the four tiles, and the full stat sheet they open ---------- */
 const STAT_ICON = {
@@ -877,7 +924,7 @@ function showTipFor(el, def, item = null) {
   tip.innerHTML = isUse(def.id)
     ? `<span class="t-name r-${def.rarity}">${def.name} gem</span><span class="t-meta">Gem · ${def.school ?? (def.cursed ? 'Cursed' : RARITY_NAME[def.rarity])}${item?.n > 1 ? ` · ${item.n} held` : ''}</span>${gemEffectsHTML(def)}`
     : `<span class="t-name r-${def.rarity}">${def.name}</span>
-    <span class="t-meta">${def.schools.join(' · ')} · ${slotLabel(def)} · ${RARITY_NAME[def.rarity]}</span>
+    <span class="t-meta">${[...def.schools, slotLabel(def), RARITY_NAME[def.rarity]].join(' · ')}</span>
     <span>${statLine(def)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
   tip.hidden = false;
   const r = el.getBoundingClientRect();
@@ -1261,7 +1308,7 @@ const B = { sim: null, ghost: null, T: 0, speed: 1, ei: 0, ai: 0, fi: -1, done: 
 const INTRO = 1.0, LEAD = 0.24, REC = 0.3;
 function hudHTML(side, name, sub, equip) {
   const rows = [];
-  const order = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
+  const order = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet', 'trinket1', 'trinket2'];
   if (!equip.weapon) rows.push(`<li><button type="button" class="hi" data-slot="weapon" data-fist="1" aria-label="Fists: what they do"><span class="fist" aria-hidden="true">✊</span><div><div class="nm">Fists</div><div class="cd"><i></i></div></div></button></li>`);
   for (const slot of order) {
     const e = equip[slot];
@@ -1533,6 +1580,7 @@ function spawnSnail(f) {
   setTimeout(() => { el.remove(); f.snails--; }, 3200);
 }
 const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#f0c878', self: '#ff8a8a', thorns: '#f08cb0' };
+const GOLD_TINT = new THREE.Color(0xf4c652), RAGE_TINT = new THREE.Color(0xff3a3a);
 const ST_COLOR = { burn: [0xff8a2a, 0xffc04a], poison: [0x8bd34a, 0x5aa83a], frost: [0xbfefff, 0x7fd6ff], slow: [0x7fb0ff, 0xa8c8ff], sand: [0xdbb470, 0xc9a060] };
 function fxDamage(e) {
   const f = F[e.side];
@@ -1633,6 +1681,32 @@ function playEvent(e, quiet) {
         f.iceK = 0;
       }
       log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'are', 'is')} <span class="k-frost">Frozen</span> for ${e.dur}s.`);
+      break;
+    case 'moment': {
+      const f = F[e.side];
+      const other = F[e.side === 'A' ? 'B' : 'A'];
+      const M = {
+        hourglass: ['Gilded!', '#f4c652', `<b>${sideName(e.side)}</b> ${verb(e.side, 'turn', 'turns')} to gold: no damage for 2.5s.`],
+        rewind: [`Rewind +${e.n}`, '#9fd0ff', `<b>${sideName(e.side)}</b> ${verb(e.side, 'rewind', 'rewinds')} 3 seconds and ${verb(e.side, 'recover', 'recovers')} ${e.n} HP.`],
+        pearl: ['Pearl of the Deep', '#bfe6ff', `The tide turns: <b>${sideName(e.side === 'A' ? 'B' : 'A')}</b>'s statuses double.`],
+        erupt: ['Eruption!', '#ff7a2a', `<b>${sideName(e.side)}</b> ${verb(e.side, 'erupt', 'erupts')}, spending ${e.n} Heat.`],
+        berserk: ['Berserk!', '#ff5a5a', `<b>${sideName(e.side)}</b> ${verb(e.side, 'go', 'goes')} berserk for 5s.`],
+      }[e.k];
+      if (!M) break;
+      if (!quiet) {
+        floatText(e.side, M[0], M[1], 'banner');
+        const x = f.holder.position.x;
+        if (e.k === 'hourglass') particles.burst(x, 1.0, 0.1, 30, [0xf4c652, 0xfff0b0], { max: 2.5, up: 1, size: 0.05, life: 0.7 });
+        if (e.k === 'rewind') for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; particles.emit({ x: x + Math.cos(a) * 0.6, y: 1 + Math.sin(a) * 0.6, z: 0.2, vx: -Math.sin(a) * 2, vy: Math.cos(a) * 2, drag: 3, life: 0.6, size: 0.05, color: 0x9fd0ff }); }
+        if (e.k === 'pearl') particles.burst(other.holder.position.x, 0.4, 0.1, 36, [0x7fd0ff, 0xf4f0ff, 0x3a8acf], { max: 3.2, up: 2.5, size: 0.06, life: 0.8 });
+        if (e.k === 'erupt') { particles.burst(other.holder.position.x, 0.3, 0.1, 40, [0xff6a1a, 0xffc04a, 0x3a2a24], { max: 4.5, up: 3, size: 0.07, life: 0.8 }); if (!reduceMotion) B.shake = 1; }
+        if (e.k === 'berserk') particles.burst(x, 1.0, 0.1, 24, [0xff5a5a, 0xffffff], { max: 2.6, up: 1.5, size: 0.05, life: 0.5 });
+      }
+      log(M[2]);
+      break;
+    }
+    case 'immune':
+      if (!quiet) floatText(e.side, 'Immune', '#f4c652', 'small');
       break;
     case 'clutch':
       if (!quiet) {
@@ -2061,9 +2135,12 @@ function animateFighters(t, dt, simDt) {
     const s0 = fr ? fr[side] : null;
     f.flash = Math.max(0, f.flash - dt * 4);
     const frozen = !!(s0 && s0.frozen);
-    const fk = Math.max(f.flash, frozen ? 0.35 : 0);
+    // Trinket moments: gold while the Hourglass holds, a red pulse while berserk.
+    const gold = !!(s0 && s0.gold), berserk = !!(s0 && s0.berserk);
+    const hold = gold ? 0.85 : berserk ? 0.3 + 0.2 * Math.sin(t * 12) : frozen ? 0.35 : 0;
+    const fk = Math.max(f.flash, hold);
     if (fk > 0.01) {
-      const col = f.flash > 0.35 || !frozen ? f.flashColor : ICE;
+      const col = f.flash > hold ? f.flashColor : gold ? GOLD_TINT : berserk ? RAGE_TINT : frozen ? ICE : f.flashColor;
       for (const mt of f.mats) { mt.emissive.copy(mt.userData.em0).lerp(col, fk); mt.emissiveIntensity = Math.max(mt.userData.ei0, fk * 1.1); }
       f.flashOn = true;
     } else if (f.flashOn) {
@@ -2312,7 +2389,8 @@ function toggleLoadout(uid) {
     delete HOF.loadout[at];
   } else {
     const def = ITEMS[item.id];
-    const slot = def.slot === 'ring' ? (!HOF.loadout.ring1 ? 'ring1' : !HOF.loadout.ring2 ? 'ring2' : 'ring1') : def.slot;
+    const pair = def.slot === 'ring' || def.slot === 'trinket' ? [`${def.slot}1`, `${def.slot}2`] : null;
+    const slot = pair ? (!HOF.loadout[pair[0]] ? pair[0] : !HOF.loadout[pair[1]] ? pair[1] : pair[0]) : def.slot;
     if (slot === 'weapon' && def.weapon?.hands === 2) delete HOF.loadout.offhand;
     if (slot === 'offhand') { const w = hofItem(HOF.loadout.weapon); if (w && ITEMS[w.id].weapon?.hands === 2) delete HOF.loadout.weapon; }
     HOF.loadout[slot] = uid;
@@ -2345,7 +2423,7 @@ function hofBtn(item, mode = 'hof') {
   const def = ITEMS[item.id];
   return `<button type="button" class="hitem r-${def.rarity}" data-${mode}="${item.uid}" aria-label="${def.name}"><img src="${iconFor(item.id)}" alt="" draggable="false">${kwBadges(def)}${badges(item)}</button>`;
 }
-const HOF_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
+const HOF_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet', 'trinket1', 'trinket2'];
 function renderHof() {
   const el = $('tab-hof');
   $('hof-count').textContent = HOF.items.length || '';

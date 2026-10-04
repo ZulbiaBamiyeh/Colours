@@ -1039,13 +1039,76 @@ function gemStone(m, p) {
   return g;
 }
 
+// Trinkets: small charms, one shape each.
+function trinket(m, p) {
+  const g = new THREE.Group();
+  const A = m(p.a), Bg = m(p.b, { glow: 0.6 });
+  switch (p.shape) {
+    case 'hourglass': {
+      for (const y of [0.42, -0.42]) g.add(mesh(cyl(0.34, 0.34, 0.08, 10), A, [0, y, 0]));
+      for (const x of [-0.27, 0.27]) g.add(mesh(cyl(0.035, 0.035, 0.84, 6), A, [x, 0, 0.12]));
+      g.add(mesh(cone(0.24, 0.38, 10), m(0xd8f0ff, { glow: 0.2 }), [0, 0.2, 0], [PI, 0, 0]));
+      g.add(mesh(cone(0.24, 0.38, 10), m(0xd8f0ff, { glow: 0.2 }), [0, -0.2, 0]));
+      g.add(mesh(cone(0.16, 0.2, 10), Bg, [0, -0.28, 0]));
+      g.add(mesh(cyl(0.012, 0.012, 0.3, 4), Bg, [0, -0.02, 0]));
+      break;
+    }
+    case 'shard': {
+      const c = mesh(octa(0.3), Bg, [0, 0, 0], [0, 0, 0.25], [0.7, 1.7, 0.7]);
+      g.add(c);
+      g.add(mesh(octa(0.12), m(p.a, { glow: 0.5 }), [0.32, -0.3, 0.05], [0, 0, -0.4], [0.7, 1.4, 0.7]));
+      g.add(mesh(torus(0.42, 0.018, 4, 28), m(p.b, { glow: 0.8 }), [0, 0, 0], [1.2, 0.3, 0]));
+      break;
+    }
+    case 'anchor': {
+      g.add(mesh(cyl(0.05, 0.05, 0.8, 8), A, [0, 0.02, 0]));
+      g.add(mesh(torus(0.11, 0.035, 6, 14), A, [0, 0.5, 0]));
+      g.add(mesh(box(0.42, 0.06, 0.08), A, [0, 0.28, 0]));
+      g.add(mesh(torus(0.32, 0.05, 6, 16, PI), A, [0, -0.06, 0], [PI, 0, 0]));
+      for (const k of [-1, 1]) g.add(mesh(cone(0.07, 0.16, 4), A, [0.33 * k, -0.06, 0], [0, 0, -0.9 * k]));
+      for (let i = 0; i < 3; i++) g.add(mesh(torus(0.07, 0.022, 5, 10), m(p.b, { glow: 0.4 }), [0.2 + i * 0.1, 0.62 + i * 0.07, 0], [i % 2 ? PI / 2 : 0, 0, 0.6]));
+      break;
+    }
+    case 'pearl': {
+      const shell = mesh(new THREE.SphereGeometry(0.42, 12, 6, 0, PI * 2, 0, PI / 2), m(p.b), [0, -0.12, 0], [PI, 0, 0], [1, 0.45, 1]);
+      g.add(shell);
+      g.add(mesh(new THREE.SphereGeometry(0.42, 12, 6, 0, PI * 2, 0, PI / 2), m(p.b), [0, 0.02, -0.26], [-1.1, 0, 0], [1, 0.45, 1]));
+      g.add(mesh(sph(0.2, 16, 12), m(p.a, { glow: 0.35 }), [0, 0.06, 0.05]));
+      break;
+    }
+    case 'heart': {
+      g.add(mesh(ico(0.36, 0), A, [0, 0, 0], [0.3, 0.5, 0], [1, 1.1, 0.9]));
+      for (const [x, y, z] of [[0.12, 0.1, 0.3], [-0.15, -0.05, 0.28], [0.02, -0.2, 0.3], [0.2, -0.15, 0.2], [-0.05, 0.22, 0.26]]) g.add(mesh(octa(0.06), Bg, [x, y, z]));
+      g.add(mesh(cone(0.08, 0.22, 6), m(0xffb04a, { glow: 1 }), [0, 0.44, 0]));
+      break;
+    }
+    case 'totem': {
+      g.add(mesh(box(0.32, 0.3, 0.3), A, [0, -0.26, 0]));
+      g.add(mesh(box(0.36, 0.32, 0.32), m(p.a), [0, 0.06, 0]));
+      g.add(mesh(box(0.3, 0.26, 0.28), A, [0, 0.36, 0]));
+      for (const k of [-1, 1]) {
+        g.add(mesh(box(0.06, 0.05, 0.02), Bg, [0.08 * k, 0.1, 0.17]));
+        g.add(mesh(cone(0.05, 0.24, 5), m(0xe8dcc0), [0.22 * k, 0.5, 0], [0, 0, -0.6 * k]));
+      }
+      g.add(mesh(box(0.18, 0.04, 0.02), m(0x2a1a12), [0, -0.02, 0.17]));
+      break;
+    }
+    case 'prism': {
+      g.add(mesh(cyl(0.3, 0.3, 0.6, 3), m(p.a, { glow: 0.3 }), [0, 0, 0], [0, 0.4, 0]));
+      [0xff6a6a, 0xffd36a, 0x7fe07f, 0x6ab0ff, 0xc58cff].forEach((c, i) => g.add(mesh(box(0.55, 0.035, 0.02), m(c, { glow: 0.9 }), [0.46, 0.12 - i * 0.06, 0.1], [0, 0, -0.25 + i * 0.12])));
+      break;
+    }
+  }
+  return g;
+}
+
 const RECIPES = {
   cinder: (m) => cinder(m), maul: (m) => maul(m), kindling: (m) => kindling(m), haloHelm: (m) => haloHelm(m), prismStaff: (m) => prismStaff(m),
   dagger, sword, mace, hammer, axe, cleaver, scythe, glaive,
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,
-  scrollRoll, goldHammer, cubeItem, lockstone, whip, gemStone,
+  scrollRoll, goldHammer, cubeItem, lockstone, whip, gemStone, trinket,
 };
 
 export function buildItemModel(def, m = MS) {

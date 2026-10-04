@@ -7,7 +7,9 @@ export const SCHOOL_VAR = {
   Holy: '--s-holy', Blood: '--s-blood', Fortune: '--s-fortune', Thorn: '--s-thorn', Lunar: '--s-lunar', Prismatic: '--s-prism',
 };
 export const SLOTS = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
-export const SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', body: 'Body', gloves: 'Gloves', boots: 'Boots', cape: 'Cape', ring1: 'Ring', ring2: 'Ring', amulet: 'Amulet', ring: 'Ring' };
+import { TRINKET_LIST } from './trinkets.js';
+
+export const SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', body: 'Body', gloves: 'Gloves', boots: 'Boots', cape: 'Cape', ring1: 'Ring', ring2: 'Ring', amulet: 'Amulet', ring: 'Ring', trinket: 'Trinket', trinket1: 'Trinket', trinket2: 'Trinket' };
 export const RARITY_NAME = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
 const PRICE = { common: 3, rare: 5, epic: 7, legendary: 10 };
 const ARMOR_HP = { common: 6, rare: 10, epic: 15, legendary: 20 };
@@ -539,9 +541,11 @@ for (const def of LIST) {
   }
 }
 
+// Trinkets (trinkets.js) are gear too: their own slots, no HP, no school, no sockets.
+LIST.push(...TRINKET_LIST);
 export const ITEMS = {};
 for (const def of LIST) {
-  def.price = PRICE[def.rarity] + (def.weapon?.hands === 2 ? 1 : 0);
+  def.price = def.slot === 'trinket' ? def.price : PRICE[def.rarity] + (def.weapon?.hands === 2 ? 1 : 0);
   def.hp = ARMOR_SLOTS.includes(def.slot) ? ARMOR_HP[def.rarity] : 0;
   def.bridge = def.schools.length > 1;
   ITEMS[def.id] = def;
@@ -560,14 +564,20 @@ export const slotLabel = def => {
 export const statLine = def => {
   if (def.weapon) return `${def.kind} · ${def.weapon.interval.toFixed(1)}s · ${def.weapon.dmg} dmg`;
   if (def.dual) return `${def.kind} · ${def.dual.interval.toFixed(1)}s · ${def.dual.dmg} dmg`;
+  if (def.slot === 'trinket') return 'Trinket · once per fight';
   if (def.cd) return `${def.kind} · every ${def.cd}s`;
   if (def.hp) return `${SLOT_NAME[def.slot]} · +${def.hp} HP`;
   return def.bridge ? 'Bridge ring' : SLOT_NAME[def.slot];
 };
 export const fitsSlot = (id, slot) => {
   const s = ITEMS[id].slot;
-  return s === 'ring' ? slot === 'ring1' || slot === 'ring2' : s === slot;
+  if (s === 'ring') return slot === 'ring1' || slot === 'ring2';
+  if (s === 'trinket') return slot === 'trinket1' || slot === 'trinket2';
+  return s === slot;
 };
+// Trinket slots: one from the start, a second from TRINKET2_DAY.
+export const TRINKET2_DAY = 5;
+export const TRINKET_DAY = 2;
 
 /* ---------------- Shop and ghost builds ---------------- */
 export const rarityOpen = day => [C, R, ...(day >= 3 ? [E] : []), ...(day >= 5 ? [L] : [])];
@@ -591,6 +601,12 @@ const SHOP_FILTERS = [
   d => ARMOR_SLOTS.includes(d.slot),
   d => d.slot === 'ring' || d.slot === 'amulet',
 ];
+// The day's trinket offer (from TRINKET_DAY), any trinket with equal odds; null before then.
+export function rollTrinketId(day, rng, exclude = () => false) {
+  if (day < TRINKET_DAY) return null;
+  const pool = TRINKET_LIST.filter(d => !exclude(d));
+  return pool.length ? pool[Math.floor(rng() * pool.length)].id : null;
+}
 export function rollShopOffers(day, rng, exclude = () => false) {
   const used = new Set();
   const ids = [];
@@ -628,6 +644,8 @@ export function makeGhost(day, rng) {
   const tally = (def, k) => { for (const s of def.schools) count[s] = (count[s] ?? 0) + k; };
   // How well a piece suits this build; 0 means it would not buy it.
   const fit = def => {
+    // Trinkets suit any build, except Volcanic Heart, which needs Fire's Heat.
+    if (def.slot === 'trinket') return def.id === 'volcanic_heart' ? (plan.includes('Fire') ? 2 : 0.6) : 1.8;
     if (def.schools.includes('Prismatic')) return 1.6;
     const on = def.schools.filter(s => plan.includes(s));
     if (!on.length) return 0.5;
@@ -636,9 +654,10 @@ export function makeGhost(day, rng) {
     return Math.max(0.6, f - 0.22 * Math.max(...on.map(s => count[s] ?? 0)));
   };
   const value = def => fit(def) * 4 + GEAR_RANK[def.rarity] * 3;
-  const slotsFor = def => {
+  const slotsFor = (def, d) => {
     if (def.slot === 'offhand' && equip.weapon && ITEMS[equip.weapon.id].weapon?.hands === 2) return [];
     if (def.slot === 'ring') return [equip.ring1?.id, equip.ring2?.id].includes(def.id) ? [] : ['ring1', 'ring2'];
+    if (def.slot === 'trinket') return [equip.trinket1?.id, equip.trinket2?.id].includes(def.id) ? [] : d >= TRINKET2_DAY ? ['trinket1', 'trinket2'] : ['trinket1'];
     return [def.slot];
   };
   const sellBack = slot => {
@@ -652,12 +671,12 @@ export function makeGhost(day, rng) {
     gold += d === 1 ? 10 : 9;
     // One plain market a day, plus rerolls spent hunting its own schools.
     const offSchool = def => !def.schools.some(sc => plan.includes(sc));
-    let offers = [...rollShopOffers(d, rng), ...rollShopOffers(d, rng, offSchool), ...rollShopOffers(d, rng, offSchool)]
+    let offers = [...rollShopOffers(d, rng), ...rollShopOffers(d, rng, offSchool), ...rollShopOffers(d, rng, offSchool), rollTrinketId(d, rng)]
       .filter(Boolean).map(id => ITEMS[id]);
     for (let guard = 0; guard < 6; guard++) {
       let best = null;
       for (const def of offers) {
-        for (const slot of slotsFor(def)) {
+        for (const slot of slotsFor(def, d)) {
           const cur = equip[slot];
           const sell = cur ? Math.floor(ITEMS[cur.id].price / 2) : 0;
           if (def.price - sell > gold) continue;

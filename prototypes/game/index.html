@@ -504,7 +504,17 @@
   /* ---------- Enchanter shelf ---------- */
   .ph.sub { margin: 9px 0 6px; }
   .ph.sub h3 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--parch-dim); }
-  .ench { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .ench { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+  .toffer { position: relative; border-color: color-mix(in srgb, var(--r-epic, #c58cff) 55%, transparent); }
+  .toffer .lock { position: absolute; top: 3px; right: 3px; }
+  .toffer .e-sub { font-size: 0.75rem; color: var(--parch-faint); }
+  .toffer .slot svg.glyph { opacity: 0.5; }
+  .trinket-tag { position: absolute; left: 6px; bottom: -7px; padding: 0 6px; border-radius: 999px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; background: #c58cff; color: #1a1020; }
+  @media (max-width: 700px) { .ench { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .trinket-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .tr-cap { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--parch-faint); }
+  .trinket-cells { display: flex; gap: 7px; }
+  .trinket-cells .slot.locked { opacity: 0.45; }
   .eoffer {
     position: relative;
     display: flex;
@@ -1582,6 +1592,7 @@
         <div class="stage" id="stage"><canvas id="hero" aria-label="Your character wearing the equipped items"></canvas><span class="hint">Drag to turn</span></div>
         <div class="col" id="col-right"></div>
       </div>
+      <div class="trinket-row"><span class="tr-cap">Trinkets</span><div class="trinket-cells" id="trinket-cells"></div></div>
       <div class="stats" id="stats" role="button" tabindex="0" aria-controls="stat-sheet" aria-expanded="false" title="Show all stats"></div>
       <div class="stat-sheet" id="stat-sheet" hidden aria-label="All stats"></div>
     </section>
