@@ -8,6 +8,7 @@ import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, h
 import { Particles, Bolts, fighterFx } from './fx.js';
 
 const $ = id => document.getElementById(id);
+if (!document.documentElement.lang) document.documentElement.lang = 'en';
 const studio = createStudio(ITEMS);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rng = mulberry32((Date.now() ^ 0x5eed1e) >>> 0);
@@ -325,12 +326,12 @@ function renderStats() {
   }
   const w = S.equip.weapon && ITEMS[S.equip.weapon.id].weapon;
   const tiles = [
-    ['HP', hp],
-    ['Damage', w ? w.dmg : 1],
-    ['Speed', `${(w ? w.interval : 1.5).toFixed(1)}s`],
-    ['Crit', `${5 + luck * 3}%`],
+    ['HP', 'HP', hp],
+    ['Damage', 'Dmg', w ? w.dmg : 1],
+    ['Speed', 'Spd', `${(w ? w.interval : 1.5).toFixed(1)}s`],
+    ['Crit', 'Crit', `${5 + luck * 3}%`],
   ];
-  $('stats').innerHTML = tiles.map(([k, v]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+  $('stats').innerHTML = tiles.map(([k, s, v]) => `<div class="stat"><span class="k"><span class="long">${k}</span><span class="short" aria-hidden="true">${s}</span></span><span class="v">${v}</span></div>`).join('');
 }
 const card = $('card'), actions = $('actions');
 let ttItem = null;
@@ -542,6 +543,8 @@ const ttCtx = tt.getContext('2d');
 function syncTTSeg() {
   document.querySelectorAll('[data-style-seg] button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.ttStyle)));
   for (const el of [tt, $('hero'), $('arena')]) el.classList.toggle('pixel', S.ttStyle === 'pixel');
+  document.documentElement.classList.toggle('maple', S.ttStyle === 'pixel');
+  restyleArena();
 }
 document.querySelectorAll('[data-style-seg]').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -603,10 +606,12 @@ ar.setClearColor(0x000000, 0);
 const as = new THREE.Scene();
 heroLights(as);
 const ac = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
-{
-  const floor = mesh(new THREE.CircleGeometry(4.2, 40), MS(0x2a2119), [0, -0.17, 0], [-Math.PI / 2, 0, 0]);
-  as.add(floor);
-  as.add(mesh(new THREE.TorusGeometry(3.2, 0.03, 6, 60), MS(0xc09450, { glow: 0.25 }), [0, -0.16, 0], [Math.PI / 2, 0, 0]));
+const floor = mesh(new THREE.CircleGeometry(4.2, 40), MS(0x2a2119), [0, -0.17, 0], [-Math.PI / 2, 0, 0]);
+as.add(floor);
+as.add(mesh(new THREE.TorusGeometry(3.2, 0.03, 6, 60), MS(0xc09450, { glow: 0.25 }), [0, -0.16, 0], [Math.PI / 2, 0, 0]));
+// Pixel mode stages the fight on a grassy field under the sky backdrop.
+function restyleArena() {
+  floor.material = S.ttStyle === 'pixel' ? MP(0x7dbb5a) : MS(0x2a2119);
 }
 const GHOST_LOOK = { skin: 0xc4bfe6, hair: 0x5a5a8a, tunic: 0x6a5a8a, eyes: 0x8fe3ff, eyesGlow: 0.9, blush: 0x9a8fd0 };
 const F = { A: null, B: null };
@@ -822,7 +827,7 @@ const sideName = side => (side === 'A' ? 'You' : B.ghost.name);
 function logLine(html, at = B.T) {
   const log = $('log');
   const li = document.createElement('li');
-  li.innerHTML = `<span class="t">${at.toFixed(1)}s</span>${html}`;
+  li.innerHTML = `<span class="t">${Math.max(0, at).toFixed(1)}s</span>${html}`;
   log.append(li);
   while (log.children.length > 80) log.firstChild.remove();
   log.scrollTop = log.scrollHeight;

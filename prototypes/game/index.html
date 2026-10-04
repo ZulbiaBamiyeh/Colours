@@ -1,7 +1,7 @@
 <title>Equip Autobattler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&family=Almendra:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&family=Almendra:wght@400;700&family=M+PLUS+Rounded+1c:wght@500;700;800&family=Pixelify+Sans:wght@500;600;700&display=swap">
 <style>
   /* Layout: game screen. Market: equipment | market + bag | inspector. Battle: your HUD | arena | ghost HUD. Two columns on tablets, one on phones. */
   :root {
@@ -686,12 +686,151 @@
     .stat .k { font-size: 0.625rem; letter-spacing: 0.08em; }
   }
   .seg.phone-only { display: none; }
+  .stat .short { display: none; }
+  @media (max-width: 520px) {
+    .stat .long { display: none; }
+    .stat .short { display: inline; }
+  }
   @media (max-width: 640px) {
     .seg.phone-only { display: inline-flex; }
     .wide-only { display: none; }
   }
   .top .seg button { padding: 4px 10px; }
   #hero.pixel, #arena.pixel { image-rendering: pixelated; }
+
+  /* ---------- MapleStory theme (Pixel mode) ----------
+     Light silver panels, grey slot wells with coloured rarity frames, orange title tabs,
+     navy tooltips and a bright sky. Applied with the .maple class on the root element. */
+  html.maple {
+    --night: #cfe3f7; --night-2: #eaf4fd;
+    --leather: #e1e5eb; --leather-2: #f8f9fb;
+    --brass: #f39a1e; --brass-dim: #b5bcc8;
+    --slot: #979eaa; --slot-in: #b6bcc6; --slot-dark: #6f7684; --slot-hi: #d6dae1;
+    --parch: #2f3646; --parch-dim: #4a5263; --parch-faint: #6a7385;
+    --gold: #e08a10; --gold-deep: #b5650a; --danger: #d64545;
+    --r-common: #3a4152; --r-rare: #2f7fe0; --r-epic: #9a4fe0; --r-legendary: #d97e00;
+    --font-display: "Pixelify Sans", "Courier New", monospace;
+    --font-body: "M PLUS Rounded 1c", "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  html.maple body {
+    background:
+      radial-gradient(500px 120px at 15% 12%, rgba(255, 255, 255, 0.8), transparent 70%),
+      radial-gradient(600px 140px at 80% 6%, rgba(255, 255, 255, 0.7), transparent 70%),
+      linear-gradient(#a9d3fb, #dcecfb 45%, #f2f8fe);
+  }
+  html.maple .panel {
+    border-color: #b5bcc8;
+    box-shadow: inset 0 1px 0 #ffffff, 0 6px 18px rgba(40, 60, 100, 0.18);
+  }
+  html.maple .panel::before { display: none; }
+  html.maple .ph h2 {
+    padding: 3px 12px 2px;
+    border-radius: 6px 6px 2px 2px;
+    background: linear-gradient(#ffcf6b, #f39a1e);
+    color: #6a3300;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: inset 0 1px 0 #ffe7b0;
+  }
+  html.maple .ph .rule { background: linear-gradient(90deg, #b5bcc8, transparent); }
+  html.maple .brand .day { color: #e07a10; text-shadow: 0 1px 0 #ffffff; }
+  html.maple .wins-track i { background: #c8ced8; box-shadow: inset 0 0 0 1px #8f96a3; }
+  html.maple .wins-track i.on { background: #f39a1e; box-shadow: 0 0 6px rgba(243, 154, 30, 0.6); }
+  html.maple .fight {
+    background: linear-gradient(#ffb86b, #f07a1e);
+    border-color: #ffd8a8;
+    color: #ffffff;
+    text-shadow: 0 1px 0 rgba(120, 50, 0, 0.6);
+    box-shadow: 0 4px 0 #b5520a, 0 8px 18px rgba(240, 122, 30, 0.35);
+  }
+  html.maple .fight:active { box-shadow: 0 1px 0 #b5520a; }
+  html.maple .slot {
+    background: linear-gradient(var(--slot-in), var(--slot));
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 1px 0 #ffffff;
+  }
+  html.maple .slot .glyph { color: #ffffff; opacity: 0.7; }
+  html.maple .slot.can-drop { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 0 0 2px rgba(243, 154, 30, 0.5); }
+  html.maple .slot.over { box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.28), 0 0 0 2px #f39a1e, 0 0 16px rgba(243, 154, 30, 0.6); }
+  html.maple .item::after { display: none; }
+  html.maple .item.r-common { box-shadow: inset 0 0 0 2px #8f96a3; }
+  html.maple .item.r-rare { box-shadow: inset 0 0 0 2px #3f8fff, inset 0 0 14px rgba(63, 143, 255, 0.45); }
+  html.maple .item.r-epic { box-shadow: inset 0 0 0 2px #a25cff, inset 0 0 16px rgba(162, 92, 255, 0.55); }
+  html.maple .item.r-legendary { box-shadow: inset 0 0 0 2px #ffb020, inset 0 0 18px rgba(255, 176, 32, 0.6); }
+  html.maple .item.sel { box-shadow: 0 0 0 2px #f39a1e, 0 0 14px rgba(243, 154, 30, 0.6); }
+  html.maple .item:hover { background: rgba(255, 255, 255, 0.18); }
+  html.maple .stage {
+    background: radial-gradient(ellipse 70% 30% at 50% 82%, rgba(255, 255, 255, 0.75), transparent 70%), linear-gradient(#9fd0fb, #e4f2fd);
+    box-shadow: inset 0 0 0 1px #9aa6b8, inset 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+  html.maple .stat { background: #ffffff; border-color: #c8ced8; }
+  html.maple .reroll, html.maple .btn, html.maple .sheet-close {
+    background: linear-gradient(#ffffff, #dfe3ea);
+    border-color: #aeb5c2;
+    color: #3a4152;
+  }
+  html.maple .btn.primary {
+    background: linear-gradient(#ffcf6b, #f39a1e);
+    color: #6a3300;
+    border-color: #ffe0a8;
+    box-shadow: 0 3px 0 #c0700e;
+  }
+  html.maple .offer { background: linear-gradient(#ffffff, #e9ecf1); border-color: #c3c9d3; }
+  html.maple .offer:hover { border-color: #f39a1e; }
+  html.maple .offer.locked { border-color: #f39a1e; box-shadow: inset 0 0 0 1px rgba(243, 154, 30, 0.25); }
+  html.maple .price { background: #ffffff; border-color: #c3c9d3; color: #c06a00; }
+  html.maple .price.short { color: var(--danger); }
+  html.maple .lock[aria-pressed="true"] { color: #e07a10; background: rgba(243, 154, 30, 0.12); border-color: rgba(243, 154, 30, 0.45); }
+  html.maple .sellzone { border-color: #aeb5c2; }
+  html.maple .sellzone.over { border-color: #f39a1e; color: #c06a00; background: rgba(243, 154, 30, 0.08); }
+  html.maple #turntable { background: linear-gradient(var(--slot-in), var(--slot)); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25); }
+  html.maple .seg { border-color: #aeb5c2; }
+  html.maple .seg button { background: #ffffff; color: #4a5263; border-right-color: #aeb5c2; }
+  html.maple .seg button[aria-pressed="true"] { background: linear-gradient(#ffcf6b, #f39a1e); color: #6a3300; }
+  html.maple .chip { background: #ffffff; border-color: #c8ced8; color: #4a5263; }
+  html.maple .tip, html.maple .toast {
+    background: rgba(22, 28, 48, 0.96);
+    border-color: #6c7697;
+    color: #f2f4fa;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  }
+  html.maple .tip .t-meta { color: #aab3cc; }
+  html.maple .tip .t-name.r-common { color: #ffffff; }
+  html.maple .tip .t-name.r-rare { color: #5fb0ff; }
+  html.maple .tip .t-name.r-epic { color: #c58cff; }
+  html.maple .tip .t-name.r-legendary { color: #ffc04a; }
+  html.maple .arena-stage {
+    background:
+      radial-gradient(260px 60px at 20% 18%, rgba(255, 255, 255, 0.85), transparent 70%),
+      radial-gradient(320px 70px at 78% 10%, rgba(255, 255, 255, 0.75), transparent 70%),
+      linear-gradient(#7fbff7, #cfe8fd 60%, #eef7ff);
+    box-shadow: inset 0 0 0 1px #9aa6b8;
+  }
+  html.maple .vs-tag { color: #2f3646; text-shadow: 0 1px 0 #ffffff; }
+  html.maple .vs-tag .b, html.maple .hud-b .hud-name { color: #6a4fc0; }
+  html.maple .log { background: rgba(255, 255, 255, 0.7); color: #4a5263; }
+  html.maple .log .crit { color: #c06a00; }
+  html.maple .log .k-heal { color: #2f8a3a; }
+  html.maple .hpbar { background: #3a4152; box-shadow: inset 0 0 0 1px #2a3040; }
+  html.maple .schip { background: rgba(30, 40, 62, 0.86); }
+  html.maple button.schip:hover { background: rgba(30, 40, 62, 1); }
+  html.maple .hi { background: #ffffff; border-color: #d0d5dd; }
+  html.maple button.hi:hover { background: #f4f6f9; }
+  html.maple .hi .cd { background: #c8ced8; }
+  html.maple .hi .cd i { background: #f39a1e; }
+  html.maple .hi.flash { border-color: #f39a1e; background: #fff1dc; }
+  html.maple .result { background: rgba(210, 228, 245, 0.55); }
+  html.maple .result-card { border-color: #b5bcc8; box-shadow: inset 0 1px 0 #ffffff, 0 14px 30px rgba(40, 60, 100, 0.3); }
+  html.maple .result-title.win { color: #e07a10; }
+  html.maple .modal { background: rgba(40, 60, 90, 0.5); }
+  html.maple .ghost { filter: drop-shadow(0 8px 8px rgba(40, 60, 100, 0.4)); }
+  @media (max-width: 520px) {
+    html.maple .o-name { font-size: 0.66rem; hyphens: auto; -webkit-hyphens: auto; }
+    html.maple .stat .k { font-size: 0.56rem; letter-spacing: 0.02em; }
+    html.maple .stat .v { font-size: 0.875rem; }
+  }
 </style>
 
 <main class="screen" id="screen">
