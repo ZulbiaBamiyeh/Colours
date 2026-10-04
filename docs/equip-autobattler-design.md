@@ -59,7 +59,7 @@ The depth comes from three layers:
 | **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
 | **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
 | **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. Up to 20 stacks. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
-| **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 12 stacks. Counts as healing, so Burn cuts it. |
+| **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 8 stacks. Counts as healing, so Burn cuts it. |
 | **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
 
@@ -132,7 +132,7 @@ Every item has a school. Bridge rings and bridge legendaries count toward **both
 | Blood | +5% Lifesteal | Lifesteal ignores Burn's healing cut | Lifesteal doubled while below 50% HP |
 | Fortune | +3 Luck | Crits deal 2.5× | Every chance roll rolls twice and keeps the better result |
 | Thorn | Start with 2 Thorns | Clutch: gain 5 Thorns | Thorns deal +50% damage |
-| Lunar | Start with 2 Regen | Cleanse also triggers every Regen tick | Regen cap 20 |
+| Lunar | Start with 2 Regen | Cleanse also triggers every Regen tick | Regen cap 12 |
 
 **Prismatic resonance** (3+ Prismatic items): amounts from random effects +50%. Prismatic items count toward every school, **but only one Prismatic item counts toward school resonance.**
 
@@ -290,18 +290,18 @@ The counter school for status builds: Regen heals steadily for the whole fight a
 
 | Slot | Item | Rarity | Effect |
 |---|---|---|---|
-| Weapon | Moon Sickle | C | Sickle · 1.6s · 4 dmg. On hit: gain 1 Regen, up to 8 from this sickle. |
-| Weapon (2H) | Tidecaller | R | Staff · 3.4s · 16 dmg. On hit: Cleanse 2, and gain 1 Regen for each stack removed. |
+| Weapon | Moon Sickle | C | Sickle · 1.6s · 5 dmg. On hit: gain 1 Regen, up to 5 from this sickle. |
+| Weapon (2H) | Tidecaller | R | Staff · 3.2s · 17 dmg. On hit: Cleanse 2, and gain 1 Regen for each stack removed. |
 | Offhand | Moonwell Flask | C | Every 5s: gain 2 Regen. |
 | Offhand | Clarity Chime | R | Every 4s: Cleanse 2. |
 | Helm | Crescent Circlet | R | Whenever your Regen ticks, Cleanse 1. |
-| Body | Moonweave Robe | C | Start of fight: gain 4 Regen. |
+| Body | Moonweave Robe | C | Start of fight: gain 3 Regen. |
 | Gloves | Tidal Gloves | R | On crit: gain 2 Regen. |
 | Boots | Moonstep Boots | C | Start of fight: gain 2 Regen. Whenever you Cleanse, gain 1 Regen. |
-| Cape | Tide Cloak | E | Clutch: Cleanse 15 and gain 6 Regen. |
+| Cape | Tide Cloak | E | Clutch: Cleanse 15 and gain 4 Regen. |
 | Amulet | Mirror of the Moon | L | Stacks you Cleanse are applied to the enemy instead of vanishing. |
 
-**Simulator results after removing decay (prototype, ghost builds by main school, overall win rate on days 3 / 8 / 14):** Fire 55 / 49 / 49, Frost 40 / 44 / 44, Venom 58 / 54 / 52, Desert 42 / 46 / 47, Holy 54 / 52 / 50, Blood 49 / 52 / 56, Fortune 39 / 43 / 46, Thorn 41 / 47 / 49, Lunar 58 / 51 / 48. Lunar is the hard counter to Frost (64%) and Desert (70%), by design: Cleanse strips their stacks.
+**Simulator results after removing decay and trimming Regen (prototype, ghost builds by main school, overall win rate on days 3 / 8 / 14):** Fire 58 / 50 / 47, Frost 43 / 47 / 51, Venom 62 / 57 / 52, Desert 42 / 47 / 46, Holy 53 / 53 / 52, Blood 51 / 54 / 53, Fortune 39 / 40 / 44, Thorn 39 / 46 / 47, Lunar 49 / 47 / 46. Regen was healing Lunar for about 85 HP a fight, 3–4× what Holy heals. With a Regen cap of 8 (was 12) and smaller sources, it heals about 60, close to Blood's Lifesteal. Lunar is the hard counter to Frost (60%) and Desert (64%), by design: Cleanse strips their stacks.
 
 ### Prismatic (random)
 

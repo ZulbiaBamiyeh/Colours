@@ -12,7 +12,7 @@ export function mulberry32(a) {
 }
 
 const DT = 0.1;
-const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20, BURN_CAP = 8, BURN_CAP_WILDFIRE = 16, REGEN_CAP = 12, REGEN_EVERY = 2, BURN_PER = 0.5;
+const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20, BURN_CAP = 8, BURN_CAP_WILDFIRE = 16, REGEN_CAP = 8, REGEN_EVERY = 2, BURN_PER = 0.5;
 const FATIGUE_AT = 25, MAX_TIME = 75;
 const POISON_EVERY = 3, POISON_CAP = 20, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
 const WILDFIRE_AT = 8;
@@ -51,7 +51,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0, regen: 0 },
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
-      stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
+      stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, regen: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
     };
     for (const slot of SLOT_ORDER) {
       const e = build.equip[slot];
@@ -169,6 +169,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     f.hp += real;
     f.stats.healed += real;
     if (o.ls) f.stats.lifesteal += real;
+    if (o.regen) f.stats.regen += real;
     ev('heal', { side: f.side, n: r1(n), ls: !!o.ls });
     if (over > 0.05) {
       if (f.flags.reliquary) { f.maxHp += over; f.hp += over; over = 0; }

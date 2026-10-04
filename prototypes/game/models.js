@@ -395,6 +395,21 @@ function sword(m, p) {
   hilt(g, m, p, p.hilt ?? 0.4);
   return g;
 }
+function sickle(m, p) {
+  const g = new THREE.Group();
+  // A hooked crescent that opens toward +x; held with flip so the hook faces forward.
+  const s = new THREE.Shape();
+  s.moveTo(-0.07, 0);
+  s.quadraticCurveTo(-0.16, 0.86, 0.6, 0.66);
+  s.quadraticCurveTo(0.06, 0.6, 0.07, 0);
+  s.closePath();
+  g.add(mesh(extrude(s, 0.05, 0.012), m(p.blade), [0, 0.05, 0]));
+  if (p.edge) g.add(mesh(extrude(s, 0.022, 0), m(p.edge, { glow: p.glow ?? 0.5 }), [0.02, 0.04, 0], [0, 0, 0], [1.06, 1.03, 1]));
+  g.add(mesh(cyl(0.085, 0.07, 0.1, 10), m(p.guard), [0, 0.02, 0]));
+  if (p.gem) g.add(mesh(octa(0.06), m(p.gem, { glow: 0.5 }), [-0.04, 0.42, 0.05]));
+  hilt(g, m, p, 0.46);
+  return g;
+}
 function mace(m, p) {
   const g = new THREE.Group();
   g.add(mesh(cyl(0.05, 0.06, 1.15), m(p.haft)));
@@ -1011,7 +1026,7 @@ function lockstone(m) {
 
 const RECIPES = {
   cinder: (m) => cinder(m), maul: (m) => maul(m), kindling: (m) => kindling(m), haloHelm: (m) => haloHelm(m), prismStaff: (m) => prismStaff(m),
-  dagger, sword, mace, hammer, axe, cleaver, scythe, glaive,
+  dagger, sword, sickle, mace, hammer, axe, cleaver, scythe, glaive,
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,

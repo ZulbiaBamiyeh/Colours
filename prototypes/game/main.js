@@ -1706,7 +1706,7 @@ function reportHTML() {
     const total = rows[k].reduce((a, r) => a + r.n, 0);
     const extras = [
       s.blocked >= 1 && `Shield blocked ${fmt(s.blocked)}`,
-      s.healed >= 1 && `Healed ${fmt(s.healed)}${s.lifesteal >= 1 ? ` (${fmt(s.lifesteal)} Lifesteal)` : ''}`,
+      s.healed >= 1 && `Healed ${fmt(s.healed)}${[s.lifesteal >= 1 && `${fmt(s.lifesteal)} Lifesteal`, s.regen >= 1 && `${fmt(s.regen)} Regen`].filter(Boolean).map(x => ` (${x})`).join('')}`,
       s.hits && `${s.crits} crit${s.crits === 1 ? '' : 's'} in ${s.hits} hit${s.hits === 1 ? '' : 's'}`,
       s.missed && `${s.missed} miss${s.missed === 1 ? '' : 'es'}`,
       s.fatigue >= 1 && `Fatigue took ${fmt(s.fatigue)}`,
