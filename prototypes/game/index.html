@@ -801,6 +801,19 @@
   html.maple .ri { background: linear-gradient(var(--slot-in), var(--slot)); }
 
 
+
+  /* ---------- Overhead health bars in the arena ---------- */
+  .ohp { position: absolute; width: clamp(110px, 17%, 150px); height: 19px; transform: translate(-50%, -50%); border-radius: 5px; background: rgba(10, 8, 6, 0.8); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.45); overflow: hidden; pointer-events: none; z-index: 1; }
+  .ohp i { position: absolute; top: 2px; bottom: 2px; left: 2px; max-width: calc(100% - 4px); border-radius: 3px; }
+  .ohp-lag { width: 100%; background: #f4e6c8; opacity: 0.55; transition: width 0.45s ease 0.25s; }
+  .ohp-fill { width: 100%; background: linear-gradient(#7fe07a, #2f8a3a); }
+  .ohp-fill.mid { background: linear-gradient(#f6cf5e, #b07a12); }
+  .ohp-fill.low { background: linear-gradient(#f27a6e, #a8352f); }
+  .ohp-sh { width: 0; background: repeating-linear-gradient(45deg, rgba(160, 215, 255, 0.75) 0 4px, rgba(160, 215, 255, 0.45) 4px 8px); }
+  .ohp-n { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; line-height: 1; color: #ffffff; text-shadow: 0 1px 0 #000000, 0 0 3px #000000; font-variant-numeric: tabular-nums; }
+  .ohp.b { box-shadow: 0 0 0 1px rgba(201, 184, 255, 0.55), 0 2px 6px rgba(0, 0, 0, 0.45); }
+  @media (max-width: 800px) { .ohp { width: 96px; height: 15px; } .ohp-n { font-size: 0.7rem; } }
+
   /* ---------- Post-fight damage breakdown ---------- */
   .result .result-card { width: min(680px, 100%); max-height: 100%; overflow: auto; }
   .report { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; text-align: left; margin: 2px 0 4px; }
@@ -952,7 +965,7 @@
   .float.small { font-size: 0.8125rem; font-weight: 700; }
   .float.banner { font-family: var(--font-display); font-size: 1.5rem; }
   /* Burn and Poison as they drain: small, soft and drifting sideways rather than popping. */
-  .float.dot { font-size: 0.78rem; font-weight: 700; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85); animation: dotdrift 1.4s ease-out forwards; }
+  .float.dot { font-size: 0.98rem; font-weight: 800; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85); animation: dotdrift 1.4s ease-out forwards; }
   @keyframes dotdrift {
     0% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
     15% { opacity: 0.95; }

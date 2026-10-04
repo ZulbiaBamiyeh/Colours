@@ -1189,6 +1189,14 @@ function startBattle(ex = null) {
   $('vs-b').textContent = ghost.name;
   $('log').innerHTML = '';
   $('floats').innerHTML = '';
+  for (const side of ['A', 'B']) {
+    const bar = document.createElement('div');
+    bar.className = `ohp ${side === 'B' ? 'b' : ''}`;
+    bar.id = `ohp-${side}`;
+    bar.setAttribute('aria-hidden', 'true');
+    bar.innerHTML = '<i class="ohp-lag"></i><i class="ohp-fill"></i><i class="ohp-sh"></i><span class="ohp-n"></span>';
+    $('floats').append(bar);
+  }
   $('result').hidden = true;
   $('fight').disabled = true;
   $('fight').textContent = 'Fighting';
@@ -1201,6 +1209,29 @@ function startBattle(ex = null) {
 }
 
 const hudCache = { A: {}, B: {} };
+// Health bars that float above each fighter in the arena, following them as they lunge.
+function updateOverheads() {
+  const fr = B.sim?.frames[Math.max(0, B.fi)];
+  if (!fr) return;
+  const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
+  for (const side of ['A', 'B']) {
+    const el = $(`ohp-${side}`), f = F[side];
+    if (!el || !f) continue;
+    const s = fr[side];
+    _p.set(f.holder.position.x, 2.5, 0).project(ac);
+    el.style.left = `${((_p.x + 1) / 2) * w}px`;
+    el.style.top = `${((1 - _p.y) / 2) * h}px`;
+    const pct = s.maxHp ? Math.max(0, s.hp / s.maxHp) : 0;
+    const fill = el.querySelector('.ohp-fill');
+    fill.style.width = `${(pct * 100).toFixed(1)}%`;
+    fill.className = `ohp-fill${pct < 0.3 ? ' low' : pct < 0.6 ? ' mid' : ''}`;
+    el.querySelector('.ohp-lag').style.width = `${(pct * 100).toFixed(1)}%`;
+    el.querySelector('.ohp-sh').style.width = `${Math.min(100, (s.shield / s.maxHp) * 100).toFixed(1)}%`;
+    const txt = `${Math.ceil(s.hp)}${s.shield >= 1 ? ` +${Math.round(s.shield)}` : ''}`;
+    const t = el.querySelector('.ohp-n');
+    if (t.textContent !== txt) t.textContent = txt;
+  }
+}
 function updateHud(force) {
   const fi = Math.max(0, Math.min(B.sim.frames.length - 1, Math.floor(B.T / 0.1 + 1e-6)));
   if (fi === B.fi && !force) return;
@@ -2221,6 +2252,7 @@ function loop(now) {
   } else if (screenEl.classList.contains('in-battle')) {
     const simDt = stepBattle(dt);
     animateFighters(t, dt, simDt);
+    updateOverheads();
     if (S.ttStyle === 'pixel') apx.render(as, ac); else ar.render(as, ac);
   } else {
     if (!reduceMotion) { ttYaw += dt * 0.8; ttDirty = true; }
