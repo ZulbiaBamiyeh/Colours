@@ -42,6 +42,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0, sandHold: 0,
       burnT: 0, poisonT: 0, slowT: 0, sandT: 0, poisonTicks: 0,
+      // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
+      // shown holds what the UI hasn't floated yet.
+      tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
       start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0 }, clutchShield: 0,
     };
     for (const slot of SLOT_ORDER) {
@@ -130,7 +133,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     }
     tgt.hp -= n - absorbed;
     ev('dmg', { side: tgt.side, n: r1(n), kind, absorbed: r1(absorbed), crit: !!meta.crit });
-    if (src && src !== tgt && src.flags.chalice && kind !== 'hit' && kind !== 'self') {
+    if (src && src !== tgt && src.flags.chalice && kind !== 'hit' && kind !== 'self' && kind !== 'burn' && kind !== 'poison') {
       const ls = mod(src, 'lifesteal', src.ls, { d: tgt });
       if (ls > 0) heal(src, n * ls, { ls: true });
     }
@@ -308,26 +311,57 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (d.thorns > 0 && !d.dead) thornsStrike(d, a);
   }
 
+  // Continuous damage over time: Burn deals its stacks per second and Poison its stacks per POISON_EVERY seconds,
+  // spread evenly across ticks of DT. Burn hits Shield first; Poison ignores it.
+  function drain(f, kind, n) {
+    if (f.dead || !(n > 0)) return;
+    let absorbed = 0;
+    if (kind === 'burn' && f.shield > 0) {
+      absorbed = Math.min(f.shield, n);
+      f.shield -= absorbed;
+      if (f.shield < 0.05) { f.shield = 0; fire(f, 'shieldBreak'); }
+    }
+    f.hp -= n - absorbed;
+    f.tick[kind] += n;
+    f.shown[kind] += n;
+    checkClutch(f);
+  }
+  // The 1s Burn tick: hooks, crits (a crit repeats that second's Burn as a bonus hit) and decay.
   function burnTick(f) {
     const src = other(f);
-    let dmg = f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0);
-    let crit = false;
-    if (src.flags.burnCrit && critRoll(src)) { dmg *= 2; crit = true; }
-    damage(src, f, dmg, 'burn', { crit });
+    let dmg = f.tick.burn;
+    f.tick.burn = 0;
+    if (dmg > 0 && src.flags.burnCrit && critRoll(src)) { damage(src, f, dmg, 'burn', { crit: true }); dmg *= 2; }
+    if (dmg > 0 && src.flags.chalice) chaliceHeal(src, f, dmg);
+    if (dmg > 0) ev('dotTick', { side: f.side, kind: 'burn', n: r1(dmg) });
     fire(src, 'burnTick', { dmg });
     if (!(src.flags.wildfire && src.heat >= 15)) f.st.burn = Math.max(0, f.st.burn - 1);
   }
   function poisonTick(f) {
     const src = other(f);
     f.poisonTicks++;
-    let dmg = f.st.poison;
-    let crit = false;
+    let dmg = f.tick.poison;
+    f.tick.poison = 0;
     if (src.flags.serpent) {
-      if (f.poisonTicks % 5 === 0) { dmg *= 6; if (critRoll(src)) { dmg *= 2; crit = true; } }
-      else dmg = 0;
-    } else if (src.flags.poisonCrit && critRoll(src)) { dmg *= 2; crit = true; }
-    if (dmg > 0) damage(src, f, dmg, 'poison', { crit });
+      dmg = 0;
+      if (f.poisonTicks % 5 === 0) {
+        let strike = f.st.poison * 6;
+        const crit = critRoll(src);
+        if (crit) strike *= 2;
+        if (strike > 0) damage(src, f, strike, 'poison', { crit });
+        dmg = strike;
+      }
+    } else if (dmg > 0 && src.flags.poisonCrit && critRoll(src)) {
+      damage(src, f, dmg, 'poison', { crit: true });
+      dmg *= 2;
+    }
+    if (dmg > 0 && src.flags.chalice) chaliceHeal(src, f, dmg);
+    if (dmg > 0 && !src.flags.serpent) ev('dotTick', { side: f.side, kind: 'poison', n: r1(dmg) });
     fire(src, 'poisonTick', { dmg });
+  }
+  function chaliceHeal(src, tgt, n) {
+    const ls = mod(src, 'lifesteal', src.ls, { d: tgt });
+    if (ls > 0) heal(src, n * ls, { ls: true });
   }
 
   function snapshot() {
@@ -360,10 +394,19 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     tick++;
     t = r1(tick * DT);
     for (const f of [A, B]) {
+      const src = other(f);
+      if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * DT);
+      if (f.st.poison > 0 && !src.flags.serpent) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
       f.burnT += DT;
-      if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0) burnTick(f); }
+      if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0 || f.tick.burn > 0) burnTick(f); }
       f.poisonT += DT;
-      if (f.poisonT >= POISON_EVERY - 0.001) { f.poisonT -= POISON_EVERY; if (f.st.poison > 0) poisonTick(f); }
+      if (f.poisonT >= POISON_EVERY - 0.001) { f.poisonT -= POISON_EVERY; if (f.st.poison > 0 || f.tick.poison > 0) poisonTick(f); }
+      // Report the drained damage twice a second, so the UI can float small numbers at a calm pace.
+      if (tick % 5 === 0) {
+        for (const k of ['burn', 'poison']) {
+          if (f.shown[k] >= 1) { ev('dmg', { side: f.side, n: r1(f.shown[k]), kind: k, absorbed: 0, dot: true }); f.shown[k] = 0; }
+        }
+      }
       f.slowT += DT;
       if (f.slowT >= 1.999) { f.slowT -= 2; f.st.slow = Math.max(0, f.st.slow - 1); }
       f.sandT += DT;

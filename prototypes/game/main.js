@@ -58,12 +58,12 @@ const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slo
    ========================================================= */
 let uidN = 1;
 const inst = id => ({ uid: uidN++, id });
-// Pixel mode has a light and a dark theme; the first visit follows the system setting.
+// Pixel mode has a light and a dark theme; dark is the default.
 function loadDark() {
-  try { const v = localStorage.getItem('pixelDark'); if (v !== null) return v === '1'; } catch { /* storage unavailable */ }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  try { return localStorage.getItem('pixelDark') !== '0'; } catch { return true; }
 }
-function loadStyle() { try { return localStorage.getItem('artStyle') === 'pixel' ? 'pixel' : 'smooth'; } catch { return 'smooth'; } }
+// Dark Pixel is the default look until the player picks something else.
+function loadStyle() { try { return localStorage.getItem('artStyle') === 'smooth' ? 'smooth' : 'pixel'; } catch { return 'pixel'; } }
 const MP = materialFactory('pixel');
 const matFor = style => (style === 'pixel' ? MP : MS);
 const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
@@ -1060,6 +1060,20 @@ function restyleArena() {
 const GHOST_LOOK = { skin: 0xc4bfe6, hair: 0x5a5a8a, tunic: 0x6a5a8a, eyes: 0x8fe3ff, eyesGlow: 0.9, blush: 0x9a8fd0 };
 const F = { A: null, B: null };
 const particles = new Particles(as);
+// Burn flames: upright teardrops that glow (additive) and never spin.
+const flameGeo = (() => {
+  const g = new THREE.ConeGeometry(0.55, 1.8, 6, 1);
+  g.translate(0, 0.5, 0);
+  const base = new THREE.SphereGeometry(0.55, 8, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+  base.translate(0, -0.4, 0);
+  const merged = new THREE.BufferGeometry();
+  const pos = [...g.toNonIndexed().attributes.position.array, ...base.toNonIndexed().attributes.position.array];
+  merged.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return merged;
+})();
+const flames = new Particles(as, 220, { geo: flameGeo, spin: false, opacity: 0.85, additive: true });
+// Poison bubbles: thin rings that always face the camera.
+const bubbles = new Particles(as, 160, { geo: new THREE.TorusGeometry(1, 0.17, 4, 14), spin: false, opacity: 0.85 });
 const apx = new PixelPass(ar);
 const bolts = new Bolts(as, particles);
 const HOME_X = 1.5;
@@ -1107,12 +1121,15 @@ function makeFighterView(side, equip, look) {
   return {
     side, equip, look, hero: h, holder, pedWrap, ice, fx, dir, x: -dir * HOME_X, mats: collectMats(h.root),
     attack: null, cast: null, knock: 0, dodge: 0, flash: 0, flashColor: new THREE.Color(1, 1, 1), flashOn: false,
-    pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, dead: false, deathT: 0, win: false, winT: 0,
+    pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, snails: 0, dead: false, deathT: 0, win: false, winT: 0,
   };
 }
 function clearArena() {
   for (const k of ['A', 'B']) if (F[k]) { as.remove(F[k].holder); as.remove(F[k].pedWrap); F[k] = null; }
   particles.clear();
+  bubbles.clear();
+  flames.clear();
+  $('floats').querySelectorAll('.snail').forEach(el => el.remove());
   bolts.clear();
 }
 const camBase = new THREE.Vector3();
@@ -1220,8 +1237,8 @@ function statusInfo(k, s) {
   const pct = n => `${Math.round(n * 100)}%`;
   const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : s.st[k];
   switch (k) {
-    case 'burn': return [`Burn ${n}`, `Takes ${n} damage every second, then loses 1 stack. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
-    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s. Poison never wears off and ignores Shield.`];
+    case 'burn': return [`Burn ${n}`, `Takes ${n} damage per second, dealt continuously, and loses 1 stack each second. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
+    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off and ignores Shield.`];
     case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
     case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Loses 1 stack every 2s, and cancels Heat 1 for 1.`];
     case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Loses 1 stack every 2s.`];
@@ -1298,6 +1315,42 @@ function floatText(side, text, color, cls = '') {
   floatCount++;
   setTimeout(() => { el.remove(); floatCount--; }, 1150);
 }
+// Small, quiet numbers for Burn and Poison as they drain, drifting off the body to one side.
+const DOT_COLOR = { burn: '#ff7a52', poison: '#8fd46a' };
+function dotFloat(side, n, kind) {
+  if (floatCount > 26) return;
+  const f = F[side];
+  _p.set(f.holder.position.x + (Math.random() - 0.5) * 0.5, 1.15 + Math.random() * 0.5, 0.2).project(ac);
+  const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
+  const el = document.createElement('span');
+  el.className = `float dot ${kind}`;
+  el.textContent = n;
+  el.style.color = DOT_COLOR[kind];
+  el.style.left = `${((_p.x + 1) / 2) * w}px`;
+  el.style.top = `${((1 - _p.y) / 2) * h}px`;
+  el.style.setProperty('--dx', `${(-f.dir * (10 + Math.random() * 22)).toFixed(0)}px`);
+  $('floats').append(el);
+  floatCount++;
+  setTimeout(() => { el.remove(); floatCount--; }, 1400);
+}
+// Slow: little snail outlines that creep off the fighter's feet.
+const SNAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 18.5h13.5c1.9 0 3.2-1.3 3.2-3.2v-1.6"/><path d="M19.2 13.7l1.4-3.4M19.2 13.7l-.7-3.6"/><circle cx="10" cy="12.5" r="5.3"/><path d="M10 12.5c0-.9.7-1.5 1.5-1.4.9.1 1.4.9 1.3 1.8-.2 1.3-1.4 2-2.6 1.9-1.6-.2-2.6-1.6-2.4-3.2"/></svg>';
+function spawnSnail(f) {
+  if (f.snails >= 3) return;
+  // Beside the feet on the outer side, so they creep away from the fight instead of covering the body.
+  _p.set(f.holder.position.x - f.dir * (0.38 + Math.random() * 0.22), 0.08 + Math.random() * 0.12, 0.4).project(ac);
+  const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
+  const el = document.createElement('span');
+  el.className = 'snail';
+  el.innerHTML = SNAIL;
+  el.style.left = `${((_p.x + 1) / 2) * w}px`;
+  el.style.top = `${((1 - _p.y) / 2) * h}px`;
+  el.style.setProperty('--dx', `${(-f.dir * (16 + Math.random() * 18)).toFixed(0)}px`);
+  el.style.setProperty('--flip', f.dir > 0 ? -1 : 1);
+  $('floats').append(el);
+  f.snails++;
+  setTimeout(() => { el.remove(); f.snails--; }, 3200);
+}
 const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#d08aff', self: '#ff8a8a', thorns: '#f08cb0' };
 const ST_COLOR = { burn: [0xff8a2a, 0xffc04a], poison: [0x8bd34a, 0x5aa83a], frost: [0xbfefff, 0x7fd6ff], slow: [0x7fb0ff, 0xa8c8ff], sand: [0xdbb470, 0xc9a060] };
 function fxDamage(e) {
@@ -1341,6 +1394,7 @@ function playEvent(e, quiet) {
       break;
     case 'dmg': {
       const n = Math.round(e.n);
+      if (e.dot) { if (!quiet && n > 0) dotFloat(e.side, n, e.kind); break; }
       if (!quiet && n > 0) {
         floatText(e.side, `${e.crit ? 'Crit ' : ''}${n}`, KIND_COLOR[e.kind] ?? '#fff', e.crit ? 'big' : e.kind === 'hit' ? '' : 'small');
         fxDamage(e);
@@ -1353,6 +1407,9 @@ function playEvent(e, quiet) {
       else if (e.kind === 'self') log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'pay', 'pays')} ${n} HP.`);
       break;
     }
+    case 'dotTick':
+      log(`<span class="k-${e.kind}">${e.kind === 'burn' ? 'Burn' : 'Poison'}</span> dealt ${Math.round(e.n)} to <b>${sideName(e.side)}</b> over ${e.kind === 'burn' ? 'the last second' : `the last ${RULES.POISON_EVERY}s`}.`);
+      break;
     case 'miss':
       if (!quiet) { floatText(e.side, 'Miss', '#e8dcc0', 'small'); F[e.side].dodge = 1; }
       log(`<b>${sideName(other(e.side))}</b> missed.`);
@@ -1580,24 +1637,49 @@ function emitStatus(f, s, dt) {
   const x = f.holder.position.x;
   const R = Math.random;
   const st = s.st;
+  // Burn builds from a few embers into licking flames and a little smoke as stacks climb (k: 0 → 1 at 15 stacks).
+  const kb = Math.min(1, st.burn / 15);
   const rates = {
-    burn: st.burn > 0 ? Math.min(28, 4 + st.burn * 1.5) : 0,
-    poison: st.poison > 0 ? Math.min(14, 2 + st.poison * 0.7) : 0,
+    burn: st.burn > 0 ? 3 + kb * 34 : 0,
+    smoke: kb > 0.65 ? (kb - 0.65) * 6 : 0,
+    poison: st.poison > 0 ? Math.min(7, 1.2 + st.poison * 0.35) : 0,
+    drip: st.poison >= 6 ? Math.min(3, st.poison * 0.12) : 0,
     frost: st.frost > 0 && !s.frozen ? 2 + st.frost * 0.8 : 0,
     sand: st.sand > 0 ? Math.min(22, 3 + st.sand * 1.2) : 0,
     heat: s.heat > 0 ? Math.min(10, s.heat * 0.5) : 0,
     luck: s.luck > 0 ? Math.min(8, 1 + s.luck * 0.4) : 0,
+    snail: st.slow > 0 ? Math.min(1.1, 0.3 + st.slow * 0.04) : 0,
   };
   for (const k of Object.keys(rates)) {
-    f.emit[k] += rates[k] * dt;
+    f.emit[k] = (f.emit[k] ?? 0) + rates[k] * dt;
     while (f.emit[k] >= 1) {
       f.emit[k] -= 1;
-      if (k === 'burn') particles.emit({ x: x + (R() - 0.5) * 0.5, y: 0.3 + R() * 1.3, z: (R() - 0.5) * 0.4, vx: (R() - 0.5) * 0.3, vy: 0.9 + R() * 0.8, life: 0.5 + R() * 0.4, size: 0.035 + R() * 0.03, color: R() < 0.5 ? 0xff8a2a : 0xffd04a });
-      if (k === 'poison') particles.emit({ x: x + (R() - 0.5) * 0.5, y: 0.2 + R() * 1.0, z: (R() - 0.5) * 0.4, vx: (R() - 0.5) * 0.2, vy: 0.35 + R() * 0.35, life: 1 + R() * 0.4, size: 0.04 + R() * 0.035, color: R() < 0.5 ? 0x8bd34a : 0x5aa83a, grow: true });
+      if (k === 'burn') {
+        // Below a few stacks: sparse embers. As stacks climb, glowing flame tongues lick up the body from the feet.
+        const flame = R() < 0.25 + kb * 0.75;
+        const hot = R();
+        if (flame) {
+          flames.emit({
+            x: x + (R() - 0.5) * (0.5 + kb * 0.3), y: 0.15 + R() * (0.45 + kb * 1.1), z: 0.25 + R() * 0.2,
+            vx: (R() - 0.5) * 0.15, vy: 0.5 + R() * 0.4 + kb * 0.5, drag: 0.8, life: 0.35 + R() * 0.25 + kb * 0.2,
+            size: 0.035 + R() * 0.03 + kb * 0.035, grow: true,
+            color: hot < 0.4 ? 0xffb347 : hot < 0.8 ? 0xff7a2a : 0xe8452a,
+          });
+        } else {
+          particles.emit({
+            x: x + (R() - 0.5) * 0.55, y: 0.5 + R() * 1.0, z: 0.25 + R() * 0.2, vx: (R() - 0.5) * 0.2, vy: 0.7 + R() * 0.5,
+            life: 0.45 + R() * 0.3, size: 0.016 + R() * 0.012, drag: 0.6, color: hot < 0.5 ? 0xffd86a : 0xff8a2a,
+          });
+        }
+      }
+      if (k === 'smoke') particles.emit({ x: x + (R() - 0.5) * 0.35, y: 1.7 + R() * 0.4, z: 0.1, vx: (R() - 0.5) * 0.12, vy: 0.35, life: 1.1, size: 0.035 + R() * 0.025, color: 0x6a6262, grow: true });
+      if (k === 'poison') bubbles.emit({ x: x + (R() - 0.5) * 0.65, y: 0.3 + R() * 1.1, z: 0.35, vx: 0, vy: 0.2 + R() * 0.2, wob: 0.16, drag: 0, life: 1.4 + R() * 0.8, size: 0.04 + R() * 0.035, color: R() < 0.6 ? 0x9be070 : 0x6fbf4a, grow: true });
+      if (k === 'drip') particles.emit({ x: x + (R() - 0.5) * 0.4, y: 0.7 + R() * 0.5, z: 0.32, vy: -0.4, g: -2, drag: 0, life: 0.6, size: 0.022, color: 0x7fc94a });
       if (k === 'frost') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 1.9 + R() * 0.3, z: (R() - 0.5) * 0.6, vx: (R() - 0.5) * 0.2, vy: -0.45 - R() * 0.2, life: 1.2, size: 0.03, color: 0xdff6ff, grow: true });
       if (k === 'sand') particles.emit({ x, y: 1.25 + R() * 0.5, vy: (R() - 0.5) * 0.3, life: 0.7 + R() * 0.4, size: 0.025 + R() * 0.02, color: R() < 0.5 ? 0xdbb470 : 0xc9a060, orbit: { cx: x, r: 0.42 + R() * 0.2, a: R() * Math.PI * 2, w: 4 + R() * 2 } });
       if (k === 'heat') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.05, z: (R() - 0.5) * 0.6, vy: 0.8 + R() * 0.6, life: 0.6, size: 0.03, color: 0xffb04a });
       if (k === 'luck') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.4 + R() * 1.4, z: (R() - 0.5) * 0.5, vy: 0.15, life: 0.6, size: 0.05, color: 0xf4c652, grow: true });
+      if (k === 'snail') spawnSnail(f);
     }
   }
 }
@@ -1713,6 +1795,8 @@ function animateFighters(t, dt, simDt) {
   }
   bolts.update(B.T, simDt);
   particles.update(animDt);
+  bubbles.update(animDt);
+  flames.update(animDt);
   for (const key of Object.keys(B.flash)) {
     B.flash[key] -= dt;
     if (B.flash[key] <= 0) {

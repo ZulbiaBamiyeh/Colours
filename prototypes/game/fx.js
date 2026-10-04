@@ -5,10 +5,16 @@ const PI = Math.PI;
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export class Particles {
-  constructor(scene, cap = 900) {
+  // geo: particle shape (octahedron sparks by default). spin: false keeps shapes like rings facing the camera.
+  constructor(scene, cap = 900, { geo = new THREE.OctahedronGeometry(1, 0), spin = true, opacity = 1, additive = false } = {}) {
     this.cap = cap;
     this.list = [];
-    this.mesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ toneMapped: false }), cap);
+    this.spin = spin;
+    const mat = new THREE.MeshBasicMaterial({
+      toneMapped: false, transparent: opacity < 1 || additive, opacity, depthWrite: opacity >= 1 && !additive,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
+    this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.setColorAt(0, new THREE.Color(1, 1, 1));
     this.mesh.frustumCulled = false;
@@ -28,7 +34,8 @@ export class Particles {
     this.list.push({
       x: o.x, y: o.y, z: o.z ?? 0, vx: o.vx ?? 0, vy: o.vy ?? 0, vz: o.vz ?? 0,
       g: o.g ?? 0, drag: o.drag ?? 0, life, max: life, size: o.size ?? 0.05,
-      color: new THREE.Color(o.color ?? 0xffffff), spin: rand(-6, 6), rot: rand(0, PI),
+      color: new THREE.Color(o.color ?? 0xffffff), spin: this.spin ? rand(-6, 6) : 0, rot: this.spin ? rand(0, PI) : 0,
+      wob: o.wob ?? 0, ph: rand(0, PI * 2),
       orbit: o.orbit ?? null, grow: o.grow ?? false,
     });
   }
@@ -57,7 +64,7 @@ export class Particles {
       } else {
         const k = Math.max(0, 1 - p.drag * dt);
         p.vx *= k; p.vy = p.vy * k + p.g * dt; p.vz *= k;
-        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        p.x += (p.vx + (p.wob ? Math.sin(p.life * 7 + p.ph) * p.wob : 0)) * dt; p.y += p.vy * dt; p.z += p.vz * dt;
       }
       p.rot += p.spin * dt;
       L[w++] = p;
@@ -68,7 +75,7 @@ export class Particles {
       const p = L[i];
       const f = p.life / p.max;
       const sc = p.size * (p.grow ? Math.sin(f * PI) : Math.sqrt(f));
-      this._e.set(p.rot, p.rot * 0.7, 0);
+      this._e.set(this.spin ? p.rot : 0, this.spin ? p.rot * 0.7 : 0, 0);
       this._q.setFromEuler(this._e);
       this._p.set(p.x, p.y, p.z);
       this._s.setScalar(Math.max(0.0001, sc));

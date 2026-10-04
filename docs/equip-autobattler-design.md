@@ -44,8 +44,10 @@ The depth comes from three layers:
 
 | Keyword | Affects | Rule |
 |---|---|---|
-| **Burn** | enemy | Deals damage equal to its stacks every 1s, then loses 1 stack. Damages Shield first. **A burning fighter receives 30% less healing.** |
-| **Poison** | enemy | Deals damage equal to its stacks every 2s. Never decays. **Bypasses Shield.** |
+| **Burn** | enemy | Deals its stacks as damage per second, dealt continuously, and loses 1 stack each second. Damages Shield first. **A burning fighter receives less healing.** |
+| **Poison** | enemy | Deals its stacks as damage every 3s, dealt continuously (1/3 of the stacks per second). Never decays. **Bypasses Shield.** |
+
+*Continuous damage, tick effects:* Burn and Poison drain HP smoothly at their advertised rate, but "whenever Burn ticks" (every 1s) and "whenever Poison ticks" (every 3s) still happen on that schedule. A tick that crits repeats the damage dealt since the last tick, and tick effects like Phoenix Heart and Leechmaw Ring use that amount. Coiled Serpent stops the drain and strikes on every 5th Poison tick instead.
 | **Frost** | enemy | At 10 stacks the enemy is **Frozen** for 1.5s: weapon and cooldowns pause (statuses still tick). Frost then resets to 0, and the enemy **Thaws** for 2s, during which it can't gain Frost. |
 | **Slow** | enemy | −3% speed per stack. Loses 1 stack every 2s. **Slow and Heat on the same fighter cancel 1:1.** |
 | **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). Loses 1 stack every 2s. Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
@@ -540,7 +542,7 @@ The game opens on a main menu with a live, turnable preview of your character. F
 
 - **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
 - **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
-- **Art style:** Low-poly (dark leather UI) or Pixel (MapleStory-style UI), and Pixel has a light and a dark theme. The first visit follows the system's light or dark setting.
+- **Art style:** Low-poly (dark leather UI) or Pixel (MapleStory-style UI), and Pixel has a light and a dark theme. Dark Pixel is the default.
 - **Cosmetics never affect stats.** They're the natural home for rewards that must stay fair: Hall of Fame milestones, seasonal backdrops and event outfits. Your Hall of Fame avatar in exhibitions shows your look and backdrop.
 
 ---
