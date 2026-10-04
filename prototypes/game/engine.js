@@ -26,7 +26,9 @@ const BOONS = [
 const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 const r1 = n => Math.round(n * 10) / 10;
 
-export function simulate(buildA, buildB, ITEMS, seed = 1) {
+// opts.maxTime ends the fight early as a draw (used by the practice dummy).
+export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
+  const maxTime = opts.maxTime ?? MAX_TIME;
   const rng = mulberry32(seed >>> 0);
   let t = 0;
   const events = [];
@@ -72,6 +74,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       for (const s of def.schools) if (s !== 'Prismatic') f.schools[s] = (f.schools[s] || 0) + 1;
     }
     if (!f.weapons.some(w => w.main)) f.weapons.unshift({ it: null, w: { interval: 1.5, dmg: 1, hands: 1 }, timer: 0, main: true, slot: 'weapon' });
+    if (build.hp) f.maxHp = build.hp;
     f.hp = f.maxHp;
     return f;
   }
@@ -478,7 +481,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (aDead && bDead) result = 'draw';
     else if (aDead) result = 'B';
     else if (bDead) result = 'A';
-    else if (t >= MAX_TIME) result = 'draw';
+    else if (t >= maxTime) result = 'draw';
   }
   ev('end', { result });
   return { result, duration: t, frames, events, stats: { A: A.stats, B: B.stats } };

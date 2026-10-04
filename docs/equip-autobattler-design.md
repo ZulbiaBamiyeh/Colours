@@ -21,6 +21,7 @@ The depth comes from three layers:
 | Opponent | An asynchronous ghost: a snapshot of another player's build from the same day number. |
 | Gold | 10 per day. Unspent gold carries over. |
 | Shop | 5 gear offers plus 3 Enchanter offers (scrolls and cubes). Reroll 1 gold rerolls both shelves. Lock gear offers between days. Sell items for 50%, plus 1 gold per successful scroll. |
+| Practice dummy | Between fights, a free 20-second test against a 3,000 HP training dummy that slaps back lightly (so when-hit and Thorns effects fire). Shows damage per second and the full damage breakdown. Nothing is gained or lost. |
 | Lucky Merchant | Every 3rd day, one Enchanter offer is a guaranteed rare consumable (Chaos Scroll, Mirror Cube or Golden Hammer) at 1 gold off. |
 | Bag | Two tabs. **Equip:** 6 slots for items you're holding (a bench, not a build slot). **Use:** 6 slots for scrolls and cubes, stacking up to 9 of each. |
 | Rarity by day | Common and Rare from day 1, Epic from day 3, Legendary from day 5 (rare). |

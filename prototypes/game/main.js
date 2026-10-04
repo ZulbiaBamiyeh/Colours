@@ -1193,15 +1193,17 @@ function startBattle(ex = null) {
   const src = ex ? ex.equip : S.equip;
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, src[k] ? { ...src[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
-  const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
+  const sim = ex?.dummy
+    ? simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip, hp: DUMMY.hp }, ITEMS, seed, { maxTime: DUMMY.time })
+    : simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
   Object.assign(B, { ex, sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
   clearArena();
   F.A = makeFighterView('A', playerEquip, lookOf(P));
   F.B = makeFighterView('B', ghost.equip, ex ? ex.look : GHOST_LOOK);
-  $('hud-A').innerHTML = hudHTML('A', playerName(), ex ? 'Exhibition set' : `Day ${S.day} build`, playerEquip);
+  $('hud-A').innerHTML = hudHTML('A', playerName(), ex && !ex.dummy ? 'Exhibition set' : `Day ${S.day} build`, playerEquip);
   setBackdrop($('bd-a'), P.backdrop);
   setBackdrop($('bd-b'), ex ? ex.backdrop : BACKDROPS[Math.floor(rng() * BACKDROPS.length)][0]);
-  $('hud-B').innerHTML = hudHTML('B', ghost.name, ex ? 'Hall of Fame' : `Ghost · Day ${S.day}`, ghost.equip);
+  $('hud-B').innerHTML = hudHTML('B', ghost.name, ex ? (ex.dummy ? `Practice · ${DUMMY.time}s` : 'Hall of Fame') : `Ghost · Day ${S.day}`, ghost.equip);
   $('vs-a').textContent = playerName();
   $('vs-b').textContent = ghost.name;
   $('log').innerHTML = '';
@@ -1218,10 +1220,12 @@ function startBattle(ex = null) {
   $('fight').disabled = true;
   $('fight').textContent = 'Fighting';
   screenEl.classList.add('in-battle');
-  screenEl.classList.toggle('ex', !!ex);
-  $('phase').textContent = ex ? 'Exhibition' : 'Battle';
+  screenEl.classList.toggle('ex', !!ex && !ex.dummy);
+  $('dummy').disabled = true;
+  $('phase').textContent = ex ? (ex.dummy ? 'Practice' : 'Exhibition') : 'Battle';
   sizeArena();
-  logLine(ex ? `<b>${ghost.name}</b> steps up with their Hall of Fame set (${ghost.schools.join(' and ')}).` : `<b>${ghost.name}</b> enters: a ${ghost.schools.join(' and ')} build.`);
+  if (ex?.dummy) logLine(`The <b>${ghost.name}</b> stands ready: ${DUMMY.hp} HP, a light slap every 1.5s, ${DUMMY.time}s on the clock.`);
+  else logLine(ex ? `<b>${ghost.name}</b> steps up with their Hall of Fame set (${ghost.schools.join(' and ')}).` : `<b>${ghost.name}</b> enters: a ${ghost.schools.join(' and ')} build.`);
   updateHud(true);
 }
 
@@ -1579,6 +1583,21 @@ function finishBattle() {
   const r = B.sim.result;
   const outcome = r === 'A' ? 'win' : r === 'B' ? 'loss' : 'draw';
   const title = { win: 'Victory', loss: 'Defeat', draw: 'Draw' }[outcome];
+  if (B.ex?.dummy) {
+    const dealt = Object.values(B.sim.stats.A.dealt).reduce((a, n) => a + n, 0);
+    const secs = B.sim.duration;
+    logLine(`<b>Practice over</b> after ${secs.toFixed(1)}s.`);
+    const res = $('result');
+    res.innerHTML = `<div class="result-card"><span class="result-title draw">Practice over</span>
+      <span class="result-sub">You dealt <b>${Math.round(dealt)}</b> damage in ${secs.toFixed(0)}s: <b>${(dealt / Math.max(1, secs)).toFixed(1)}</b> per second.</span>
+      <span class="result-sub">Practice is free: nothing is gained or lost.</span>${reportHTML()}
+      <div class="en-foot centered"><button type="button" class="btn" id="practice-again">Practice again</button><button type="button" class="btn primary" id="continue">Back to the market</button></div></div>`;
+    res.hidden = false;
+    $('continue').addEventListener('click', endPractice);
+    $('practice-again').addEventListener('click', () => { endPractice(); startPractice(); });
+    $('continue').focus({ preventScroll: true });
+    return;
+  }
   if (B.ex) {
     const sub = { win: `You beat ${B.ghost.name}'s Hall of Fame set.`, loss: `${B.ghost.name}'s Hall of Fame set won this one.`, draw: 'Nobody survived the fight.' }[outcome];
     logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
@@ -1611,6 +1630,7 @@ function continueRun(outcome) {
   $('phase').textContent = 'The Market';
   $('fight').disabled = false;
   $('fight').textContent = 'Fight';
+  $('dummy').disabled = false;
   clearArena();
   if (S.wins >= S.goal || S.lives <= 0) return showRunOver();
   S.day++;
@@ -1679,6 +1699,26 @@ function newRun() {
 }
 
 $('fight').addEventListener('click', () => startBattle());
+// Practice dummy: a free, timed fight between rounds to test a build. It has lots of HP and slaps back lightly
+// (bare fists), so when-hit and Thorns effects still trigger.
+const DUMMY = { hp: 3000, time: 20 };
+const DUMMY_LOOK = { skin: 0xd9b26a, hair: 0xc9a24a, eyes: 0x3a2a1a, tunic: 0x8a6a3a, hairStyle: 'spiky', blush: 0xc99a5a };
+function startPractice() {
+  startBattle({ dummy: true, equip: S.equip, ghost: { name: 'Training Dummy', equip: emptyEquip(), schools: [] }, look: DUMMY_LOOK, backdrop: P.backdrop });
+}
+function endPractice() {
+  hideStatusTip();
+  screenEl.classList.remove('in-battle', 'ex');
+  $('phase').textContent = 'The Market';
+  $('fight').disabled = false;
+  $('fight').textContent = 'Fight';
+  $('dummy').disabled = false;
+  clearArena();
+  B.ex = null;
+  render();
+  sizeHero();
+}
+$('dummy').addEventListener('click', startPractice);
 $('skip').addEventListener('click', () => {
   if (!B.sim || B.done) return;
   const evs = B.sim.events;
@@ -2212,6 +2252,7 @@ function endExhibition(outcome) {
   $('phase').textContent = 'The Market';
   $('fight').disabled = false;
   $('fight').textContent = 'Fight';
+  $('dummy').disabled = false;
   clearArena();
   B.ex = null;
   showMenu('hof');

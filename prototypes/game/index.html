@@ -83,7 +83,11 @@
     /* The character box matches the two slot columns instead of stretching to the tallest panel. */
     .stack-a { align-content: start; }
     .doll { flex: none; }
-    .stage { min-height: 0; height: calc(var(--slot-size) * 5 + 28px); }
+    /* A roomier character: a wider first column and a stage about 1.4× taller than wide,
+       with the slot columns spread along its full height. */
+    .screen:not(.in-battle) { grid-template-columns: clamp(330px, 27vw, 400px) minmax(0, 1fr) 290px; }
+    .stage { min-height: 0; height: clamp(300px, 46vh, 470px); }
+    .doll .col { align-content: space-between; }
     /* Battle side panels hug their rows instead of filling the arena's height. */
     .hud { align-self: start; max-height: 100%; }
   }
@@ -202,8 +206,11 @@
   }
   .fight:hover { filter: brightness(1.06); }
   .fight:active { transform: translateY(3px); box-shadow: 0 1px 0 #6f2a0b, 0 6px 14px rgba(232, 116, 59, 0.3); }
+  .fight-row { display: flex; align-items: center; gap: 8px; }
+  .dummy-btn { padding: 5px 12px; font-size: 0.85rem; }
   .fight-sub { font-size: 0.75rem; color: var(--parch-faint); }
   @media (max-width: 640px) {
+    .dummy-btn { padding: 4px 8px; font-size: 0.75rem; }
     .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
     .meters { grid-column: 1 / -1; order: 3; }
     .fight-wrap { margin-left: 0; }
@@ -1453,7 +1460,10 @@
       <div class="meter"><span class="cap">Wins <span id="wins-num"></span></span><span class="val wins-track" id="wins"></span></div>
     </div>
     <div class="fight-wrap">
-      <button type="button" class="fight" id="fight">Fight</button>
+      <div class="fight-row">
+        <button type="button" class="btn dummy-btn" id="dummy" title="A free 20-second test fight against a training dummy. Nothing is gained or lost.">Practice dummy</button>
+        <button type="button" class="fight" id="fight">Fight</button>
+      </div>
       <span class="fight-sub" id="fight-sub">vs. a Day 1 ghost</span>
     </div>
   </header>
