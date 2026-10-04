@@ -1090,7 +1090,8 @@ export function createStudio(ITEMS) {
     });
     const r = {
       yaw: pose.yaw, scene: sc, spinner, model,
-      iconFrame: { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, half: (Math.max(x1 - x0, y1 - y0) / 2) * 1.12 },
+      // Weapons lie on the diagonal and are thin, so they get a tighter frame to read as large as other items.
+      iconFrame: { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, half: (Math.max(x1 - x0, y1 - y0) / 2) * (def.weapon || def.dual ? 1.0 : 1.12) },
       previewFrame: { cx: 0, cy: 0, half: radius * 1.08 },
     };
     cache.set(id, r);
