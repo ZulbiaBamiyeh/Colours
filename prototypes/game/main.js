@@ -419,13 +419,23 @@ document.addEventListener('pointerover', e => {
   if (e.pointerType !== 'mouse' || drag) return;
   const b = e.target.closest('.item');
   if (b) { const item = getItem(b.dataset.loc); if (item) showTipFor(b, ITEMS[item.id]); return; }
-  const h = e.target.closest('.hi[data-id]');
-  if (h) showTipFor(h, ITEMS[h.dataset.id]);
+  const h = e.target.closest('.hi[data-id], .hi[data-fist]');
+  if (h && !itemPinned && !statusTip?.pinned) showItemTip(h);
 });
 document.addEventListener('pointerout', e => {
-  const b = e.target.closest('.item, .hi[data-id]');
-  if (b && !b.contains(e.relatedTarget)) hideTip();
+  const b = e.target.closest('.item, .hi[data-id], .hi[data-fist]');
+  if (b && !b.contains(e.relatedTarget) && !itemPinned && !statusTip?.pinned) hideTip();
 });
+// Battle panel rows: the item's details, or a note for an unarmed fighter.
+let itemPinned = false;
+function showItemTip(el) {
+  if (el.dataset.id) { showTipFor(el, ITEMS[el.dataset.id]); return; }
+  tip.innerHTML = '<span class="t-name">Fists</span><span class="t-meta">Unarmed</span><span>No weapon equipped: 1 damage every 1.5s.</span>';
+  tip.hidden = false;
+  const r = el.getBoundingClientRect();
+  tip.style.left = `${Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, r.right + 10))}px`;
+  tip.style.top = `${Math.max(8, Math.min(window.innerHeight - tip.offsetHeight - 8, r.top))}px`;
+}
 window.addEventListener('scroll', hideTip, { passive: true });
 
 /* ---------- Drag and drop ---------- */
@@ -677,13 +687,13 @@ const INTRO = 1.0, LEAD = 0.24, REC = 0.3;
 function hudHTML(side, name, sub, equip) {
   const rows = [];
   const order = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
-  if (!equip.weapon) rows.push(`<li class="hi" data-slot="weapon"><span class="fist" aria-hidden="true">✊</span><div><div class="nm">Fists</div><div class="cd"><i></i></div></div></li>`);
+  if (!equip.weapon) rows.push(`<li><button type="button" class="hi" data-slot="weapon" data-fist="1" aria-label="Fists: what they do"><span class="fist" aria-hidden="true">✊</span><div><div class="nm">Fists</div><div class="cd"><i></i></div></div></button></li>`);
   for (const slot of order) {
     const e = equip[slot];
     if (!e) continue;
     const def = ITEMS[e.id];
     const timed = def.weapon || def.dual || def.cd;
-    rows.push(`<li class="hi" data-slot="${slot}" data-id="${e.id}"><img src="${studio.icon(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></li>`);
+    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${studio.icon(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
     <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
@@ -789,11 +799,13 @@ function refreshStatusTip(fr) {
   tip.style.left = `${x}px`;
   tip.style.top = `${y}px`;
 }
-function hideStatusTip() { statusTip = null; tip.hidden = true; }
+function hideStatusTip() { statusTip = null; itemPinned = false; tip.hidden = true; }
 document.addEventListener('click', e => {
   const chip = e.target.closest('.schip[data-st]');
-  if (chip) { showStatusTip(chip, true); return; }
-  if (statusTip) hideStatusTip();
+  if (chip) { itemPinned = false; showStatusTip(chip, true); return; }
+  const row = e.target.closest('.hi[data-id], .hi[data-fist]');
+  if (row) { statusTip = null; itemPinned = true; showItemTip(row); return; }
+  if (statusTip || itemPinned) hideStatusTip();
 }, true);
 document.addEventListener('pointerover', e => {
   if (e.pointerType !== 'mouse' || statusTip?.pinned) return;
@@ -804,7 +816,7 @@ document.addEventListener('pointerout', e => {
   const chip = e.target.closest('.schip[data-st]');
   if (chip && statusTip && !statusTip.pinned && !chip.contains(e.relatedTarget)) hideStatusTip();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && statusTip) hideStatusTip(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && (statusTip || itemPinned)) hideStatusTip(); });
 
 const sideName = side => (side === 'A' ? 'You' : B.ghost.name);
 function logLine(html, at = B.T) {
