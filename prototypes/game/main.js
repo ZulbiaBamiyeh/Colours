@@ -10,6 +10,7 @@ import { Particles, Bolts, fighterFx } from './fx.js';
 const $ = id => document.getElementById(id);
 if (!document.documentElement.lang) document.documentElement.lang = 'en';
 const studio = createStudio(ITEMS);
+const iconFor = id => studio.icon(id, S.ttStyle);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rng = mulberry32((Date.now() ^ 0x5eed1e) >>> 0);
 
@@ -276,7 +277,7 @@ function itemBtn(item, loc, extraLabel = '') {
   const cls = ['item', `r-${def.rarity}`];
   if (S.sel === loc) cls.push('sel');
   if (item.uid === freshUid) cls.push('pop');
-  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${studio.icon(item.id)}" alt="" draggable="false"></button>`;
+  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false"></button>`;
 }
 function renderTop() {
   $('day').textContent = `Day ${S.day}`;
@@ -461,7 +462,7 @@ window.addEventListener('pointermove', e => {
     drag.btn.classList.add('dragging-src');
     const g = document.createElement('img');
     g.className = 'ghost';
-    g.src = studio.icon(item.id);
+    g.src = iconFor(item.id);
     g.alt = '';
     document.body.append(g);
     drag.ghost = g;
@@ -554,6 +555,8 @@ document.querySelectorAll('[data-style-seg]').forEach(seg => seg.addEventListene
   syncTTSeg();
   ttDirty = true;
   restyleHeroes();
+  render();
+  document.querySelectorAll('.hi[data-id] img').forEach(img => { img.src = iconFor(img.closest('.hi').dataset.id); });
 }));
 
 /* =========================================================
@@ -698,7 +701,7 @@ function hudHTML(side, name, sub, equip) {
     if (!e) continue;
     const def = ITEMS[e.id];
     const timed = def.weapon || def.dual || def.cd;
-    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${studio.icon(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
+    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
     <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>

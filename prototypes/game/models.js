@@ -996,9 +996,9 @@ export function createStudio(ITEMS) {
       }
     }
   }
-  function drawPixel(id, yawOffset, ctx, t, res = 64) {
+  function drawPixel(id, yawOffset, ctx, t, res = 64, framing = 'previewFrame') {
     const r = rig('pixel', id);
-    shoot(pxR, r, r.yaw + yawOffset, r.previewFrame, res, t);
+    shoot(pxR, r, r.yaw + yawOffset, r[framing], res, t);
     const s = scratchFor(res);
     s.clearRect(0, 0, res, res);
     s.drawImage(pxR.domElement, 0, PX_MAX - res, res, res, 0, 0, res, res);
@@ -1025,12 +1025,14 @@ export function createStudio(ITEMS) {
   const iconCanvas = document.createElement('canvas');
   iconCanvas.width = iconCanvas.height = 192;
   const iconCtx = iconCanvas.getContext('2d');
-  function icon(id) {
-    if (icons.has(id)) return icons.get(id);
-    const r = rig('smooth', id);
-    drawSmooth(r, r.yaw, r.iconFrame, 192, iconCtx, 0);
+  // Icons are 192px. Pixel icons are 32px art scaled up 6x with hard edges.
+  function icon(id, style = 'smooth') {
+    const key = `${style}:${id}`;
+    if (icons.has(key)) return icons.get(key);
+    if (style === 'pixel') drawPixel(id, 0, iconCtx, 0, 32, 'iconFrame');
+    else { const r = rig('smooth', id); drawSmooth(r, r.yaw, r.iconFrame, 192, iconCtx, 0); }
     const url = iconCanvas.toDataURL('image/png');
-    icons.set(id, url);
+    icons.set(key, url);
     return url;
   }
   function turntable(id, style, yawOffset, ctx, t) {
