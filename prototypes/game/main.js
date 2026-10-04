@@ -1,15 +1,21 @@
 // Game screens: the market (shop, bag, equipment, inspector) and battles against ghost builds.
 import * as THREE from 'three';
 import {
-  ITEMS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
+  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
 } from './items.js';
+import {
+  USE, isUse, rollUseId, family, STATS, FAMILY_STATS, TIERS, lineText, slotsTotal, slotsLeft, steps, scrollChance,
+  applyScroll, applyHammer, rollCube, itemMods, sellBonus, upgradeGhost,
+} from './upgrades.js';
 import { simulate, mulberry32, RULES } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 
 const $ = id => document.getElementById(id);
 if (!document.documentElement.lang) document.documentElement.lang = 'en';
-const studio = createStudio(ITEMS);
+// Gear and consumables share one lookup for icons, tooltips and the inspector.
+const ALL = { ...ITEMS, ...USE };
+const studio = createStudio(ALL);
 const iconFor = id => studio.icon(id, S.ttStyle);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rng = mulberry32((Date.now() ^ 0x5eed1e) >>> 0);
@@ -58,6 +64,7 @@ const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
 const S = {
   day: 1, gold: 10, lives: 5, maxLives: 5, wins: 0, goal: 10,
   equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), record: [],
+  ench: [], use: Array(6).fill(null), shards: 0,
 };
 
 const getItem = loc => {
@@ -65,9 +72,12 @@ const getItem = loc => {
   const [w, k] = loc.split(':');
   if (w === 'shop') { const o = S.shop[+k]; return o && !o.sold ? o : null; }
   if (w === 'bag') return S.bag[+k];
+  if (w === 'ench') { const o = S.ench[+k]; return o && !o.sold ? o : null; }
+  if (w === 'use') return S.use[+k];
   return S.equip[k];
 };
-const sellValue = id => Math.floor(ITEMS[id].price / 2);
+// Half price, plus 1 gold per successful scroll. Consumables sell one at a time.
+const sellValue = item => Math.floor(ALL[item.id].price / 2) + (isUse(item.id) ? 0 : sellBonus(item));
 const freeBag = (except = -1) => S.bag.map((v, i) => (v === null && i !== except ? i : -1)).filter(i => i >= 0);
 const isTwoHanded = item => !!(item && ITEMS[item.id].weapon?.hands === 2);
 
@@ -80,7 +90,16 @@ function refreshShop() {
     const i = S.shop.findIndex(o => !o.locked);
     if (i >= 0) S.shop[i] = rollOffer(d => d.slot === 'weapon' && d.price <= Math.max(3, S.gold));
   }
+  rollEnch();
 }
+// The Enchanter shelf: 3 consumables. Every 3rd day the Lucky Merchant puts a rare one in the last spot at 1 gold off.
+const LUCKY_IDS = ['chaos_scroll', 'mirror_cube', 'golden_hammer'];
+const luckyDay = day => day % 3 === 0;
+function rollEnch() {
+  S.ench = Array.from({ length: 3 }, () => ({ ...inst(rollUseId(S.day, rng)), sold: false }));
+  if (luckyDay(S.day)) S.ench[2] = { ...inst(LUCKY_IDS[Math.floor(rng() * LUCKY_IDS.length)]), sold: false, lucky: true };
+}
+const enchPrice = o => USE[o.id].price - (o.lucky ? 1 : 0);
 
 /* =========================================================
    Market actions
@@ -183,14 +202,15 @@ function sell(loc) {
   const item = getItem(loc);
   if (!item) return;
   const [w, k] = loc.split(':');
-  if (w === 'shop') return;
-  const v = sellValue(item.id);
-  if (w === 'bag') S.bag[+k] = null;
+  if (w === 'shop' || w === 'ench') return;
+  const v = sellValue(item);
+  if (w === 'use') { if (--item.n <= 0) S.use[+k] = null; }
+  else if (w === 'bag') S.bag[+k] = null;
   else S.equip[k] = null;
   S.gold += v;
   bumpGold();
-  if (S.sel === loc) S.sel = null;
-  toast(`Sold ${ITEMS[item.id].name} for ${v} gold.`);
+  if (S.sel === loc && !getItem(loc)) S.sel = null;
+  toast(`Sold ${ALL[item.id].name} for ${v} gold.`);
   commit();
 }
 function swapBag(a, b) {
@@ -202,7 +222,8 @@ function swapBag(a, b) {
 function reroll() {
   if (!pay(1)) return;
   S.shop = S.shop.map(o => (o.locked && !o.sold ? o : rollOffer()));
-  if (S.sel?.startsWith('shop:')) S.sel = null;
+  rollEnch();
+  if (S.sel?.startsWith('shop:') || S.sel?.startsWith('ench:')) S.sel = null;
   toast('New offers in the market.');
   commit();
 }
@@ -213,7 +234,8 @@ function toggleLock(i) {
 }
 function quick(loc) {
   const [w, k] = loc.split(':');
-  if (w === 'shop') return;
+  if (w === 'shop' || w === 'ench') return;
+  if (w === 'use') return startTargeting(+k);
   if (w === 'bag') equipFrom(loc);
   else unequip(k);
 }
@@ -222,6 +244,13 @@ function canDrop(from, target) {
   if (!item) return false;
   const [fw, fk] = from.split(':');
   const [tw, tk] = target.split(':');
+  if (fw === 'use' || fw === 'ench') {
+    if (tw === 'sell') return fw === 'use';
+    if (tw === 'use') return fw === 'use' ? fk !== tk : useFits(item.id, +tk);
+    const gear = getItem(target);
+    return !!gear && !useCheck(item.id, gear);
+  }
+  if (tw === 'use') return false;
   if (tw === 'sell') return fw !== 'shop';
   if (tw === 'equip') return fitsSlot(item.id, tk) && !(fw === 'equip' && fk === tk);
   if (tw === 'bag') {
@@ -235,11 +264,303 @@ function canDrop(from, target) {
 function drop(from, target) {
   const [fw, fk] = from.split(':');
   const [tw, tk] = target.split(':');
+  if (fw === 'use') {
+    if (tw === 'sell') return sell(from);
+    if (tw === 'use') return moveUse(+fk, +tk);
+    return openEnchant(+fk, target);
+  }
+  if (fw === 'ench') {
+    if (tw === 'use') return buyUse(+fk, +tk);
+    const u = buyUse(+fk);
+    if (u >= 0) openEnchant(u, target);
+    return;
+  }
   if (tw === 'sell') return sell(from);
   if (fw === 'shop') return buy(+fk, { where: tw, key: tw === 'bag' ? +tk : tk });
   if (tw === 'equip') return equipFrom(from, tk);
   if (tw === 'bag') return fw === 'bag' ? swapBag(+fk, +tk) : unequip(fk, +tk);
 }
+
+/* =========================================================
+   Consumables: the Use row, scrolls, cubes and the forge
+   ========================================================= */
+const STACK = 9;
+const useFits = (id, i) => !S.use[i] || (S.use[i].id === id && S.use[i].n < STACK);
+function useRoom(id, prefer) {
+  if (prefer != null) return useFits(id, prefer) ? prefer : -1;
+  const same = S.use.findIndex(s => s && s.id === id && s.n < STACK);
+  return same >= 0 ? same : S.use.indexOf(null);
+}
+function buyUse(i, dest) {
+  const o = S.ench[i];
+  if (!o || o.sold) return -1;
+  const def = USE[o.id];
+  const price = enchPrice(o);
+  const slot = useRoom(o.id, dest);
+  if (slot < 0) { toast(dest != null ? 'That Use slot holds something else.' : 'Your Use row is full. Use or sell a consumable first.'); return -1; }
+  if (!pay(price)) return -1;
+  if (S.use[slot]) S.use[slot].n++;
+  else S.use[slot] = { uid: o.uid, id: o.id, n: 1 };
+  o.sold = true;
+  freshUid = S.use[slot].uid;
+  S.sel = `use:${slot}`;
+  toast(`Bought ${def.name} for ${price} gold.`);
+  commit();
+  return slot;
+}
+function moveUse(a, b) {
+  const x = S.use[a], y = S.use[b];
+  if (y && y.id === x.id) {
+    const n = Math.min(STACK - y.n, x.n);
+    y.n += n;
+    x.n -= n;
+    if (!x.n) S.use[a] = null;
+  } else {
+    [S.use[a], S.use[b]] = [y, x];
+  }
+  S.sel = `use:${b}`;
+  commit();
+}
+// Why a consumable can't go on this item, or null when it can.
+function useCheck(useId, item) {
+  const d = USE[useId];
+  if (!item || isUse(item.id)) return 'Consumables go on gear: an equipped item or one in your bag.';
+  const name = ITEMS[item.id].name;
+  if (d.kind === 'lock') return 'Lockstones are spent in the cube window: tick a line to keep it.';
+  if ((d.kind === 'scroll' || d.kind === 'chaos') && slotsLeft(item) <= 0) return `${name} has no upgrade slots left.`;
+  if (d.kind === 'hammer' && item.up?.extra) return `${name} has already been hammered.`;
+  return null;
+}
+const useCount = id => S.use.reduce((n, s) => n + (s && s.id === id ? s.n : 0), 0);
+function spendUse(i) {
+  const s = S.use[i];
+  if (--s.n <= 0) S.use[i] = null;
+}
+function spendById(id) {
+  const i = S.use.findIndex(s => s && s.id === id);
+  if (i >= 0) spendUse(i);
+}
+
+/* ---------- Targeting: pick an item after "Use on an item" ---------- */
+let targeting = null;
+function markTargets() {
+  for (const cell of document.querySelectorAll('.slot[data-drop]')) {
+    const loc = cell.dataset.drop;
+    const gear = targeting != null && /^(equip|bag):/.test(loc) ? getItem(loc) : null;
+    cell.classList.toggle('can-use', !!gear && !useCheck(S.use[targeting].id, gear));
+  }
+}
+function startTargeting(i) {
+  const s = S.use[i];
+  if (!s) return;
+  if (USE[s.id].kind === 'lock') return toast(useCheck(s.id, {}));
+  targeting = i;
+  closeSheet();
+  document.body.classList.add('targeting');
+  markTargets();
+  if (!document.querySelector('.can-use')) { stopTargeting(); return toast(`Nothing here can take a ${USE[s.id].name} right now.`); }
+  toast(`Choose an item for the ${USE[s.id].name}. Esc cancels.`);
+}
+function stopTargeting() {
+  targeting = null;
+  document.body.classList.remove('targeting');
+  markTargets();
+}
+
+/* ---------- The enchant window ---------- */
+const enchantEl = $('enchant');
+let E = null;
+const signed = n => `${n >= 0 ? '+' : '−'}${Math.abs(n)}`;
+// Mirrors the caps in itemMods so the numbers shown never promise more than combat gives.
+const CAPS = [['dmgPct', 'atk', 6, 30, 'weapon damage +30%'], ['spdPct', 'spd', 3, 25, 'attack time −25%'], ['cdPct', 'cd', 4, 25, 'cooldown −25%']];
+function stepsHTML(item) {
+  const st = item.up?.st ?? {};
+  const ks = Object.keys(st).filter(k => st[k]);
+  const capped = CAPS.filter(([line, k, per, cap]) => (st[k] ?? 0) * per + (item.pot?.lines ?? []).filter(l => l.k === line).reduce((n, l) => n + l.v, 0) > cap);
+  return (ks.length ? ks.map(k => `<span class="up-chip">${STATS[k].name} ${signed(st[k])} · ${STATS[k].text(st[k]).replace(' weapon damage', ' damage')}</span>`).join('') : '')
+    + (capped.length ? `<span class="up-cap">Capped at ${capped.map(c => c[4]).join(', ')}</span>` : '');
+}
+function potHTML(pot, lockable = false) {
+  if (!pot) return '<p class="pot-none">No potential yet. The first cube gives it Rare potential.</p>';
+  return `<div class="pot t${pot.tier}"><span class="pot-tier">${TIERS[pot.tier]} potential</span>${pot.lines.map((l, i) => (lockable
+    ? `<label class="pot-line"><input type="checkbox" data-lockline="${i}"${E.lock === i ? ' checked' : ''}><span>${lineText(l)}</span></label>`
+    : `<span class="pot-line">${lineText(l)}</span>`)).join('')}</div>`;
+}
+// Upgrade summary for the inspector and tooltips.
+function upgradeHTML(item, compact = false) {
+  if (!item || isUse(item.id) || !ITEMS[item.id]) return '';
+  const used = item.up?.used ?? 0;
+  const slots = `<span class="up-slots">Upgrade slots ${slotsLeft(item)} / ${slotsTotal(item)} left${item.up?.extra ? ' · hammered' : ''}</span>`;
+  if (compact && !used && !item.pot && !item.up?.extra) return '';
+  return `<div class="up-box">${slots}${stepsHTML(item)}${item.pot ? potHTML(item.pot) : compact ? '' : '<span class="pot-none">No potential</span>'}</div>`;
+}
+function openEnchant(useIdx, loc) {
+  const stack = S.use[useIdx];
+  const item = getItem(loc);
+  if (!stack || !item) return;
+  const why = useCheck(stack.id, item);
+  if (why) return toast(why);
+  hideTip();
+  closeSheet();
+  const stats = FAMILY_STATS[family(ITEMS[item.id])];
+  E = { kind: 'use', useIdx, useId: stack.id, item, phase: 'confirm', stat: stats[0], lock: -1, res: null, roll: null };
+  renderEnchant();
+}
+function openForge() {
+  if (S.shards < 3) return;
+  const pool = ITEM_IDS.filter(id => ITEMS[id].rarity === 'legendary');
+  const picks = [];
+  while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  E = { kind: 'forge', picks };
+  hideTip();
+  renderEnchant();
+}
+function closeEnchant() {
+  if (!E || E.phase === 'choose') return;
+  E = null;
+  enchantEl.hidden = true;
+  commit();
+}
+function removeGear(item) {
+  for (const k of ALL_SLOTS) if (S.equip[k] === item) S.equip[k] = null;
+  S.bag = S.bag.map(b => (b === item ? null : b));
+  if (S.sel && !getItem(S.sel)) S.sel = null;
+}
+const sparks = n => Array.from({ length: n }, (_, i) => `<i style="--a:${(i * 360) / n + Math.random() * 20}deg;--d:${50 + Math.random() * 40}px"></i>`).join('');
+function enchantHead(def, item) {
+  return `<div class="en-head">
+    <span class="en-ico"><img src="${iconFor(def.id)}" alt=""></span>
+    <svg class="en-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
+    <span class="en-ico item r-${ITEMS[item.id].rarity} en-target"><img src="${iconFor(item.id)}" alt="">${badges(item)}</span>
+    <div class="en-title"><span class="en-name r-${def.rarity}" id="en-title">${def.name}</span><span class="en-sub">on ${ITEMS[item.id].name}</span></div>
+  </div>`;
+}
+function renderEnchant() {
+  if (!E) { enchantEl.hidden = true; return; }
+  const btn = (act, label, primary) => `<button type="button" class="btn${primary ? ' primary' : ''}" data-en="${act}">${label}</button>`;
+  let body = '', foot = '';
+  if (E.kind === 'forge') {
+    body = `<div class="en-title"><span class="en-name r-legendary" id="en-title">The Forge</span><span class="en-sub">3 Shards make a legendary. Choose one.</span></div>
+      <div class="forge">${E.picks.map(id => `<button type="button" class="forge-pick" data-pick="${id}"><span class="en-ico item r-legendary"><img src="${iconFor(id)}" alt=""></span><b class="r-legendary">${ITEMS[id].name}</b><span>${slotLabel(ITEMS[id])}</span><span class="fp-text">${ITEMS[id].text}</span></button>`).join('')}</div>`;
+    foot = btn('close', 'Later', false);
+  } else {
+    const def = USE[E.useId];
+    const item = E.item;
+    const fam = family(ITEMS[item.id]);
+    const left = S.use[E.useIdx]?.id === E.useId ? S.use[E.useIdx].n : 0;
+    body = enchantHead(def, item);
+    if (E.phase === 'confirm') {
+      if (def.kind === 'scroll' || def.kind === 'chaos') {
+        const p = scrollChance(item, def);
+        const fails = item.up?.fails ?? 0;
+        const st = item.up?.st ?? {};
+        if (def.kind === 'scroll') {
+          body += `<div class="en-label">Choose a stat</div><div class="en-stats">${FAMILY_STATS[fam].map(k => {
+            const cur = st[k] ?? 0;
+            return `<button type="button" class="en-stat${E.stat === k ? ' on' : ''}" data-stat="${k}" aria-pressed="${E.stat === k}"><b>${STATS[k].name}</b><span>${cur ? STATS[k].text(cur) : 'None yet'}</span><span class="to">→ ${STATS[k].text(cur + def.gain)}</span></button>`;
+          }).join('')}</div>`;
+        } else {
+          body += `<div class="en-label">Both stats change by −2 to +4 steps</div><div class="en-stats">${FAMILY_STATS[fam].map(k => `<div class="en-stat"><b>${STATS[k].name}</b><span>${st[k] ? STATS[k].text(st[k]) : 'None yet'}</span><span class="to">${STATS[k].per}</span></div>`).join('')}</div>`;
+        }
+        body += `<div class="en-odds"><span class="big">${Math.round(p * 100)}%</span><span>success${fails ? `, including +${fails * 5}% from ${fails} failed attempt${fails > 1 ? 's' : ''}` : ''}</span></div>
+          <p class="en-note">Upgrade slots: ${slotsLeft(item)} of ${slotsTotal(item)} left. This uses one whether it works or not.</p>
+          ${def.destroy ? `<p class="en-warn">On failure, a ${Math.round(def.destroy * 100)}% chance ${ITEMS[item.id].name} is destroyed. It leaves a Shard.</p>` : ''}`;
+        foot = btn('go', 'Read scroll', true) + btn('close', 'Cancel', false);
+      } else if (def.kind === 'hammer') {
+        body += `<p class="en-note">Adds one upgrade slot: ${slotsLeft(item)} / ${slotsTotal(item)} → ${slotsLeft(item) + 1} / ${slotsTotal(item) + 1}. Each item can be hammered once.</p>`;
+        foot = btn('go', 'Strike', true) + btn('close', 'Cancel', false);
+      } else {
+        const locks = useCount('lockstone');
+        const lockable = !!item.pot && locks > 0;
+        body += `<div class="en-label">Current potential</div>${potHTML(item.pot, lockable)}
+          <p class="en-note">${def.text}${lockable ? ` Tick a line to keep it (uses 1 of your ${locks} Lockstone${locks > 1 ? 's' : ''}).` : item.pot ? ' Buy a Lockstone to keep a line through a reroll.' : ''}</p>`;
+        foot = btn('go', 'Roll cube', true) + btn('close', 'Cancel', false);
+      }
+    } else if (E.phase === 'choose') {
+      body += `<div class="en-label">${E.roll.tierUp ? `<b class="tierup">Tier up: ${TIERS[E.roll.pot.tier]}!</b> ` : ''}Keep either set</div>
+        <div class="en-pair"><div><span class="en-label">Before</span>${potHTML(E.roll.old)}</div><div class="new"><span class="en-label">New</span>${potHTML(E.roll.pot)}</div></div>`;
+      foot = btn('old', 'Keep before', false) + btn('new', 'Keep new', true);
+    } else {
+      const r = E.res;
+      const word = { success: 'Success!', fail: 'Failed', destroy: 'Destroyed', hammer: 'Slot added', cube: E.roll?.tierUp ? `Tier up: ${TIERS[E.item.pot.tier]}!` : 'Rerolled', kept: 'Done' }[r];
+      const detail = r === 'success' ? E.changes.map(c => `${STATS[c.k].name} ${signed(c.d)}`).join(' · ')
+        : r === 'fail' ? `The scroll fizzled. The next attempt on this item gets +5%.`
+        : r === 'destroy' ? `${ITEMS[item.id].name} crumbled into a Shard (${S.shards} / 3).`
+        : r === 'hammer' ? `Upgrade slots: ${slotsLeft(item)} / ${slotsTotal(item)} left.` : '';
+      body += `<div class="en-result ${r}"><span class="en-burst" aria-hidden="true">${r === 'fail' ? '' : sparks(r === 'destroy' ? 10 : 16)}</span><span class="en-word">${word}</span>${detail ? `<span class="en-detail">${detail}</span>` : ''}</div>`;
+      if (r === 'cube' || r === 'kept') body += potHTML(item.pot);
+      else if (r !== 'destroy') body += `<div class="en-after">${stepsHTML(item)}</div>`;
+      const again = r !== 'destroy' && left > 0 && !useCheck(E.useId, item);
+      foot = (again ? btn('again', `Again · ${left} left`, false) : '') + (r === 'destroy' && S.shards >= 3 ? btn('forge', 'Forge a legendary', true) : '') + btn('close', 'Done', !(r === 'destroy' && S.shards >= 3));
+    }
+  }
+  enchantEl.innerHTML = `<div class="result-card en-card" role="dialog" aria-modal="true" aria-labelledby="en-title">${body}<div class="en-foot">${foot}</div></div>`;
+  enchantEl.hidden = false;
+  enchantEl.querySelector('.btn.primary, .btn')?.focus({ preventScroll: true });
+}
+function enchantAct(act) {
+  if (act === 'close') return closeEnchant();
+  if (act === 'forge') return openForge();
+  if (act === 'again') { E.phase = 'confirm'; E.lock = -1; return renderEnchant(); }
+  const item = E.item;
+  if (act === 'old' || act === 'new') {
+    item.pot = act === 'new' ? E.roll.pot : E.roll.old;
+    E.res = 'kept';
+    E.phase = 'result';
+    commit();
+    return renderEnchant();
+  }
+  if (act !== 'go' || S.use[E.useIdx]?.id !== E.useId) return;
+  const def = USE[E.useId];
+  spendUse(E.useIdx);
+  if (def.kind === 'scroll' || def.kind === 'chaos') {
+    const r = applyScroll(item, def, E.stat, rng);
+    E.res = r.result;
+    E.changes = r.changes;
+    if (r.result === 'destroy') { removeGear(item); S.shards++; }
+  } else if (def.kind === 'hammer') {
+    applyHammer(item);
+    E.res = 'hammer';
+  } else {
+    if (E.lock >= 0) spendById('lockstone');
+    E.roll = rollCube(item, def, rng, E.lock);
+    E.lock = -1;
+    if (def.choose) { E.phase = 'choose'; commit(); return renderEnchant(); }
+    item.pot = E.roll.pot;
+    E.res = 'cube';
+  }
+  E.phase = 'result';
+  commit();
+  renderEnchant();
+}
+enchantEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-en]');
+  if (b) return enchantAct(b.dataset.en);
+  const st = e.target.closest('[data-stat]');
+  if (st && E?.phase === 'confirm') { E.stat = st.dataset.stat; return renderEnchant(); }
+  const pick = e.target.closest('[data-pick]');
+  if (pick && E?.kind === 'forge') {
+    const free = freeBag();
+    if (!free.length) return toast('Free a bag slot for the legendary first.');
+    const item = inst(pick.dataset.pick);
+    S.bag[free[0]] = item;
+    S.shards -= 3;
+    freshUid = item.uid;
+    S.sel = `bag:${free[0]}`;
+    toast(`Forged ${ITEMS[item.id].name}.`);
+    E = null;
+    enchantEl.hidden = true;
+    commit();
+    return;
+  }
+  if (e.target === enchantEl) closeEnchant();
+});
+enchantEl.addEventListener('change', e => {
+  const c = e.target.closest('[data-lockline]');
+  if (!c) return;
+  E.lock = c.checked ? +c.dataset.lockline : -1;
+  renderEnchant();
+});
 
 /* =========================================================
    Market DOM
@@ -263,6 +584,14 @@ for (let i = 0; i < 6; i++) {
   $('bag-cells').append(cell);
   bagCells.push(cell);
 }
+const useCells = [];
+for (let i = 0; i < 6; i++) {
+  const cell = document.createElement('div');
+  cell.className = 'slot';
+  cell.dataset.drop = `use:${i}`;
+  $('use-cells').append(cell);
+  useCells.push(cell);
+}
 const offerEls = [];
 for (let i = 0; i < 5; i++) {
   const el = document.createElement('div');
@@ -270,14 +599,28 @@ for (let i = 0; i < 5; i++) {
   $('offers').append(el);
   offerEls.push(el);
 }
+const enchEls = [];
+for (let i = 0; i < 3; i++) {
+  const el = document.createElement('div');
+  el.className = 'eoffer';
+  $('ench').append(el);
+  enchEls.push(el);
+}
 const glyph = k => `<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${GLYPH[k]}</svg>`;
 const schoolDot = sc => `<span class="dot" style="--sc: var(${SCHOOL_VAR[sc]})"></span>`;
+// Corner badges: +N scroll steps and a potential-tier gem on gear, stack size on consumables.
+function badges(item) {
+  if (isUse(item.id)) return item.n > 1 ? `<span class="b-n">${item.n}</span>` : '';
+  const st = steps(item);
+  return (st ? `<span class="b-up${st < 0 ? ' neg' : ''}">${signed(st)}</span>` : '')
+    + (item.pot ? `<span class="b-pot t${item.pot.tier}"></span>` : '');
+}
 function itemBtn(item, loc, extraLabel = '') {
-  const def = ITEMS[item.id];
+  const def = ALL[item.id];
   const cls = ['item', `r-${def.rarity}`];
   if (S.sel === loc) cls.push('sel');
   if (item.uid === freshUid) cls.push('pop');
-  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false"></button>`;
+  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false">${badges(item)}</button>`;
 }
 function renderTop() {
   $('day').textContent = `Day ${S.day}`;
@@ -297,7 +640,9 @@ function renderEquip() {
 }
 function renderBag() {
   bagCells.forEach((cell, i) => { cell.innerHTML = S.bag[i] ? itemBtn(S.bag[i], `bag:${i}`, ', in bag') : ''; });
+  useCells.forEach((cell, i) => { const u = S.use[i]; cell.innerHTML = u ? itemBtn(u, `use:${i}`, `, ${u.n} in Use row`) : ''; });
   $('bag-count').textContent = `${S.bag.filter(Boolean).length} / 6`;
+  $('shards').innerHTML = `<span class="shard-gem" aria-hidden="true"></span>Shards ${S.shards} / 3${S.shards >= 3 ? ' <button type="button" class="btn primary mini" id="forge">Forge</button>' : ''}`;
 }
 function renderShop() {
   S.shop.forEach((o, i) => {
@@ -316,20 +661,37 @@ function renderShop() {
       <div class="o-meta">${def.schools.map(sc => `${schoolDot(sc)}${sc}`).join(' ')}</div>
       <div class="price${S.gold < def.price ? ' short' : ''}">${COIN}${def.price}</div>`;
   });
+  S.ench.forEach((o, i) => {
+    const el = enchEls[i];
+    const def = USE[o.id];
+    const price = enchPrice(o);
+    el.classList.toggle('sold', o.sold);
+    el.classList.toggle('lucky', !!o.lucky);
+    el.innerHTML = o.sold
+      ? '<div class="slot"></div><div class="e-txt"><span class="e-name sold-tag">Sold</span></div>'
+      : `<div class="slot">${itemBtn(o, `ench:${i}`, `, ${price} gold`)}</div>
+        <div class="e-txt"><span class="e-name r-${def.rarity}">${def.name}</span><span class="price${S.gold < price ? ' short' : ''}">${COIN}${price}${o.lucky ? `<s>${def.price}</s>` : ''}</span></div>
+        ${o.lucky ? '<span class="lucky-tag">Lucky</span>' : ''}`;
+  });
+  const until = 3 - (S.day % 3);
+  $('ench-note').textContent = luckyDay(S.day) ? 'The Lucky Merchant is in town' : `Lucky Merchant in ${until} day${until > 1 ? 's' : ''}`;
 }
 function renderStats() {
   let hp = 100, luck = 0;
   for (const k of ALL_SLOTS) {
     const it = S.equip[k];
     if (!it) continue;
-    hp += ITEMS[it.id].hp || 0;
-    luck += ITEMS[it.id].stats?.luck || 0;
+    const m = itemMods(it);
+    hp += (ITEMS[it.id].hp || 0) + m.hp;
+    luck += (ITEMS[it.id].stats?.luck || 0) + m.luck;
   }
   const w = S.equip.weapon && ITEMS[S.equip.weapon.id].weapon;
+  const wm = S.equip.weapon ? itemMods(S.equip.weapon) : itemMods({});
+  const dmg = w ? w.dmg * (1 + wm.dmgPct / 100) : 1;
   const tiles = [
     ['HP', 'HP', hp],
-    ['Damage', 'Dmg', w ? w.dmg : 1],
-    ['Speed', 'Spd', `${(w ? w.interval : 1.5).toFixed(1)}s`],
+    ['Damage', 'Dmg', Math.round(dmg * 10) / 10],
+    ['Speed', 'Spd', `${((w ? w.interval : 1.5) * (1 - wm.spdPct / 100)).toFixed(1)}s`],
     ['Crit', 'Crit', `${5 + luck * 3}%`],
   ];
   $('stats').innerHTML = tiles.map(([k, s, v]) => `<div class="stat"><span class="k"><span class="long">${k}</span><span class="short" aria-hidden="true">${s}</span></span><span class="v">${v}</span></div>`).join('');
@@ -347,24 +709,36 @@ function renderInspector() {
     return;
   }
   ttItem = item.id;
-  const def = ITEMS[item.id];
   const [w, k] = loc.split(':');
+  const btn = (act, label, primary, extra = '') => `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${act}" ${extra}>${label}</button>`;
+  if (isUse(item.id)) {
+    const def = USE[item.id];
+    const price = w === 'ench' ? enchPrice(item) : def.price;
+    card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
+      <div class="chips"><span class="chip">Enchanter</span><span class="chip">${{ scroll: 'Scroll', chaos: 'Scroll', hammer: 'Hammer', cube: 'Cube', lock: 'Lockstone' }[def.kind]}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
+      <p class="c-effect">${def.text}</p>
+      <span class="c-value">${w === 'ench' ? `In the Enchanter · Costs ${price} gold${item.lucky ? ' (Lucky Merchant: 1 off)' : ''}` : `In your Use row · ${item.n} held · Sells for ${sellValue(item)} each`}</span>`;
+    if (w === 'ench') actions.innerHTML = btn('buyuse', `${COIN.replace('<svg', '<svg width="16" height="16"')}Buy for ${price}`, true, S.gold < price ? 'aria-disabled="true"' : '');
+    else actions.innerHTML = (def.kind === 'lock' ? '' : btn('use', 'Use on an item', true)) + btn('sell', `Sell 1 for ${sellValue(item)}`, false);
+    return;
+  }
+  const def = ITEMS[item.id];
   const where = w === 'shop' ? 'In the market' : w === 'bag' ? 'In your bag' : `Equipped · ${SLOT_NAME[k]}`;
-  const value = w === 'shop' ? `Costs ${def.price} gold` : `Sells for ${sellValue(item.id)} gold`;
+  const value = w === 'shop' ? `Costs ${def.price} gold` : `Sells for ${sellValue(item)} gold`;
   card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
     <div class="chips">${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
     <span class="c-stats">${statLine(def)}</span>
     <p class="c-effect">${def.text}</p>
+    ${w === 'shop' ? '' : upgradeHTML(item)}
     <span class="c-value">${where} · ${value}</span>`;
-  const btn = (act, label, primary, extra = '') => `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${act}" ${extra}>${label}</button>`;
   if (w === 'shop') {
     const o = S.shop[+k];
     actions.innerHTML = btn('buy', `${COIN.replace('<svg', '<svg width="16" height="16"')}Buy for ${def.price}`, true, S.gold < def.price ? 'aria-disabled="true"' : '')
       + btn('lock', o.locked ? 'Unlock' : 'Lock offer', false);
   } else if (w === 'bag') {
-    actions.innerHTML = btn('equip', 'Equip', true) + btn('sell', `Sell for ${sellValue(item.id)}`, false);
+    actions.innerHTML = btn('equip', 'Equip', true) + btn('sell', `Sell for ${sellValue(item)}`, false);
   } else {
-    actions.innerHTML = btn('unequip', 'Take off', true) + btn('sell', `Sell for ${sellValue(item.id)}`, false);
+    actions.innerHTML = btn('unequip', 'Take off', true) + btn('sell', `Sell for ${sellValue(item)}`, false);
   }
 }
 function render() {
@@ -375,6 +749,7 @@ function render() {
   renderShop();
   renderStats();
   renderInspector();
+  markTargets();
   if (focusLoc) document.querySelector(`[data-loc="${focusLoc}"]`)?.focus({ preventScroll: true });
   ttDirty = true;
 }
@@ -401,10 +776,12 @@ function bumpGold() {
 
 /* ---------- Tooltip ---------- */
 const tip = $('tip');
-function showTipFor(el, def) {
-  tip.innerHTML = `<span class="t-name r-${def.rarity}">${def.name}</span>
+function showTipFor(el, def, item = null) {
+  tip.innerHTML = isUse(def.id)
+    ? `<span class="t-name r-${def.rarity}">${def.name}</span><span class="t-meta">Enchanter · ${RARITY_NAME[def.rarity]}${item?.n > 1 ? ` · ${item.n} held` : ''}</span><span>${def.text}</span>`
+    : `<span class="t-name r-${def.rarity}">${def.name}</span>
     <span class="t-meta">${def.schools.join(' · ')} · ${slotLabel(def)} · ${RARITY_NAME[def.rarity]}</span>
-    <span>${statLine(def)}</span><span>${def.text}</span>`;
+    <span>${statLine(def)}</span><span>${def.text}</span>${upgradeHTML(item, true)}`;
   tip.hidden = false;
   const r = el.getBoundingClientRect();
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -420,7 +797,7 @@ const hideTip = () => { tip.hidden = true; };
 document.addEventListener('pointerover', e => {
   if (e.pointerType !== 'mouse' || drag) return;
   const b = e.target.closest('.item');
-  if (b) { const item = getItem(b.dataset.loc); if (item) showTipFor(b, ITEMS[item.id]); return; }
+  if (b) { const item = getItem(b.dataset.loc); if (item) showTipFor(b, ALL[item.id], item); return; }
   const h = e.target.closest('.hi[data-id], .hi[data-fist]');
   if (h && !itemPinned && !statusTip?.pinned) showItemTip(h);
 });
@@ -431,7 +808,11 @@ document.addEventListener('pointerout', e => {
 // Battle panel rows: the item's details, or a note for an unarmed fighter.
 let itemPinned = false;
 function showItemTip(el) {
-  if (el.dataset.id) { showTipFor(el, ITEMS[el.dataset.id]); return; }
+  if (el.dataset.id) {
+    const eq = el.closest('#hud-B') ? B.ghost?.equip : B.playerEquip;
+    showTipFor(el, ITEMS[el.dataset.id], eq?.[el.dataset.slot] ?? null);
+    return;
+  }
   tip.innerHTML = '<span class="t-name">Fists</span><span class="t-meta">Unarmed</span><span>No weapon equipped: 1 damage every 1.5s.</span>';
   tip.hidden = false;
   const r = el.getBoundingClientRect();
@@ -504,7 +885,22 @@ const sheetMQ = window.matchMedia('(max-width: 1200px)');
 const openSheet = () => { if (sheetMQ.matches) sheet.classList.add('open'); };
 const closeSheet = () => sheet.classList.remove('open');
 document.addEventListener('click', e => {
-  if (suppressClick) return;
+  if (suppressClick || !enchantEl.hidden) return;
+  if (targeting != null) {
+    const b = e.target.closest('.item');
+    const loc = b?.dataset.loc;
+    if (loc && /^(equip|bag):/.test(loc)) {
+      const why = useCheck(S.use[targeting].id, getItem(loc));
+      if (why) { toast(why); return; }
+      const i = targeting;
+      stopTargeting();
+      openEnchant(i, loc);
+      return;
+    }
+    stopTargeting();
+    if (!b) return;
+  }
+  if (e.target.closest('#forge')) { openForge(); return; }
   const lock = e.target.closest('[data-lock]');
   if (lock) { toggleLock(+lock.dataset.lock); return; }
   const b = e.target.closest('.item');
@@ -534,11 +930,18 @@ document.addEventListener('click', e => {
     else if (act === 'equip') equipFrom(loc);
     else if (act === 'unequip') unequip(k);
     else if (act === 'sell') sell(loc);
+    else if (act === 'buyuse') buyUse(+k);
+    else if (act === 'use') startTargeting(+k);
   }
 });
 $('reroll').addEventListener('click', reroll);
 $('sheet-close').addEventListener('click', closeSheet);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!enchantEl.hidden) closeEnchant();
+  else if (targeting != null) stopTargeting();
+  else closeSheet();
+});
 const tt = $('turntable');
 const ttCtx = tt.getContext('2d');
 function syncTTSeg() {
@@ -701,7 +1104,7 @@ function hudHTML(side, name, sub, equip) {
     if (!e) continue;
     const def = ITEMS[e.id];
     const timed = def.weapon || def.dual || def.cd;
-    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
+    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}${steps(e) ? ` <span class="hup">${signed(steps(e))}</span>` : ''}${e.pot ? ` <span class="b-pot inline t${e.pot.tier}"></span>` : ''}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
     <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
@@ -713,6 +1116,7 @@ function startBattle() {
   hideTip();
   statusTip = null;
   const ghost = makeGhost(S.day, rng);
+  upgradeGhost(ghost, S.day, rng);
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, S.equip[k] ? { ...S.equip[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
   const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
@@ -1016,7 +1420,7 @@ function showRunOver() {
   $('newrun').focus();
 }
 function newRun() {
-  Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [] });
+  Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null), shards: 0 });
   refreshShop();
   commit();
   sizeHero();
@@ -1323,4 +1727,13 @@ sizeHero();
 requestAnimationFrame(loop);
 
 // Test hook, only with ?debug in the URL.
-if (location.search.includes('debug')) window.__game = { S, ITEMS, inst, commit, startBattle, B };
+if (location.search.includes('debug')) window.__game = { S, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge };
+
+// Ambient background: embers rise in Low-poly mode; in Pixel mode the same motes become falling leaves under drifting clouds.
+{
+  const r = (a, b) => a + Math.random() * (b - a);
+  let h = '';
+  for (let i = 0; i < 24; i++) h += `<i class="mote" style="--x:${r(0, 100).toFixed(1)}vw;--s:${r(0.6, 1.6).toFixed(2)};--t:${r(16, 30).toFixed(1)}s;--d:-${r(0, 30).toFixed(1)}s;--w:${r(-40, 40).toFixed(0)}px"></i>`;
+  for (let i = 0; i < 5; i++) h += `<i class="cloud" style="--y:${r(2, 50).toFixed(1)}vh;--s:${r(0.7, 1.5).toFixed(2)};--t:${r(110, 190).toFixed(0)}s;--d:-${r(0, 190).toFixed(0)}s"></i>`;
+  $('bgfx').innerHTML = h;
+}

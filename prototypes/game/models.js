@@ -846,12 +846,73 @@ function amulet(m, p) {
   return g;
 }
 
+/* Consumables (upgrades.js) */
+function scrollRoll(m, p) {
+  const g = new THREE.Group();
+  // A half-unrolled sheet between two rods, tied with a ribbon and sealed.
+  const sheetGeo = box(0.62, 0.78, 0.02);
+  if (p.rainbow) {
+    const [s, l] = rb(m);
+    g.add(mesh(rainbow(sheetGeo, s * 0.7, Math.min(0.8, l + 0.12)), m(0xffffff, { vc: true }), [0, 0, 0]));
+  } else {
+    g.add(mesh(sheetGeo, m(p.paper, { glow: p.glow ? p.glow * 0.4 : 0 }), [0, 0, 0]));
+  }
+  for (const y of [0.42, -0.42]) {
+    g.add(mesh(cyl(0.075, 0.075, 0.74, 10), m(p.paper), [0, y, 0.02], [0, 0, PI / 2]));
+    for (const x of [-0.4, 0.4]) g.add(mesh(sph(0.05, 6, 5), m(p.ribbon), [x, y, 0.02]));
+  }
+  for (let i = 0; i < 4; i++) g.add(mesh(box(0.4 - (i % 2) * 0.12, 0.03, 0.01), m(p.ink), [-0.02 - (i % 2) * 0.06, 0.24 - i * 0.12, 0.016]));
+  g.add(mesh(box(0.08, 0.84, 0.015), m(p.ribbon), [0.16, 0, 0.022]));
+  g.add(mesh(cyl(0.1, 0.1, 0.04, 12), m(p.seal, { glow: p.glow ?? 0.25 }), [0.16, -0.2, 0.04], [PI / 2, 0, 0]));
+  if (p.rainbow) for (let i = 0; i < 5; i++) g.add(mesh(octa(0.035), m(hslHex(i / 5, 0.8, 0.6), { glow: 0.8 }), [-0.24 + i * 0.12, -0.26, 0.03]));
+  return g;
+}
+function goldHammer(m) {
+  const g = new THREE.Group();
+  g.add(mesh(cyl(0.035, 0.04, 0.8, 7), m(0x8a5a32), [0, -0.12, 0]));
+  g.add(mesh(box(0.5, 0.2, 0.2), m(0xf2c14e, { glow: 0.35 }), [0, 0.32, 0]));
+  g.add(mesh(cyl(0.11, 0.11, 0.08, 8), m(0xfff0b0, { glow: 0.5 }), [0.27, 0.32, 0], [0, 0, PI / 2]));
+  g.add(mesh(cone(0.09, 0.16, 4), m(0xfff0b0, { glow: 0.5 }), [-0.32, 0.32, 0], [0, 0, PI / 2]));
+  g.add(mesh(torus(0.05, 0.02, 5, 10), m(0xf2c14e), [0, -0.52, 0], [PI / 2, 0, 0]));
+  g.add(mesh(extrude(star(4, 0.1, 0.04), 0.02, 0), m(0xffffff, { glow: 1 }), [0.12, 0.5, 0.12]));
+  return g;
+}
+function cubeItem(m, p) {
+  const g = new THREE.Group();
+  const c = new THREE.Group();
+  c.add(mesh(box(0.56, 0.56, 0.56), m(p.a, { glow: p.mirror ? 0.15 : 0 })));
+  for (const [x, y] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    for (const r of [[0, 0, 0], [PI / 2, 0, 0], [0, 0, PI / 2]]) {
+      const e = mesh(box(0.06, 0.6, 0.06), m(p.edge));
+      e.rotation.set(...r);
+      e.position.set(...(r[0] ? [x * 0.28, y * 0.28, 0] : r[2] ? [0, x * 0.28, y * 0.28] : [x * 0.28, 0, y * 0.28]));
+      c.add(e);
+    }
+  }
+  c.add(mesh(octa(0.2), m(p.core, { glow: 1 }), [0, 0, 0.3]));
+  if (p.mirror) c.add(mesh(box(0.4, 0.4, 0.01), m(0xffffff, { glow: 0.7 }), [0, 0, 0.29]));
+  c.rotation.set(0.5, 0.7, 0);
+  g.add(c);
+  g.userData.anim = t => { c.rotation.y = 0.7 + Math.sin(t * 1.4) * 0.25; };
+  return g;
+}
+function lockstone(m) {
+  const g = new THREE.Group();
+  g.add(mesh(ico(0.34, 0), m(0x6f7f95), [0, -0.08, 0], [0.3, 0.4, 0], [1.1, 0.85, 0.8]));
+  g.add(mesh(box(0.3, 0.24, 0.1), m(0xf2c14e), [0, -0.06, 0.26]));
+  g.add(mesh(torus(0.1, 0.03, 5, 12, PI), m(0xf2c14e), [0, 0.06, 0.26]));
+  g.add(mesh(cyl(0.03, 0.03, 0.02, 8), m(0x1a1020), [0, -0.06, 0.32], [PI / 2, 0, 0]));
+  g.add(mesh(octa(0.06), m(0x9fe2ff, { glow: 0.9 }), [0.22, 0.2, 0.05]));
+  return g;
+}
+
 const RECIPES = {
   cinder: (m) => cinder(m), maul: (m) => maul(m), kindling: (m) => kindling(m), haloHelm: (m) => haloHelm(m), prismStaff: (m) => prismStaff(m),
   dagger, sword, mace, hammer, axe, cleaver, scythe, glaive,
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,
+  scrollRoll, goldHammer, cubeItem, lockstone,
 };
 
 export function buildItemModel(def, m = MS) {
@@ -865,6 +926,7 @@ const D45 = -PI / 4;
 export function poseFor(def) {
   if (def.model.pose) return def.model.pose;
   const s = def.slot;
+  if (s === 'use') return def.model.t === 'goldHammer' ? { rot: [0, 0, D45], yaw: 0.35 } : { rot: [0.1, 0, 0.12], yaw: 0.4 };
   if (s === 'weapon' || def.dual) return { rot: [0, 0, D45], yaw: 0.35 };
   if (s === 'ring') return { rot: [-0.28, 0.55, 0], yaw: 0 };
   if (s === 'amulet') return { rot: [0, 0, 0], yaw: 0.35 };

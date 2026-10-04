@@ -1,5 +1,6 @@
 // Deterministic combat simulation, following the design doc's keyword rules.
 // simulate() runs a whole fight up front and returns per-tick frames and an event list for playback.
+import { itemMods } from './upgrades.js';
 
 export function mulberry32(a) {
   return function () {
@@ -41,18 +42,26 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0, sandHold: 0,
       burnT: 0, poisonT: 0, slowT: 0, sandT: 0, poisonTicks: 0,
+      start: { shield: 0, heat: 0, slow: 0, sand: 0 }, clutchShield: 0,
     };
     for (const slot of SLOT_ORDER) {
       const e = build.equip[slot];
       if (!e) continue;
       const def = ITEMS[e.id];
-      const it = { def, slot, data: {}, busy: false, timer: 0 };
+      // Scroll steps and cube lines (upgrades.js) adjust a per-fighter copy, never the shared def.
+      const m = itemMods(e);
+      const it = { def, slot, data: {}, busy: false, timer: 0, cd: def.cd ? def.cd * (1 - m.cdPct / 100) : 0 };
       f.items.push(it);
-      f.maxHp += def.hp || 0;
+      f.maxHp += (def.hp || 0) + m.hp;
+      f.luck += m.luck;
+      f.ls += m.ls / 100;
+      for (const k in f.start) f.start[k] += m[k];
+      f.clutchShield += m.clutchShield;
       if (def.stats) { f.luck += def.stats.luck || 0; }
       if (def.flags) Object.assign(f.flags, def.flags);
-      if (def.weapon) f.weapons.push({ it, w: def.weapon, timer: 0, main: true, slot });
-      if (def.dual) f.weapons.push({ it, w: def.dual, timer: 0, main: false, slot });
+      const tune = w => ({ ...w, dmg: w.dmg * (1 + m.dmgPct / 100), interval: w.interval * (1 - m.spdPct / 100), extra: m.onHit });
+      if (def.weapon) f.weapons.push({ it, w: tune(def.weapon), timer: 0, main: true, slot });
+      if (def.dual) f.weapons.push({ it, w: tune(def.dual), timer: 0, main: false, slot });
       if (def.cd) f.cds.push(it);
       for (const s of def.schools) if (s !== 'Prismatic') f.schools[s] = (f.schools[s] || 0) + 1;
     }
@@ -106,6 +115,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       f.clutch = true;
       ev('clutch', { side: f.side });
       fire(f, 'clutch');
+      if (f.clutchShield) gain(f, 'shield', f.clutchShield);
     }
   }
   function damage(src, tgt, n, kind, meta = {}) {
@@ -249,6 +259,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
         ev('reflect', { side: a.side });
         damage(d, a, w.dmg, 'reflect');
         if (w.onHit) w.onHit(ctx(a, wp.it, a));
+        for (const x of w.extra ?? []) apply(d, a, x.type, x.n);
       }
       return;
     }
@@ -269,6 +280,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       fire(a, 'lifestole', { n: dealt * ls });
     }
     if (w.onHit) w.onHit(ctx(a, wp.it));
+    for (const x of w.extra ?? []) apply(a, d, x.type, x.n);
     fire(a, 'hit', { crit, main: wp.main });
     if (crit) fire(a, 'crit');
     fire(d, 'whenHit', { dmg: dealt });
@@ -302,13 +314,20 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       st: { ...f.st }, heat: f.heat, luck: luckOf(f), frozen: f.frozen > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
-        ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.def.cd) })),
+        ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
       ],
     });
     frames.push({ t: r1(t), A: s(A), B: s(B) });
   }
 
   /* ---------- main loop ---------- */
+  for (const f of [A, B]) {
+    const s = f.start;
+    if (s.shield) gain(f, 'shield', s.shield);
+    if (s.heat) gain(f, 'heat', s.heat);
+    if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
+    if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
+  }
   snapshot();
   fire(A, 'start');
   fire(B, 'start');
@@ -352,8 +371,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       }
       for (const it of f.cds) {
         it.timer += sp;
-        if (it.timer >= it.def.cd) {
-          it.timer -= it.def.cd;
+        if (it.timer >= it.cd) {
+          it.timer -= it.cd;
           ev('trigger', { side: f.side, slot: it.slot, cast: true });
           it.busy = true;
           cause = 'item';
