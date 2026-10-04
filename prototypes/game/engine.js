@@ -48,7 +48,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, slow: 0, sand: 0, poison: 0, thorns: 0, regen: 0 },
+      start: { shield: 0, heat: 0, slow: 0, sand: 0, poison: 0, burn: 0, frost: 0, thorns: 0, regen: 0, random: 0 },
       // Gem bonuses (upgrades.js): status caps, Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
       capBonus: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
@@ -88,6 +88,12 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         if (x.hooks) f.items.push({ def: { hooks: x.hooks, schools: [] }, slot, data: {}, busy: false, timer: 0, boost, gem: true });
       }
       if (def.stats) { f.luck += def.stats.luck || 0; }
+      // Jewellery starters (items.js): Luck and Lifesteal now, the rest at the start of the fight.
+      for (const [k, v] of Object.entries(def.starter ?? {})) {
+        if (k === 'luck') f.luck += v;
+        else if (k === 'ls') f.ls += v / 100;
+        else f.start[k] += v;
+      }
       if (def.flags) Object.assign(f.flags, def.flags);
       const tune = w => ({
         ...w, dmg: w.dmg * (1 + (m.dmgPct + sum('dmgPct')) / 100), interval: w.interval * (1 - (m.spdPct + sum('spdPct')) / 100), extra: m.onHit,
@@ -532,6 +538,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
     if (s.poison) apply(f, other(f), 'poison', s.poison, { generated: true });
+    if (s.burn) apply(f, other(f), 'burn', s.burn, { generated: true });
+    if (s.frost) apply(f, other(f), 'frost', s.frost, { generated: true });
+    for (let i = 0; i < s.random; i++) apply(f, other(f), pickStatus(f), 1, { generated: true });
     if (s.thorns) gain(f, 'thorns', s.thorns);
     if (s.regen) gain(f, 'regen', s.regen);
   }

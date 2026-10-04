@@ -323,6 +323,30 @@ Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons 
 
 ## 8. Bridge rings
 
+### Jewellery starters
+
+Every ring and amulet does something on its own. Before this, nearly every ring was a "whenever X, do Y" effect: added to a build without its school, rings scored a median 51% (no effect at all) while armour scored 67–81% from HP and weapons 98%. Now each piece of jewellery starts with a small effect from its school, shown as its first sentence. That gives it a floor, and helps it switch on its own condition.
+
+| School | Ring | Amulet |
+|---|---|---|
+| Fire | Start: gain 2 Heat | Start: 1 Burn, gain 2 Heat |
+| Frost | Start: apply 2 Slow | Start: 5 Frost and 2 Slow |
+| Venom | Start: 1 Poison | Start: 2 Poison |
+| Desert | Start: 2 Sand | Start: 3 Sand |
+| Holy | Start: 5 Shield | Start: 10 Shield |
+| Blood | +4% Lifesteal | +8% Lifesteal |
+| Fortune | +1 Luck | +2 Luck |
+| Thorn | Start: 1 Thorns | Start: 2 Thorns |
+| Lunar | Start: 1 Regen | Start: 2 Regen |
+| Prismatic | Start: 1 random status | Start: 1 random status |
+
+- **Bridge rings take one school's starter, normally the first.** With both, a ring alone ran both halves of its own combo. For example, Bloodfire Ring's Lifesteal made "whenever a hit Lifesteals, apply Burn" fire on every hit, and those rings reached 82–95%.
+- **Three items take their other school's starter** for the same reason: Ember Moon (Heat instead of Regen), Venomspine Ring (Poison instead of Thorns) and Phoenix Heart (Shield instead of Burn).
+- **Frost uses Slow** because 2 Frost alone never Freezes anything.
+- **Results (simulator, day 6, a build without the item's school):** rings 55–73% alone (median 62%, every school 57–65%), amulets 58–80% (median 70%). Schools overall still land at 39–55% on days 3, 8 and 14.
+
+
+
 Each bridge counts toward both of its schools. Every one of the 36 school pairs has at least one bridge.
 
 | Ring | Schools | Effect |

@@ -543,6 +543,38 @@ for (const def of LIST) {
 
 // Trinkets (trinkets.js) are gear too: their own slots, no HP, no school, no sockets.
 LIST.push(...TRINKET_LIST);
+
+// Jewellery starters: every ring and amulet does something on its own. Each of its schools adds a small
+// start-of-fight effect (amulets get the stronger version), which also helps switch on the item's own condition.
+// The engine reads def.starter; the text gets a matching first sentence.
+const STARTER = {
+  Fire: { ring: { heat: 2 }, amulet: { burn: 1, heat: 2 } }, Frost: { ring: { slow: 2 }, amulet: { frost: 5, slow: 2 } },
+  Venom: { ring: { poison: 1 }, amulet: { poison: 2 } }, Desert: { ring: { sand: 2 }, amulet: { sand: 3 } },
+  Holy: { ring: { shield: 5 }, amulet: { shield: 10 } }, Blood: { ring: { ls: 4 }, amulet: { ls: 8 } },
+  Fortune: { ring: { luck: 1 }, amulet: { luck: 2 } }, Thorn: { ring: { thorns: 1 }, amulet: { thorns: 2 } },
+  Lunar: { ring: { regen: 1 }, amulet: { regen: 2 } }, Prismatic: { ring: { random: 1 }, amulet: { random: 1 } },
+};
+// Items whose first school's starter would feed their own loop take the other school's.
+const STARTER_FROM = { ember_moon: 'Fire', venomspine_ring: 'Venom', phoenix_heart: 'Holy' };
+const ST_NAME = { slow: 'Slow', burn: 'Burn', frost: 'Frost', poison: 'Poison', sand: 'Sand', shield: 'Shield', thorns: 'Thorns', regen: 'Regen', heat: 'Heat' };
+export function starterText(st) {
+  const apply = ['burn', 'frost', 'slow', 'poison', 'sand'].filter(k => st[k]).map(k => `${st[k]} ${ST_NAME[k]}`);
+  const gain = ['heat', 'shield', 'thorns', 'regen'].filter(k => st[k]).map(k => `${st[k]} ${ST_NAME[k]}`);
+  const list = a => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a.at(-1)}` : a[0]);
+  const start = [apply.length && `apply ${list(apply)}`, gain.length && `gain ${list(gain)}`, st.random && `apply ${st.random} random status${st.random > 1 ? 'es' : ''}`].filter(Boolean);
+  const stats = [st.luck && `+${st.luck} Luck`, st.ls && `+${st.ls}% Lifesteal`].filter(Boolean);
+  return [start.length && `Start of fight: ${start.join(', ')}.`, stats.length && `${list(stats)}.`].filter(Boolean).join(' ');
+}
+for (const def of LIST) {
+  const kind = def.slot === 'ring' ? 'ring' : def.slot === 'amulet' ? 'amulet' : null;
+  if (!kind) continue;
+  const st = {};
+  // Bridge items take one school's starter (the first, or STARTER_FROM's pick), so the item alone doesn't run both halves of its own combo.
+  for (const [k, v] of Object.entries(STARTER[STARTER_FROM[def.id] ?? def.schools[0]]?.[kind] ?? {})) st[k] = (st[k] ?? 0) + v;
+  if (!Object.keys(st).length) continue;
+  def.starter = st;
+  def.text = `${starterText(st)} ${def.text}`;
+}
 export const ITEMS = {};
 for (const def of LIST) {
   def.price = def.slot === 'trinket' ? def.price : PRICE[def.rarity] + (def.weapon?.hands === 2 ? 1 : 0);
