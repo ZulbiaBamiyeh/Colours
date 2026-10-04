@@ -571,8 +571,9 @@ Trinkets are once-per-fight **moments**: a clear trigger, a visible effect, and 
 | Pearl of the Deep | At 12s: the enemy's Burn, Poison, Slow and Sand double, up to their caps. | 56% / 58% (Frost 72%) |
 | Volcanic Heart | Below 30% HP: spend all Heat to deal 1.5 damage per Heat and apply 1 Burn per 2 Heat. | 49% / 52% overall, 59% / 65% for Fire |
 | Berserker's Totem | Below 50% HP: 5s berserk, attacking and using items 60% faster and taking 15% more damage. | 59% / 58% |
+| Rainbow Prism | Each Burn, Poison or Slow you apply has a 50% chance to become a random one of the three, with 30% more stacks; each time, 30% chance you suffer 1 random one yourself. | 56% / 54% (Frost 68–72%, Thorn and Fortune 45–46%) |
 
-First drafts were far off: Hourglass started as a net loss (41%) because standing still cost more than the hits it dodged, Chronoshard at 15% was 71%, and Anchor Chain with 1.5s Freezes hit 74% (90% for Lunar). Volcanic Heart is deliberately a Fire build-around.
+First drafts were far off: Hourglass started as a net loss (41%) because standing still cost more than the hits it dodged, Chronoshard at 15% was 71%, and Anchor Chain with 1.5s Freezes hit 74% (90% for Lunar). Volcanic Heart is deliberately a Fire build-around. A random status swap always favours the school whose status is worth least per stack (Sand, then Slow) and punishes Venom: swapping all statuses put Desert or Frost at 70–89% and Venom at 13–30%. So Rainbow Prism swaps only half the time, among Burn, Poison and Slow; Frost (a meter) and Sand stay out. The additive version ("also apply a random status") already exists as the Prism Heart amulet.
 
 ## 11. Hall of Fame, exhibitions and trading
 

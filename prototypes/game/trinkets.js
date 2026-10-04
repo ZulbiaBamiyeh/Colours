@@ -51,6 +51,8 @@ const LIST = [
   { id: 'berserkers_totem', name: "Berserker's Totem", rarity: 'epic', price: 6,
     text: 'Once per fight, below 50% HP: go berserk for 5s. You attack and use items 60% faster, and take 15% more damage.',
     hooks: { hp50: c => { Object.assign(c.me, { berserk: 5, berserkSpd: 1.6, berserkTaken: 1.15 }); c.moment('berserk'); return true; } } },
+  { id: 'rainbow_prism', name: 'Rainbow Prism', rarity: 'epic', price: 6, flags: { rainbow: { mode: 'equal', pool: ['burn', 'poison', 'slow'], chance: 0.5, bonus: 0.3, self: 0.3 } },
+    text: 'Each Burn, Poison or Slow you apply has a 50% chance to become a random one of the three, with 30% more stacks. Each time it does, 30% chance you suffer 1 random one yourself.' },
 ];
 export const TRINKETS = {};
 for (const d of LIST) { d.slot = 'trinket'; d.schools = []; TRINKETS[d.id] = d; }

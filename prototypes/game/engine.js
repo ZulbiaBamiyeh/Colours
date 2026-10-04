@@ -269,6 +269,18 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   }
   function apply(src, tgt, type, n, o = {}) {
     if (tgt.dead) return false;
+    // Rainbow Prism: some of the statuses in its pool you apply (Burn, Poison, Slow) turn into a random one of them, and sometimes one splashes back on you.
+    // Frost (a meter) and Sand (weakest per stack, so swapping it is pure gain) stay out.
+    const rb = src.flags.rainbow;
+    if (rb && !o.generated && src !== tgt && rb.pool.includes(type) && rng() < rb.chance) {
+      const pool = rb.pool;
+      const to = pool[Math.floor(rng() * pool.length)];
+      // mode 'cap' converts at the same share of the cap (3 Slow is about 1 Burn); fractions round up or down by chance.
+      const x = n * (rb.mode === 'cap' ? capOf(src, to) / capOf(src, type) : 1) * (1 + rb.bonus);
+      n = Math.floor(x) + (rng() < x - Math.floor(x) ? 1 : 0);
+      type = to;
+      if (rng() < rb.self) apply(tgt, src, pool[Math.floor(rng() * pool.length)], 1, { generated: true });
+    }
     n = Math.round(mod(src, 'applyN', n, { type }));
     if (n <= 0) return false;
     if (src.flags.statusCrit && critRoll(src)) n *= 2;
