@@ -10,6 +10,7 @@ import {
 import { simulate, mulberry32, RULES } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
+import { sfx, setMuted, isMuted, stormSound } from './sfx.js';
 
 const $ = id => document.getElementById(id);
 if (!document.documentElement.lang) document.documentElement.lang = 'en';
@@ -157,7 +158,7 @@ const enchPrice = o => USE[o.id].price - (o.lucky ? 1 : 0);
    ========================================================= */
 let freshUid = null;
 function pay(n) {
-  if (S.gold < n) { toast(`You need ${n} gold and have ${S.gold}.`); return false; }
+  if (S.gold < n) { sfx('error'); toast(`You need ${n} gold and have ${S.gold}.`); return false; }
   S.gold -= n;
   bumpGold();
   return true;
@@ -204,6 +205,7 @@ function buy(i, dest) {
   if (target.where === 'equip') { if (!placeEquip(item, target.key, null)) return; }
   else S.bag[target.key] = item;
   pay(def.price);
+  sfx('buy');
   o.sold = true;
   S.sel = `${target.where}:${target.key}`;
   freshUid = item.uid;
@@ -228,6 +230,7 @@ function equipFrom(loc, slot) {
   }
   S.sel = `equip:${slot}`;
   freshUid = item.uid;
+  sfx('equip');
   commit();
 }
 function unequip(slot, bagIndex) {
@@ -250,6 +253,7 @@ function unequip(slot, bagIndex) {
   }
   S.bag[target] = item;
   S.sel = `bag:${target}`;
+  sfx('equip');
   commit();
 }
 function sell(loc) {
@@ -266,6 +270,7 @@ function sell(loc) {
   if (!isUse(item.id)) for (const g of gemsOf(item)) { if (GEMS[g].cursed || !addGem(g)) lost++; else back++; }
   S.gold += v;
   bumpGold();
+  sfx('sell');
   if (S.sel === loc && !getItem(loc)) S.sel = null;
   toast(`Sold ${ALL[item.id].name} for ${v} gold.${back ? ` ${back} gem${back > 1 ? 's' : ''} back in your Gems row.` : ''}${lost ? ` ${lost} gem${lost > 1 ? 's' : ''} lost.` : ''}`);
   commit();
@@ -278,6 +283,7 @@ function swapBag(a, b) {
 }
 function reroll() {
   if (!pay(1)) return;
+  sfx('reroll');
   refreshShop();
   if (S.sel?.startsWith('shop:') || S.sel?.startsWith('ench:')) S.sel = null;
   toast('New offers in the market.');
@@ -355,6 +361,7 @@ function buyUse(i, dest) {
   const slot = useRoom(o.id, dest);
   if (slot < 0) { toast(dest != null ? 'That slot holds a different gem.' : 'Your Gems row is full. Set or sell a gem first.'); return -1; }
   if (!pay(price)) return -1;
+  sfx('buy');
   if (S.use[slot]) S.use[slot].n++;
   else S.use[slot] = { uid: o.uid, id: o.id, n: 1 };
   o.sold = true;
@@ -407,6 +414,7 @@ function pryGem(loc, i) {
   if (!pay(PRY_COST)) return;
   item.gems.splice(i, 1);
   addGem(id);
+  sfx('pry');
   toast(`Took ${def.name} out of ${ITEMS[item.id].name} for ${PRY_COST} gold.`);
   commit();
 }
@@ -534,6 +542,7 @@ function enchantAct(act) {
     item.gems.push(E.useId);
   }
   spendUse(E.useIdx);
+  sfx('socket');
   E.phase = 'result';
   commit();
   renderEnchant();
@@ -1202,6 +1211,7 @@ function updateStorm(dt) {
   const gust = 0.75 + 0.25 * Math.sin(STORM.gust * 1.7) + 0.12 * Math.sin(STORM.gust * 4.3);
   arenaStage.style.setProperty('--storm', (STORM.k * gust).toFixed(3));
   arenaStage.classList.toggle('storming', STORM.k > 0.02);
+  stormSound(B.playing ? STORM.k : 0);
   if (STORM.k > 0.02 && !reduceMotion) {
     let n = STORM.k * gust * 190 * dt;
     while (n > 0) {
@@ -1620,7 +1630,30 @@ function fxDamage(e) {
     f.flash = Math.max(f.flash, 0.4); f.flashColor.set(0xe9b8ff);
   }
 }
+// Which sound a battle event makes (sfx.js rate-limits each one).
+function eventSound(e) {
+  switch (e.type) {
+    case 'dmg':
+      if (e.dot) return;
+      if (e.kind === 'hit' || e.kind === 'pure' || e.kind === 'reflect') return sfx(e.crit ? 'crit' : e.absorbed > 0 && e.absorbed >= e.n - 0.05 ? 'block' : 'hit');
+      if (e.kind === 'thorns') return sfx('thorns');
+      if (e.kind === 'fatigue') return sfx('fatigue');
+      return;
+    case 'dotTick': return sfx(e.kind === 'burn' ? 'burn' : 'poison');
+    case 'miss': return sfx('miss');
+    case 'heal': return sfx('heal');
+    case 'shield': return sfx('shield');
+    case 'status': return e.st === 'frost' ? undefined : sfx('status');
+    case 'freeze': return sfx('freeze');
+    case 'thaw': return sfx('thaw');
+    case 'clutch': return sfx('clutch');
+    case 'cleanse': return sfx('cleanse');
+    case 'immune': return sfx('block');
+    case 'moment': return sfx(e.k);
+  }
+}
 function playEvent(e, quiet) {
+  if (!quiet) eventSound(e);
   const other = s => (s === 'A' ? 'B' : 'A');
   const log = html => logLine(html, e.t);
     const verb = (side, you, them) => (side === 'A' ? you : them);
@@ -1811,6 +1844,7 @@ function finishBattle() {
   const r = B.sim.result;
   const outcome = r === 'A' ? 'win' : r === 'B' ? 'loss' : 'draw';
   const title = { win: 'Victory', loss: 'Defeat', draw: 'Draw' }[outcome];
+  sfx(outcome);
   if (B.ex) {
     const sub = { win: `You beat ${B.ghost.name}'s Hall of Fame set.`, loss: `${B.ghost.name}'s Hall of Fame set won this one.`, draw: 'Nobody survived the fight.' }[outcome];
     logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
@@ -1967,6 +2001,7 @@ function stepBattle(dt) {
     const el = document.createElement('span');
     el.className = 'float banner big';
     el.textContent = 'Fight!';
+    sfx('start');
     el.style.color = '#f4c652';
     el.style.left = '50%';
     el.style.top = '38%';
@@ -2348,6 +2383,27 @@ $('pname').addEventListener('input', e => {
   $('nameplate').textContent = playerName();
 });
 $('menu-btn').addEventListener('click', () => showMenu());
+// Sound: a speaker button in the top bar, a Sound row on the title menu, and the M key.
+const SPEAKER_ON = '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>';
+const SPEAKER_OFF = '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/>';
+function renderSound() {
+  const m = isMuted();
+  $('mute').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${m ? SPEAKER_OFF : SPEAKER_ON}</svg>`;
+  $('mute').setAttribute('aria-pressed', String(m));
+  $('mute').setAttribute('aria-label', m ? 'Sound off: turn sound on' : 'Sound on: turn sound off');
+  document.querySelectorAll('[data-sound-seg] button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.v === 'off') === m)));
+}
+function toggleSound(off = !isMuted()) {
+  setMuted(off);
+  renderSound();
+  if (!off) sfx('equip');
+}
+$('mute').addEventListener('click', () => toggleSound());
+document.querySelectorAll('[data-sound-seg]').forEach(seg => seg.addEventListener('click', e => { const b = e.target.closest('button[data-v]'); if (b) toggleSound(b.dataset.v === 'off'); }));
+document.addEventListener('keydown', e => {
+  if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) toggleSound();
+});
+renderSound();
 
 /* =========================================================
    Hall of Fame: keep one item per won run, build an exhibition set, fight other players' sets

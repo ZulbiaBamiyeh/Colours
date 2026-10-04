@@ -615,6 +615,18 @@ The game opens on a title menu with a live, turnable preview of your character a
 
 ---
 
+### Sound
+
+All sound is synthesised in the browser with Web Audio (sfx.js), so there are no files to load. It starts on the first tap or key press, as browsers require.
+
+- **Combat:** hits, crits, blocked hits, misses, Burn crackle, Poison bubbles, Freeze and thaw, heals, Shield, Thorns, Cleanse, clutch, and the fight-start drum.
+- **Trinket moments:** a bell for the Hourglass, a rewind sweep, a wave for the Pearl, a boom for the eruption, a growl for berserk.
+- **Sandstorm:** a looping wind that rises and falls with the storm.
+- **Results:** win, loss and draw stings.
+- **Market:** buying, selling, rerolling, equipping, setting and removing gems, and a buzz when you can't afford something.
+- **Pacing:** each sound has a minimum gap, so 4× battles stay readable.
+- **Mute:** a speaker button in the top bar (it stays visible in battle), a Sound row on the title menu, and the M key. The setting is saved in the browser.
+
 ## 13. Guardrails
 
 These rules protect the design so balance work is about numbers, not redesigns.

@@ -755,7 +755,9 @@
   .btn.mini-plain { padding: 3px 11px; font-size: 0.85rem; }
   .menu-btn { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border-radius: 8px; border: 1px solid var(--brass-dim); background: linear-gradient(#45382a, #33291f); color: var(--parch); cursor: pointer; }
   .menu-btn svg { width: 18px; height: 18px; }
-  .screen.in-battle .menu-btn { display: none; }
+  .screen.in-battle .menu-btn:not(.mute-btn) { display: none; }
+  .top-btns { display: flex; gap: 6px; align-items: center; }
+  .mute-btn[aria-pressed="true"] { color: var(--parch-faint); }
   @media (max-width: 800px) {
     .menu-grid { grid-template-columns: minmax(0, 1fr); }
     #menu-stage { height: 42vh; }
@@ -1520,6 +1522,40 @@
   }
   html.maple.dark .cloud, html.maple.dark .cloud::before, html.maple.dark .cloud::after { background: #8a98c8; }
   html.maple.dark .cloud { opacity: 0.12; }
+
+  /* ---------- Phone layout: last in the sheet so it wins over the base and theme rules ---------- */
+  /* The result card sits above the arena; the overhead HP bars would otherwise draw over it. */
+  .arena-stage:has(.result:not([hidden])) .ohp { display: none; }
+  @media (max-width: 640px) {
+    /* Graphics live on the title menu on phones. */
+    .fight-row .top-gfx { display: none; }
+    .ph .aside { white-space: normal; text-align: right; min-width: 0; line-height: 1.25; }
+    #ench-note { font-size: 0.75rem; }
+  }
+  @media (max-width: 520px) {
+    /* Three offers per row, so names fit. */
+    .offers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .o-name { font-size: 0.8rem; }
+    /* Stat tiles: label over value, so numbers aren't cut off. */
+    .stat { display: grid; justify-items: start; gap: 1px; padding: 5px 8px; }
+    .stat .v { font-size: 1rem; overflow: visible; text-overflow: clip; white-space: nowrap; }
+    /* Sell zone: a full-width strip under the bag rows instead of a squeezed column. */
+    .bag-grid { grid-template-columns: auto minmax(0, 1fr); }
+    .bag-grid .sellzone { display: flex; grid-column: 1 / -1; grid-row: auto; flex-direction: row; min-height: 40px; }
+    .bag-cells { gap: 6px; }
+    /* Inspect sheet: keep everything inside the screen. */
+    .stack-c { width: 100%; max-width: 100vw; box-sizing: border-box; }
+    .stack-c .inspect { box-sizing: border-box; max-width: 100vw; }
+    .sock { flex-wrap: wrap; }
+    .sock .btn { margin-left: 36px; }
+    .gem-fx > div { grid-template-columns: 70px minmax(0, 1fr); }
+    .trinket-row { margin-top: 6px; }
+    /* The result card can be taller than the arena: let it scroll so Continue is reachable. */
+    .result { overflow-y: auto; place-items: start center; padding: 10px; }
+    .result-card { margin: auto 0; }
+    .top { row-gap: 4px; align-items: center; }
+    .top .fight { padding: 8px 22px; }
+  }
 </style>
 
 <section class="menu" id="menu" aria-label="Main menu">
@@ -1539,6 +1575,7 @@
           <button type="button" class="mopt" data-tab="hof" aria-pressed="false" aria-controls="tab-hof"><span class="mo-t">Hall of Fame <span class="count" id="hof-count"></span></span><small>Kept items and exhibitions</small></button>
         </nav>
         <div class="opt graphics"><span class="opt-cap">Graphics</span><div class="segs"><div class="seg" role="group" aria-label="Graphics style" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div><div class="seg theme-seg" role="group" aria-label="Pixel theme" data-theme-seg><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div></div></div>
+        <div class="opt sound"><span class="opt-cap">Sound</span><div class="segs"><div class="seg" role="group" aria-label="Sound" data-sound-seg><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button></div></div></div>
         <details class="dev">
           <summary>Dev tools</summary>
           <div class="dev-body">
@@ -1568,7 +1605,10 @@
 
 <main class="screen" id="screen">
   <header class="panel top">
-    <button type="button" class="menu-btn" id="menu-btn" aria-label="Main menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="top-btns">
+      <button type="button" class="menu-btn mute-btn" id="mute" aria-pressed="false" aria-label="Sound"></button>
+      <button type="button" class="menu-btn" id="menu-btn" aria-label="Main menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
     <div class="brand"><span class="sub" id="phase">The Market</span><span class="day" id="day">Day 1</span></div>
     <div class="meters">
       <div class="meter"><span class="cap">Gold</span><span class="val"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#f4c652" stroke="#9a6a12" stroke-width="1.5"/><circle cx="12" cy="12" r="6" fill="none" stroke="#c98f1e" stroke-width="1.4"/><path d="M12 8.5v7M10 10.2h3.2a1.4 1.4 0 0 1 0 2.8H10.8a1.4 1.4 0 0 0 0 2.8H14" fill="none" stroke="#9a6a12" stroke-width="1.3" stroke-linecap="round"/></svg><span class="num gold-num" id="gold">10</span></span></div>
