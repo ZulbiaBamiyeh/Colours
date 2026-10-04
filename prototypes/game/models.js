@@ -1324,6 +1324,8 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
   hero.twoHanded = !!(wdef && wdef.weapon?.hands === 2);
   place('weapon', w, hero.twoHanded ? hero.body : hero.arms.right.socket, (h, model, def) => {
     model.position.y = -(def.model.hand ?? -0.24);
+    // One-sided heads (a single axe blade) face away from the body.
+    if (def.model.flip) model.rotation.y = PI;
     if (hero.twoHanded) {
       h.position.copy(R2H);
       h.quaternion.setFromUnitVectors(UP, N2H);
