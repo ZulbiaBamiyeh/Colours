@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {
   ITEMS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopId, makeGhost,
 } from './items.js';
-import { simulate, mulberry32 } from './engine.js';
+import { simulate, mulberry32, RULES } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, pedestal, heroLights, iceBlock, MS, mesh } from './models.js';
 
 const $ = id => document.getElementById(id);
@@ -644,6 +644,7 @@ function hudHTML(side, name, sub, equip) {
 function startBattle() {
   closeSheet();
   hideTip();
+  statusTip = null;
   const ghost = makeGhost(S.day, rng);
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, S.equip[k] ? { ...S.equip[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
@@ -688,8 +689,9 @@ function updateHud(force) {
     for (const k of ['burn', 'poison', 'frost', 'slow', 'sand']) if (s.st[k] > 0) chips.push([k, k === 'frost' ? `${s.st.frost}/10` : s.st[k]]);
     if (s.heat > 0) chips.push(['heat', s.heat]);
     if (s.luck > 0) chips.push(['luck', s.luck]);
-    const html = chips.map(([k, v]) => `<span class="schip${k === 'frozen' ? ' frozen' : ''}" style="--sc: var(${STATUS_VAR[k]})" title="${STATUS_NAME[k] ?? 'Frozen'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>${v}</span>`).join('');
+    const html = chips.map(([k, v]) => `<button type="button" class="schip${k === 'frozen' ? ' frozen' : ''}" data-st="${k}" data-side="${side}" style="--sc: var(${STATUS_VAR[k]})" aria-label="${STATUS_NAME[k] ?? 'Frozen'} ${k === 'frozen' ? '' : v}: what it does"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>${v}</button>`).join('');
     if (hudCache[side].chips !== html) { root.querySelector('.schips').innerHTML = html; hudCache[side].chips = html; }
+    if (statusTip && statusTip.side === side) refreshStatusTip(fr);
     for (const c of s.cds) {
       const bar = root.querySelector(`.hi[data-slot="${c.slot}"] .cd i`);
       if (bar) bar.style.width = `${(c.p * 100).toFixed(0)}%`;
@@ -701,6 +703,60 @@ function updateHud(force) {
   clock.textContent = `${fr.t.toFixed(1)}s${fr.t >= 25 ? ' · Fatigue' : ''}`;
   clock.classList.toggle('fatigue', fr.t >= 25);
 }
+
+/* ---------- Status explanations ---------- */
+function statusInfo(k, s) {
+  const pct = n => `${Math.round(n * 100)}%`;
+  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : s.st[k];
+  switch (k) {
+    case 'burn': return [`Burn ${n}`, `Takes ${n} damage every second, then loses 1 stack. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
+    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s. Poison never wears off and ignores Shield.`];
+    case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
+    case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Loses 1 stack every 2s, and cancels Heat 1 for 1.`];
+    case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Loses 1 stack every 2s.`];
+    case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
+    case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
+    case 'frozen': return ['Frozen', `Weapon and items are stopped for up to ${RULES.FREEZE_TIME}s. Burn and Poison still tick.`];
+  }
+  return [k, ''];
+}
+let statusTip = null;
+function showStatusTip(el, pinned) {
+  const side = el.dataset.side, k = el.dataset.st;
+  statusTip = { side, k, pinned };
+  refreshStatusTip(B.sim.frames[Math.max(0, B.fi)]);
+}
+function refreshStatusTip(fr) {
+  if (!statusTip || !fr) return;
+  const el = $(`hud-${statusTip.side}`).querySelector(`.schip[data-st="${statusTip.k}"]`);
+  if (!el) { hideStatusTip(); return; }
+  const [title, body] = statusInfo(statusTip.k, fr[statusTip.side]);
+  tip.innerHTML = `<span class="t-name" style="color: var(${STATUS_VAR[statusTip.k]})">${title}</span><span class="t-meta">${statusTip.side === 'A' ? 'On you' : `On ${B.ghost.name}`}</span><span>${body}</span>`;
+  tip.hidden = false;
+  const r = el.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = Math.min(window.innerWidth - tw - 8, Math.max(8, r.left));
+  let y = r.bottom + 8;
+  if (y + th > window.innerHeight - 8) y = Math.max(8, r.top - th - 8);
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+}
+function hideStatusTip() { statusTip = null; tip.hidden = true; }
+document.addEventListener('click', e => {
+  const chip = e.target.closest('.schip[data-st]');
+  if (chip) { showStatusTip(chip, true); return; }
+  if (statusTip) hideStatusTip();
+}, true);
+document.addEventListener('pointerover', e => {
+  if (e.pointerType !== 'mouse' || statusTip?.pinned) return;
+  const chip = e.target.closest('.schip[data-st]');
+  if (chip) showStatusTip(chip, false);
+});
+document.addEventListener('pointerout', e => {
+  const chip = e.target.closest('.schip[data-st]');
+  if (chip && statusTip && !statusTip.pinned && !chip.contains(e.relatedTarget)) hideStatusTip();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && statusTip) hideStatusTip(); });
 
 const sideName = side => (side === 'A' ? 'You' : B.ghost.name);
 function logLine(html, at = B.T) {
@@ -810,6 +866,7 @@ function continueRun(outcome) {
   if (outcome === 'win') S.wins++;
   if (outcome === 'loss') S.lives--;
   S.record.push(outcome);
+  hideStatusTip();
   screenEl.classList.remove('in-battle');
   $('phase').textContent = 'The Market';
   $('fight').disabled = false;

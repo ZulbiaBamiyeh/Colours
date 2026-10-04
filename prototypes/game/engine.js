@@ -14,6 +14,8 @@ const DT = 0.1;
 const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25;
 const FATIGUE_AT = 25, MAX_TIME = 75;
 const POISON_EVERY = 3, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 2;
+// Shared with the UI so status explanations always match the engine.
+export const RULES = { HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03 };
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [

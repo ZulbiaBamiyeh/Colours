@@ -33,6 +33,7 @@ export function materialFactory(style) {
       });
     }
     if (o.double) mat.side = THREE.DoubleSide;
+    if (o.back) mat.side = THREE.BackSide;
     return mat;
   };
   m.style = style;
@@ -507,17 +508,36 @@ function coin(m, p) {
 
 /* Helms */
 function hood(m, p) {
+  // An open-faced hood: a closed crown, sides and back with a face opening, a lining,
+  // a trim that follows the opening, a pointed tip and a drape over the shoulders.
   const g = new THREE.Group();
-  g.add(mesh(sph(0.56, 14, 10), m(p.a), [0, 0, -0.02], [0, 0, 0], [1, 1.04, 1.04]));
-  g.add(mesh(cone(0.24, 0.5, 8), m(p.a), [0, 0.38, -0.36], [-1.0, 0, 0]));
-  g.add(mesh(cyl(0.34, 0.34, 0.06, 18), m(0x140e0b), [0, -0.06, 0.53], [PI / 2, 0, 0], [1, 1, 1.25]));
-  g.add(mesh(torus(0.37, 0.05, 6, 22), m(p.b), [0, -0.06, 0.53], [0, 0, 0], [1, 1.25, 1]));
-  if (p.gem) g.add(mesh(octa(0.09), m(p.gem, { glow: 0.6 }), [0, 0.42, 0.42], [0, 0, 0], [1, 1.3, 0.7]));
-  if (p.eyes) for (const x of [-0.12, 0.12]) g.add(mesh(sph(0.04, 6, 4), m(p.eyes, { glow: 1 }), [x, -0.02, 0.5]));
-  if (p.collar) g.add(mesh(cyl(0.52, 0.62, 0.42, 16, true, PI * 0.25, PI * 1.5), m(p.collar, { double: true }), [0, -0.42, -0.02]));
+  const R = 0.56, gap = 0.95, capT = PI * 0.3, sideT = PI * 0.42;
+  const outer = m(p.a), inner = m(p.lining ?? 0x24170f, { back: true });
+  const ps = PI / 2 + gap, pl = PI * 2 - gap * 2;
+  for (const [r, mat] of [[R, outer], [R * 0.97, inner]]) {
+    g.add(mesh(new THREE.SphereGeometry(r, 20, 6, 0, PI * 2, 0, capT), mat));
+    g.add(mesh(new THREE.SphereGeometry(r, 20, 8, ps, pl, capT, sideT), mat));
+  }
+  const bottomY = R * Math.cos(capT + sideT), bottomR = R * Math.sin(capT + sideT);
+  g.add(mesh(cyl(bottomR, 0.76, 0.34, 20, true, gap * 0.85, PI * 2 - gap * 1.7), m(p.a, { double: true }), [0, bottomY - 0.17, 0]));
+  g.add(mesh(torus(0.76, 0.03, 5, 28, PI * 2 - gap * 1.7), m(p.b), [0, bottomY - 0.34, 0], [PI / 2, 0, PI / 2 + gap * 0.85]));
+  const pt = (phi, theta, k = 1.01) => new THREE.Vector3(
+    -R * k * Math.cos(phi) * Math.sin(theta), R * k * Math.cos(theta), R * k * Math.sin(phi) * Math.sin(theta));
+  const edge = [];
+  const bottom = capT + sideT;
+  for (let i = 0; i <= 6; i++) edge.push(pt(PI / 2 + gap, bottom - (sideT * i) / 6));
+  for (let i = 1; i < 6; i++) edge.push(pt(PI / 2 + gap - (gap * 2 * i) / 6, capT));
+  for (let i = 0; i <= 6; i++) edge.push(pt(PI / 2 - gap, capT + (sideT * i) / 6));
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge), 60, 0.035, 6, false), m(p.b)));
+  g.add(mesh(cone(0.15, 0.46, 8), m(p.a), [0, 0.36, -0.36], [-1.15, 0, 0]));
+  if (p.gem) g.add(mesh(octa(0.08), m(p.gem, { glow: 0.6 }), [0, R * Math.cos(capT - 0.06) + 0.02, R * Math.sin(capT - 0.06) + 0.03], [0, 0, 0], [1, 1.3, 0.7]));
+  if (p.collar) {
+    g.add(mesh(cyl(0.5, 0.66, 0.5, 18, true, PI * 0.35, PI * 1.3), m(p.collar, { double: true }), [0, bottomY - 0.05, -0.02]));
+    for (const k of [-1, 1]) g.add(mesh(cone(0.05, 0.22, 5), m(p.b), [0.42 * k, bottomY + 0.24, -0.2], [-0.3, 0, -0.5 * k]));
+  }
   if (p.card) {
-    g.add(mesh(box(0.2, 0.28, 0.02), m(0xf4ecd8), [0.42, 0.3, 0.22], [0, 0.6, -0.3]));
-    g.add(mesh(sph(0.04, 6, 4), m(0xd8344f), [0.43, 0.3, 0.24]));
+    g.add(mesh(box(0.2, 0.28, 0.02), m(0xf4ecd8), [0.5, 0.18, 0.08], [0, 1.2, -0.25]));
+    g.add(mesh(sph(0.04, 6, 4), m(0xd8344f), [0.51, 0.18, 0.1]));
   }
   return g;
 }
