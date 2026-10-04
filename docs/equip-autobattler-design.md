@@ -1,0 +1,488 @@
+# Equip Autobattler: Design Doc
+
+*Working title: TBD. All numbers are starting values for the simulator, not final balance.*
+
+## 1. Pitch
+
+An autobattler in the spirit of Backpack Battles, without the backpack. Instead of fitting shapes into a grid, you fill an RPG-style equipment screen (RuneScape / MapleStory). Each day you visit a shop, buy and upgrade gear, then fight another player's build from the same day automatically.
+
+The depth comes from three layers:
+
+1. **Keywords** (Burn, Frost, Sand, ...) with simple rules that counter each other.
+2. **Slots** that decide *how* an item triggers, while its **school** decides *what* it does. Every school can fill every slot, so you can stack one school or combine two.
+3. **Bridges and legendaries** that connect schools into a web of builds, plus scrolls and cubes for gambling on upgrades.
+
+## 2. Run structure (proposed)
+
+| Element | Rule |
+|---|---|
+| Goal | Reach **10 wins** before losing **5 lives**. Draws cost nothing. |
+| Day | Shop phase, then one fight. |
+| Opponent | An asynchronous ghost: a snapshot of another player's build from the same day number. |
+| Gold | 10 per day. Unspent gold carries over. |
+| Shop | 5 offers. Reroll 1 gold. Lock offers between days. Sell items for 50%. |
+| Bag | 6 slots. Holds items, scrolls and cubes you're working on (a bench, not a build slot). |
+| Rarity by day | Common and Rare from day 1, Epic from day 3, Legendary from day 5 (rare). |
+| Relic days | Days 5 and 10: choose 1 of 3 legendaries. |
+| Classes | Not yet. Weapon choice and school stacking act as soft classes for now. |
+
+## 3. Combat basics
+
+| Rule | Value |
+|---|---|
+| Base HP | 100. Armour (helm, body, gloves, boots, cape) adds HP by rarity: Common +6, Rare +10, Epic +15, Legendary +20. |
+| Weapon | Sets your attack interval and base damage. Accuracy starts at 100%. |
+| Crit | Base 5% chance. A crit deals 2× damage. |
+| Speed | Heat and Slow change the speed of your weapon and every cooldown. Net speed is clamped between 40% and 250%. |
+| Fatigue | From 25s, both fighters take 1 damage per second, rising by 1 each second. Fatigue ignores Shield. |
+| Draw | If both fighters die on the same tick, the fight is a draw. |
+
+**Resolution order each tick:** Burn ticks, then Poison ticks, then weapons and cooldowns fire (weapon, then offhand, then the other slots top to bottom), then reactions resolve. A fixed order keeps fights deterministic, so ghosts replay identically.
+
+## 4. Keywords
+
+| Keyword | Affects | Rule |
+|---|---|---|
+| **Burn** | enemy | Deals damage equal to its stacks every 1s, then loses 1 stack. Damages Shield first. **A burning fighter receives 30% less healing.** |
+| **Poison** | enemy | Deals damage equal to its stacks every 2s. Never decays. **Bypasses Shield.** |
+| **Frost** | enemy | At 10 stacks the enemy is **Frozen** for 1.5s: weapon and cooldowns pause (statuses still tick). Frost then resets to 0, and the enemy **Thaws** for 2s, during which it can't gain Frost. |
+| **Slow** | enemy | −3% speed per stack. Loses 1 stack every 2s. **Slow and Heat on the same fighter cancel 1:1.** |
+| **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). Loses 1 stack every 2s. Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
+| **Shield** | you | Absorbs damage before HP. Doesn't decay. |
+| **Heal** | you | Restores HP up to your max. Healing beyond max is **overheal** and is lost unless an item uses it. **Lifesteal counts as healing.** |
+| **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
+| **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
+| **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
+| **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
+
+### Trigger words
+
+| Term | Meaning |
+|---|---|
+| **On hit** | Your weapon attack lands (not missed). Dual-wield offhands have their own on-hit effects. |
+| **When hit** | An enemy weapon attack lands on you. |
+| **When attacked** | An enemy weapon attack is made against you, hit or miss. |
+| **On crit** | One of your weapon hits crits (or another effect crits, where an item allows it). |
+| **Start of fight** | Once, at 0s. |
+| **Clutch** | Once per fight, when you first drop below 30% HP. |
+| **Apply / gain** | Apply puts a status on the enemy. Gain gives something to you. |
+
+### Natural counters
+
+These come from the rules themselves, before any items:
+
+- Burn beats Heal (healing cut), Shield beats Burn, Poison beats Shield, Heal beats Poison (outheals the slow ramp).
+- Sand beats weapon builds (crit, Lifesteal, on-hit). Burn and Poison beat Sand (they never miss). Fast weapon burst beats the slow Poison ramp.
+- Frost and Slow beat Heat and speed builds. Heat cancels Slow.
+
+## 5. Slots
+
+**The slot decides how an item triggers. The school decides what it does.**
+
+| Slot | Trigger type | Notes |
+|---|---|---|
+| Weapon | **On hit** | Your attack clock. Light (about 1–2.5s) or heavy two-handed (about 3.5–4.5s). |
+| Offhand | **Cooldown** | A second clock. Some offhands are dual-wield weapons with their own attack. Empty when using a two-handed weapon. |
+| Helm | **While** a condition holds | Scaling passives. |
+| Body | **When hit / when attacked** | Punishes or reacts to enemy attacks. |
+| Gloves | **On crit** | Every school has crit payoffs, so Luck pairs with everything. |
+| Boots | **Start of fight** | Your opening move. |
+| Cape | **Clutch** | Once per fight, below 30% HP. |
+| Ring ×2 | **"Whenever you…"** payoffs | Single-school payoffs **and all bridge items**. Bridges appear only in rings. |
+| Amulet | **Legendary** | Legendaries only appear in the amulet slot, so you can only ever have one. |
+
+**Two-handed weapons** leave the offhand empty and are budgeted for about 35% more damage per second than one-handed weapons.
+
+**Dual wield**: a dual-wield offhand is a second weapon clock. Gloves effects, weapon-hit bridges and helm weapon bonuses apply to both weapons. Sand affects both.
+
+## 6. Schools and resonance
+
+| School | Keywords |
+|---|---|
+| Fire | Burn, Heat |
+| Frost | Frost, Slow |
+| Venom | Poison |
+| Desert | Sand |
+| Holy | Heal, Shield |
+| Blood | Lifesteal |
+| Fortune | Luck |
+| Prismatic | Random effects |
+
+Every item has a school. Bridge rings and bridge legendaries count toward **both** schools. Equipping items from one school activates **resonance**. Tiers are cumulative, so 6 items also give the 2- and 4-item bonuses:
+
+| School | 2 items | 4 items | 6 items |
+|---|---|---|---|
+| Fire | Burn you apply +1 | Start with 4 Heat; Heat cap 25 | Burn loses a stack every 2 ticks instead of every tick |
+| Frost | Freeze lasts +0.5s | Slow you apply +1 | Freeze triggers at 8 Frost instead of 10 |
+| Venom | Start of fight: apply 3 Poison | Poison ticks every 1.5s | Poison ticks every 1s |
+| Desert | Sand decays half as fast | Enemies with 10+ Sand deal 15% less damage | Sand cap 20 (80% miss chance) |
+| Holy | Start with 10 Shield | Heals +20% | Shield gains +50% |
+| Blood | +5% Lifesteal | Lifesteal ignores Burn's healing cut | Lifesteal doubled while below 50% HP |
+| Fortune | +3 Luck | Crits deal 2.5× | Every chance roll rolls twice and keeps the better result |
+
+**Prismatic resonance** (3+ Prismatic items): amounts from random effects +50%. Prismatic items count toward every school, **but only one Prismatic item counts toward school resonance.**
+
+Single-school builds reach tier 6 and hit hardest, but they're fragile against their counter. Two-school builds reach two mid tiers and cover each other's weaknesses.
+
+---
+
+## 7. Item catalog: single-school items
+
+Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
+
+### Fire (Burn, Heat)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Cinder Knife | C | Dagger · 1.0s · 3 dmg. On hit: apply 1 Burn. |
+| Weapon (2H) | Sunbrand | R | Greatsword · 4.0s · 22 dmg. On hit: apply 3 Burn, gain 2 Heat. |
+| Offhand | Ember Censer | C | Every 4s: apply 4 Burn. |
+| Offhand | Kindled Brazier | R | Every 4s: gain 2 Heat. |
+| Helm | Pyromancer's Hood | R | While the enemy has 5+ Burn, Burn you apply +1. |
+| Body | Ember Ward | C | When hit: apply 2 Burn to the attacker. |
+| Gloves | Stoked Gauntlets | R | On crit: apply 3 Burn and gain 1 Heat. |
+| Boots | Firewalkers | C | Start of fight: gain 6 Heat. |
+| Cape | Phoenix Cloak | E | Clutch: apply 10 Burn and gain 5 Heat. |
+| Ring | Ashen Ring | R | Burn ticks deal +1 damage per 5 Heat you have. |
+| Amulet | Wildfire | L | While you have 15+ Heat, Burn on the enemy doesn't decay. |
+| Amulet | Molten Core | L | Heat has no cap. You lose 1 HP per second per 5 Heat. |
+
+### Frost (Frost, Slow)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Rimed Saber | C | Sword · 2.2s · 7 dmg. On hit: apply 2 Frost. |
+| Weapon (2H) | Glacier Maul | R | Maul · 4.5s · 26 dmg. On hit: apply 3 Frost and 2 Slow. |
+| Offhand | Frost Lantern | C | Every 3s: apply 3 Frost. |
+| Offhand | Winter's Bell | C | Every 4s: apply 3 Slow. |
+| Helm | Rimecrown | R | While the enemy is Frozen, your weapons deal +40% damage. |
+| Body | Glacial Plate | C | When hit: apply 1 Frost and 1 Slow to the attacker. |
+| Gloves | Frostbite Grips | R | On crit: apply 3 Frost. |
+| Boots | Snowtread Boots | C | Start of fight: apply 6 Slow. |
+| Cape | Winter's Shroud | E | Clutch: Freeze the enemy for 3s, ignoring Thaw. |
+| Ring | Rimeheart Ring | R | Whenever the enemy Freezes, apply 5 Slow. |
+| Amulet | Heart of Winter | L | Whenever the enemy Freezes, consume all their Slow and deal 4 damage per stack. *(Resolves before other Freeze triggers, so Rimeheart's Slow builds toward the next Freeze.)* |
+
+### Venom (Poison)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Asp Fang | C | Dagger · 1.2s · 3 dmg. On hit: apply 1 Poison. |
+| Weapon (2H) | Blightreaper | R | Scythe · 4.0s · 18 dmg. On hit: apply 4 Poison. |
+| Offhand | Stinger | C | Dual wield · 1.5s · 2 dmg. On hit: apply 1 Poison. |
+| Helm | Plague Mask | R | While the enemy has 10+ Poison, your weapon hits apply +1 Poison. |
+| Body | Venom Carapace | C | When hit: apply 2 Poison to the attacker. |
+| Gloves | Envenomed Gloves | R | On crit: apply 3 Poison. |
+| Boots | Mire Boots | C | Start of fight: apply 5 Poison. |
+| Cape | Last Bite | E | Clutch: double the enemy's Poison. |
+| Ring | Festering Ring | R | Whenever Poison ticks: 25% chance to apply 1 Poison. |
+| Amulet | Coiled Serpent | L | Poison ticks deal no damage. Instead, every 5th tick strikes for 6× its stacks, and the strike can crit. |
+
+### Desert (Sand)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Dune Scimitar | C | Scimitar · 2.0s · 6 dmg. On hit: apply 2 Sand. |
+| Weapon (2H) | Sandstorm Glaive | R | Glaive · 3.5s · 18 dmg. On hit: apply 4 Sand. |
+| Offhand | Sand Pouch | C | Every 3s: apply 3 Sand. |
+| Helm | Nomad's Wrap | R | While the enemy has 10+ Sand, their Sand doesn't decay. |
+| Body | Dustveil Robe | C | When hit: apply 3 Sand to the attacker. |
+| Gloves | Grit Gloves | R | On crit: apply 4 Sand. |
+| Boots | Dust Devils | C | Start of fight: apply 8 Sand. |
+| Cape | Sirocco Cloak | E | Clutch: set the enemy's Sand to its cap. It doesn't decay for 5s. |
+| Ring | Dune Ring | R | Whenever an enemy attack misses: apply 1 Sand. |
+| Amulet | Mirage | L | Enemy attacks that miss hit the enemy instead, with their own on-hit effects. |
+
+### Holy (Heal, Shield)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Warden's Mace | C | Mace · 3.0s · 9 dmg. On hit: gain 4 Shield. |
+| Weapon (2H) | Dawnhammer | R | Hammer · 4.5s · 20 dmg. On hit: heal 6 and gain 6 Shield. |
+| Offhand | Oak Buckler | C | Every 4s: gain 7 Shield. |
+| Offhand | Hymnal | C | Every 5s: heal 10. |
+| Helm | Gilded Halo | R | While you have Shield, your heals are 25% stronger. |
+| Body | Bastion Plate | C | When hit: gain 3 Shield. |
+| Gloves | Mending Gloves | R | On crit: heal 5. |
+| Boots | Pilgrim's Sandals | C | Start of fight: gain 15 Shield. |
+| Cape | Guardian's Mantle | E | Clutch: gain Shield equal to 40% of your max HP. |
+| Ring | Sanctified Vessel | R | Whenever you overheal, gain that much Shield. |
+| Amulet | Reliquary of Saints | L | Overhealing raises your max HP for the rest of the fight. *(Leaves no overheal for Sanctified Vessel, so the two compete.)* |
+| Amulet | Juggernaut's Oath | L | Weapon hits deal bonus damage equal to 25% of your current Shield. |
+
+### Blood (Lifesteal)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Bloodletter | C | Axe · 2.8s · 10 dmg. 25% Lifesteal. |
+| Weapon (2H) | Crimson Greataxe | R | Greataxe · 4.5s · 26 dmg. 30% Lifesteal. |
+| Offhand | Sacrificial Dirk | C | Dual wield · 1.6s · 3 dmg. 30% Lifesteal. |
+| Helm | Vampire's Cowl | R | While below 50% HP: +15% Lifesteal. |
+| Body | Bloodbound Mail | R | When hit: gain 3% Lifesteal for the rest of the fight (max +30%). |
+| Gloves | Bloodied Knuckles | R | On crit: that hit's Lifesteal is doubled. |
+| Boots | Blood Price | C | Start of fight: lose 10 HP. Your first 5 weapon hits have 100% Lifesteal. |
+| Cape | Blood Moon Cloak | E | Clutch: your next 3 weapon hits have 100% Lifesteal. |
+| Ring | Sanguine Ring | R | Whenever you Lifesteal at full HP, deal the overheal to the enemy as damage. |
+| Amulet | Crimson Chalice | L | Lifesteal applies to all damage you deal, including Burn, Poison and reflected hits. |
+
+### Fortune (Luck)
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Fortune's Edge | C | Rapier · 1.6s · 5 dmg. On hit: 20% chance to gain 1 Luck. |
+| Weapon (2H) | Jackpot Cleaver | R | Cleaver · 4.0s · 20 dmg. On hit: gain 1 Luck. Its crits deal 3×. |
+| Offhand | Lucky Coin | C | Every 3s: 50% chance to gain 1 Luck. |
+| Helm | Gambler's Hood | R | +4 Luck. While you have 10+ Luck, crits deal 2.5×. |
+| Body | Charmed Vest | C | When attacked: 30% chance to gain 1 Luck. |
+| Gloves | Gauntlets of Fortune | R | On crit: gain 1 Luck. |
+| Boots | Four-Leaf Boots | C | Start of fight: gain 8 Luck. |
+| Cape | Last Gamble | E | Clutch: your next 3 weapon hits are guaranteed crits. |
+| Ring | Loaded Dice | R | Whenever a chance roll fails (including crits), gain 1 Luck (max 10 from this ring per fight). |
+| Amulet | Fatebound Talisman | L | Everything can crit: heals, Shield gains and status applications. A crit doubles them. |
+
+### Prismatic (random)
+
+Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck and +3% Lifesteal. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon (2H) | Prism Staff | E | Staff · 3.0s · 10 dmg. On hit: apply a random status (2 stacks). |
+| Offhand | Wishing Coin | E | Every 5s: a random boon, or a random status (3 stacks). |
+| Helm | Kaleidoscope Lens | E | +5% weapon damage for each different status on the enemy. |
+| Body | Chromatic Mail | E | When hit: apply a random status (2 stacks) to the attacker. |
+| Gloves | Rainbow Grips | E | On crit: apply 2 different random statuses (2 stacks each). |
+| Boots | Opalescent Boots | E | Start of fight: gain 3 random boons. |
+| Cape | Prism Cloak | E | Clutch: trigger a random school's clutch cape effect. |
+| Ring | Fool's Opal | E | Your random effects ignore weighting, and their amounts are doubled. |
+| Amulet | Prism Heart | L | Whenever you apply a status, also apply a different random status at half the stacks (rounded up). |
+
+---
+
+## 8. Bridge rings
+
+Each bridge counts toward both of its schools. Every one of the 21 school pairs has at least one bridge.
+
+| Ring | Schools | Effect |
+|---|---|---|
+| **Kindling Band** | Fire · Holy | Whenever you apply Burn, heal 2. Each trigger adds +1 to the heal (max +8). Resets each fight. |
+| Hearthfire Ring | Fire · Holy | Whenever you heal, gain 1 Heat (at most once per second). |
+| Forgeheart Ring | Fire · Holy | Whenever you gain Heat, gain 2 Shield. |
+| Frostfire Band | Fire · Frost | Whenever the enemy Freezes, double their Burn. |
+| Hoarfrost Ring | Frost · Fire | Whenever you apply Slow, gain 1 Heat. |
+| Witchfire Ring | Fire · Venom | Whenever Burn ticks: 50% chance to apply 1 Poison. |
+| Glassblower's Ring | Fire · Desert | Whenever you apply Burn to an enemy with 5+ Sand, consume 5 Sand and deal 15 damage. |
+| Bloodfire Ring | Fire · Blood | Whenever a weapon hit Lifesteals, apply 1 Burn. |
+| Lucky Ember | Fire · Fortune | Burn ticks can crit. |
+| Paralytic Ring | Venom · Frost | Weapon hits apply 1 Slow per 4 Poison on the enemy. |
+| Scorpion Ring | Venom · Desert | Whenever an enemy attack misses, apply 3 Poison. |
+| Leechmaw Ring | Venom · Holy | Heal for 30% of the Poison damage you deal. |
+| Leeching Fang | Venom · Blood | Weapon hits against a Poisoned enemy have +10% Lifesteal. |
+| Viper's Eye | Venom · Fortune | Poison ticks can crit. |
+| Quicksand Ring | Desert · Frost | Whenever an enemy attack misses, apply 2 Slow. |
+| Glacial Aegis | Frost · Holy | Whenever the enemy Freezes, gain 12 Shield. |
+| Frozen Blood | Frost · Blood | +25% Lifesteal against Frozen enemies. |
+| Shatter Ring | Frost · Fortune | Weapon hits on a Frozen enemy always crit. |
+| Oasis Ring | Desert · Holy | Whenever an enemy attack misses, heal 4 and gain 4 Shield. |
+| Duelist's Ring | Desert · Blood | Whenever an enemy attack misses, your next weapon hit has +25% Lifesteal. |
+| Desert Fox Ring | Desert · Fortune | +1 Luck per 2 Sand on the enemy. |
+| Crimson Bulwark | Holy · Blood | Whenever a weapon hit Lifesteals, gain 2 Shield. |
+| Blessed Dice | Holy · Fortune | Your heals and Shield gains can crit. |
+| Vampire's Die | Blood · Fortune | Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%). |
+
+### Bridge legendary
+
+| Amulet | Schools | Effect |
+|---|---|---|
+| **Phoenix Heart** | Fire · Holy | Burn ticks heal you for 50% of their damage. Your heals apply Burn equal to 20% of the amount healed. *(The loop shrinks each cycle, so it can't run forever.)* |
+
+### Pair coverage
+
+| | Frost | Venom | Desert | Holy | Blood | Fortune |
+|---|---|---|---|---|---|---|
+| **Fire** | Frostfire, Hoarfrost | Witchfire | Glassblower | Kindling, Hearthfire, Forgeheart, *Phoenix Heart* | Bloodfire | Lucky Ember |
+| **Frost** | | Paralytic | Quicksand | Glacial Aegis | Frozen Blood | Shatter |
+| **Venom** | | | Scorpion | Leechmaw | Leeching Fang | Viper's Eye |
+| **Desert** | | | | Oasis | Duelist's | Desert Fox |
+| **Holy** | | | | | Crimson Bulwark | Blessed Dice |
+| **Blood** | | | | | | Vampire's Die |
+
+Fire · Holy is the flagship pair (built around Kindling Band), so it has the most bridges.
+
+### Synergies that need no bridge
+
+- **Lifesteal counts as healing**, so every Holy heal payoff (Vessel, Halo, Hearthfire, Kindling's heals) also works with Blood.
+- **Every school has on-crit gloves**, so Fortune pairs with every build.
+- **Heat speeds up everything**, so Fire's Heat items help any build.
+- **A Freeze window helps any weapon**, and **misses feed every Desert bridge**.
+
+---
+
+## 9. Example builds
+
+Every loadout below is legal (10 slots, no conflicts). Resonance counts include bridges.
+
+### 1. Pyre Saint (Fire · Holy)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Cinder Knife | Hymnal | Gilded Halo | Ember Ward | Mending Gloves | Firewalkers | Guardian's Mantle | Kindling Band, Sanctified Vessel | Phoenix Heart |
+
+Resonance: Fire 5 (tier 4), Holy 7 (tier 6).
+The knife applies Burn every second, so Kindling heals you more each time. Burn ticks heal you through Phoenix Heart, and those heals apply more Burn. Overheal becomes Shield, and Halo makes heals stronger while you're shielded.
+
+### 2. Inferno (single-school Fire)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Cinder Knife | Ember Censer | Pyromancer's Hood | Ember Ward | Stoked Gauntlets | Firewalkers | Phoenix Cloak | Ashen Ring, Lucky Ember | Wildfire |
+
+Resonance: Fire 10 (tier 6).
+Start with 10 Heat (Firewalkers plus Fire tier 4). Crits add more Heat, and at 15 Wildfire stops Burn from decaying. Ashen Ring and Lucky Ember make every tick hit harder. A Shield build hard counters it.
+
+### 3. Frostfire (Frost · Fire)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Cinder Knife | Frost Lantern | Rimecrown | Glacial Plate | Stoked Gauntlets | Snowtread Boots | Winter's Shroud | Frostfire Band, Shatter Ring | Heart of Winter |
+
+Resonance: Frost 8 (tier 6), Fire 3 (tier 2), Fortune 1.
+The knife stacks Burn while the Lantern builds Frost. Each Freeze doubles the Burn (Frostfire) and cashes in the Slow (Heart of Winter). Knife hits during the Freeze always crit (Shatter), deal +40% (Rimecrown) and apply 4 Burn each (Stoked plus Fire tier 2).
+
+### 4. Mirage Duelist (single-school Desert)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Dune Scimitar | Sand Pouch | Nomad's Wrap | Dustveil Robe | Grit Gloves | Dust Devils | Sirocco Cloak | Oasis Ring, Quicksand Ring | Mirage |
+
+Resonance: Desert 10 (tier 6), Holy 1, Frost 1.
+Starts at 8 Sand and climbs toward 20 (80% miss chance). Each miss heals you, shields you and Slows them, and Mirage turns the miss back on the attacker. Burn and Poison builds beat it because they never miss.
+
+### 5. Plague Doctor (Venom · Fire · Fortune)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Cinder Knife | Stinger | Gambler's Hood | Venom Carapace | Envenomed Gloves | Mire Boots | Last Bite | Witchfire Ring, Festering Ring | Coiled Serpent |
+
+Resonance: Venom 8 (tier 6), Fire 2 (tier 2), Fortune 1.
+Dual wield. The knife's Burn turns into Poison through Witchfire, and Stinger, Mire Boots and Carapace stack it further. Venom tier 6 ticks every second, so Coiled Serpent strikes every 5s for 6× the stacks, and those strikes can crit. Poison bypasses Shield, so this beats Juggernaut.
+
+### 6. Juggernaut (single-school Holy)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Warden's Mace | Hymnal | Gilded Halo | Bastion Plate | Mending Gloves | Pilgrim's Sandals | Guardian's Mantle | Sanctified Vessel, Blessed Dice | Juggernaut's Oath |
+
+Resonance: Holy 10 (tier 6), Fortune 1.
+At full HP, the Hymnal's heals all become Shield through the Vessel. Shield gains get +50% from resonance and can crit through Blessed Dice. The Oath turns that Shield into weapon damage. Strong against Burn, weak against Poison.
+
+### 7. Speed Thief (Blood · Frost · Fire)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Bloodletter | Winter's Bell | Vampire's Cowl | Bloodbound Mail | Bloodied Knuckles | Snowtread Boots | Blood Moon Cloak | Hoarfrost Ring, Vampire's Die | Molten Core |
+
+Resonance: Blood 6 (tier 6), Frost 3 (tier 2), Fire 2 (tier 2), Fortune 1.
+You Slow them, and every Slow you apply becomes Heat (Hoarfrost). Molten Core removes the Heat cap, so the axe keeps speeding up. Lifesteal pays Molten Core's HP cost. Sand is deadly to it: misses mean no Lifesteal, and the HP cost kills you.
+
+### 8. Prism Chaos (Prismatic)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Prism Staff (2H) | — | Kaleidoscope Lens | Chromatic Mail | Rainbow Grips | Opalescent Boots | Prism Cloak | Fool's Opal, Witchfire Ring | Prism Heart |
+
+Resonance: Prismatic 8, Fire 2, Venom 2 (only one Prismatic item counts toward schools).
+Every status you apply brings a second random one (Prism Heart), so the enemy quickly carries all five statuses for Kaleidoscope Lens. Fool's Opal and Prismatic resonance make random amounts much larger. It's a generalist with no hard counter, and no strong matchups either.
+
+### Expected matchups (hypotheses for the simulator)
+
+Read across: the row build's expected result against the column build. W = favored, L = unfavored, = = even.
+
+| | Pyre | Inferno | Frostfire | Mirage | Plague | Jugg | Speed |
+|---|---|---|---|---|---|---|---|
+| **Pyre Saint** | — | L | L | W | W | L | W |
+| **Inferno** | W | — | = | W | L | L | W |
+| **Frostfire** | W | = | — | L | W | L | W |
+| **Mirage** | L | L | W | — | L | W | W |
+| **Plague** | L | W | L | W | — | W | L |
+| **Juggernaut** | W | W | W | L | L | — | L |
+| **Speed Thief** | L | L | L | L | W | W | — |
+
+Every build should have at least two good and two bad matchups. Speed Thief currently looks weakest, so it's the first candidate for tuning. If the simulator finds any build winning more than 60% of its matchups, something is broken.
+
+---
+
+## 10. Scrolls, cubes and the bag
+
+Scrolls and cubes are applied to items in your bag or while equipped.
+
+### Scrolls: stats with risk
+
+| Scroll | Success | On success | On failure |
+|---|---|---|---|
+| Blessed | 100% | +1 | — |
+| Standard | 60% | +2 | Uses up the slot |
+| Daring | 30% | +4 | Uses up the slot, and 50% chance the item is destroyed |
+| Chaos | 60% | Random −2 to +4 | Uses up the slot |
+
+- **What scrolls add:** weapons gain damage, everything else gains HP. Speed scrolls (weapons and offhands only) take 0.1s off the interval or cooldown.
+- **Scroll slots by rarity:** Common 2, Rare 3, Epic 4, Legendary 3.
+- **Luck doesn't affect scroll rolls.** Luck is a combat stat, which keeps the shop economy predictable.
+
+### Cubes: reroll potential lines
+
+- Each item has 0 to 3 **potential lines**, by tier: Rare (1 line), Epic (2), Unique (3), Legendary (3, stronger). Using a cube rerolls all lines, with a small chance to raise the tier.
+- **Lines are stats or sources only**, for example "+8 HP", "+2 Luck", "+5% Lifesteal", "Start of fight: gain 2 Heat", "On hit: apply 1 Burn" (weapons only).
+- **Lines never add a school tag, never contain rule text, and never contain bridges.** Cubes can make an item stronger, but they can't create combinations nobody designed. Hitting a top-tier source line is the jackpot.
+
+### Shards
+
+A destroyed item leaves a **Shard**. 3 Shards forge a legendary: choose 1 of 3. Bad luck builds toward something instead of only ending a run.
+
+### Bag (bench)
+
+6 slots for items, scrolls and cubes. Bag items have no effect in combat.
+
+---
+
+## 11. Guardrails
+
+These rules protect the design so balance work is about numbers, not redesigns.
+
+1. **Fatigue** from 25s ends stall builds (Heal, Shield, Sand).
+2. **Thaw** gives 2s of Frost immunity after each Freeze, so permanent lockdown is impossible.
+3. **Caps:** Heat 20 (25 with Fire tier 4, none with Molten Core). Sand 15 (20 with Desert tier 6). Net speed 40%–250%. Crit chance 100%.
+4. **Crit multipliers don't stack.** Use the highest one that applies (2×, 2.5× or 3×).
+5. **Within a school, effects add.** Only crits, legendaries and tier-6 resonance multiply. Regular items never say "+X% Burn damage".
+6. **Loops shrink each cycle or are gated** to once per second.
+7. **No re-triggering.** An effect can't trigger the same item again in the same instant. Generated effects, like Prism Heart's extra status, can't trigger their own source.
+8. **Bridges appear only on rings, and legendaries only in the amulet.** You get at most two bridges and one rule-changer.
+9. **Only one Prismatic item counts toward school resonance.**
+10. **Scroll and cube lines are stats and sources only**, and never add school tags.
+11. **All scaling resets every fight.** Progression across the run comes from the shop, scrolls and cubes, not from permanent buffs.
+12. **Deterministic resolution order**, so ghost fights replay identically.
+
+## 12. Value reference (starting budget)
+
+Approximate worth of one unit of each effect in damage-equivalent, used to budget items by rarity. The simulator should replace these with measured values.
+
+| Unit | Approx. value |
+|---|---|
+| 1 damage | 1 |
+| 1 HP healed | 0.9 |
+| 1 Shield | 1 (more against Burn, 0 against Poison) |
+| 1 Burn applied | 2–3 (more when stacked) |
+| 1 Poison applied | 4–5 over a 20s fight (worth more early) |
+| 1 Frost | about 0.15s of enemy downtime |
+| 1 Slow | about 3% of enemy output for about 2s |
+| 1 Sand | about 4% of enemy weapon damage while it lasts |
+| 1 Heat | about 3% of your output for the rest of the fight |
+| 1 Luck | about 3% weapon damage, plus chance effects |
+
+## 13. Open questions
+
+- **Burn's 30% healing cut** is what gives Heal a natural weakness. Is 30% the right size?
+- **Luck as a universal chance stat** makes it a strong hub. It's also the stat most likely to dominate.
+- **Desert tier 6 (80% miss chance)** may be too strong even with DoT as its counter. Watch it in simulation.
+- **Fire · Holy has four bridges** while every other pair has one or two. Keep it as the flagship pair, or trim it?
+- **Classes:** when they arrive, they could bias the shop toward schools and add a passive, without changing any item.
+
+## 14. Next step: combat simulator
+
+Build a headless simulator before tuning numbers:
+
+1. Implement the keyword rules, trigger words and resolution order from sections 3–5.
+2. Encode every item from sections 7–8 as data.
+3. Run the 8 example builds against each other a few thousand times each, and compare against the expected matchups table.
+4. Add randomly drafted builds to find unplanned combinations that win too often.
