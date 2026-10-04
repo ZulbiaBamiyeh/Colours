@@ -221,7 +221,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (type === 'frost') {
       if (tgt.thaw > 0 || tgt.frozen > 0) return false;
       tgt.st.frost += n;
-      ev('status', { side: tgt.side, type, n, by: src.side, cause });
+      ev('status', { side: tgt.side, st: type, n, by: src.side, cause });
       if (tgt.st.frost >= 10) freeze(tgt, FREEZE_TIME, false, src);
     } else {
       if (type === 'slow') {
@@ -233,7 +233,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       } else {
         tgt.st[type] += n;
       }
-      ev('status', { side: tgt.side, type, n, by: src.side, cause });
+      ev('status', { side: tgt.side, st: type, n, by: src.side, cause });
     }
     if (!o.generated) {
       fire(src, 'applied', { type, n });
@@ -270,7 +270,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       me, foe, data: it ? it.data : {}, t,
       rng,
       apply: (type, n) => apply(me, foe, type, n),
-      addRaw: (type, n) => { foe.st[type] += n; ev('status', { side: foe.side, type, n }); return true; },
+      addRaw: (type, n) => { foe.st[type] += n; ev('status', { side: foe.side, st: type, n }); return true; },
       gain: (type, n) => gain(me, type, n),
       heal: n => heal(me, n),
       hit: n => damage(me, foe, n, 'pure', { slot: it?.slot }) > 0,

@@ -722,26 +722,131 @@ function renderShop() {
   const until = 3 - (S.day % 3);
   $('ench-note').textContent = luckyDay(S.day) ? 'The Lucky Merchant is in town' : `Lucky Merchant in ${until} day${until > 1 ? 's' : ''}`;
 }
-function renderStats() {
-  let hp = 100, luck = 0;
+/* ---------- Stats: the four tiles, and the full stat sheet they open ---------- */
+const STAT_ICON = {
+  hp: '<path d="M12 20.5s-7.2-4.5-9.4-9.3C1.1 7.9 3.3 4.5 6.8 4.5c2 0 3.4 1.1 4.2 2.4.8-1.3 2.2-2.4 4.2-2.4 3.5 0 5.7 3.4 4.2 6.7-2.2 4.8-9.4 9.3-9.4 9.3z"/>',
+  dmg: '<path d="M20 4l-1 4-9 9-3-3 9-9z"/><path d="M6 13l5 5M4 20l3-3"/>',
+  spd: '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M10 3h4"/>',
+  crit: '<path d="M12 2l2.2 6.2L20.5 6l-2.9 5.9L22 15l-6.3.4L15 22l-3-5.6L9 22l-.7-6.6L2 15l4.4-3.1L3.5 6l6.3 2.2z"/>',
+  luck: STATUS_ICON.luck, ls: STATUS_ICON.ls, cd: '<path d="M12 4a8 8 0 1 0 8 8"/><path d="M12 8v4l3 2M17 3v4h4"/>',
+};
+const STAT_VAR = { hp: '--danger', dmg: '--gold', spd: '--s-frost', crit: '--s-fortune', luck: '--s-fortune', ls: '--s-blood', cd: '--s-holy' };
+const statIcon = k => `<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(${STAT_VAR[k]})">${STAT_ICON[k]}</svg>`;
+let sheetOpen = false;
+// Everything the stat sheet shows, from the equipped items and their upgrades.
+function buildStats() {
+  let hp = 100, luck = 0, ls = 0;
+  const hpParts = [];
   for (const k of ALL_SLOTS) {
     const it = S.equip[k];
     if (!it) continue;
     const m = itemMods(it);
-    hp += (ITEMS[it.id].hp || 0) + m.hp;
+    const add = (ITEMS[it.id].hp || 0) + m.hp;
+    if (add) hpParts.push(`${ITEMS[it.id].name} +${add}`);
+    hp += add;
     luck += (ITEMS[it.id].stats?.luck || 0) + m.luck;
+    ls += m.ls;
   }
-  const w = S.equip.weapon && ITEMS[S.equip.weapon.id].weapon;
-  const wm = S.equip.weapon ? itemMods(S.equip.weapon) : itemMods({});
-  const dmg = w ? w.dmg * (1 + wm.dmgPct / 100) : 1;
-  const tiles = [
-    ['HP', 'HP', hp],
-    ['Damage', 'Dmg', Math.round(dmg * 10) / 10],
-    ['Speed', 'Spd', `${((w ? w.interval : 1.5) * (1 - wm.spdPct / 100)).toFixed(1)}s`],
-    ['Crit', 'Crit', `${5 + luck * 3}%`],
-  ];
-  $('stats').innerHTML = tiles.map(([k, s, v]) => `<div class="stat"><span class="k"><span class="long">${k}</span><span class="short" aria-hidden="true">${s}</span></span><span class="v">${v}</span></div>`).join('');
+  const weapon = (it, w) => {
+    const m = it ? itemMods(it) : itemMods({});
+    return { name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (1 + m.dmgPct / 100), interval: w.interval * (1 - m.spdPct / 100), critMult: Math.max(2, w.critMult || 2), ls: (w.ls || 0) * 100 };
+  };
+  const mainDef = S.equip.weapon && ITEMS[S.equip.weapon.id];
+  const main = weapon(S.equip.weapon, mainDef ? mainDef.weapon : { interval: 1.5, dmg: 1 });
+  const offDef = S.equip.offhand && ITEMS[S.equip.offhand.id];
+  const off = offDef?.dual ? weapon(S.equip.offhand, offDef.dual) : null;
+  return { hp, hpParts, luck, ls: ls + main.ls, main, off, crit: Math.min(100, 5 + luck * 3) };
 }
+function renderStats() {
+  const s = buildStats();
+  const tiles = [
+    ['hp', 'HP', 'HP', s.hp],
+    ['dmg', 'Damage', 'Dmg', Math.round(s.main.dmg * 10) / 10],
+    ['spd', 'Speed', 'Spd', `${s.main.interval.toFixed(1)}s`],
+    ['crit', 'Crit', 'Crit', `${s.crit}%`],
+  ];
+  const el = $('stats');
+  el.innerHTML = tiles.map(([i, k, sh, v]) => `<div class="stat"><span class="k">${statIcon(i)}<span class="long">${k}</span><span class="short" aria-hidden="true">${sh}</span></span><span class="v">${v}</span></div>`).join('')
+    + `<span class="stats-more" aria-hidden="true">${sheetOpen ? 'Hide' : 'All stats'} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="${sheetOpen ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}"/></svg></span>`;
+  el.setAttribute('aria-expanded', String(sheetOpen));
+  if (sheetOpen) renderSheet(s);
+}
+// Sort each sentence of an item's text by when it happens.
+const WHEN = [
+  ['start', 'Start of fight', /^Start of fight:\s*/i],
+  ['hit', 'On hit', /^On hit:\s*/i],
+  ['crit', 'On crit', /^On crit:\s*/i],
+  ['whenHit', 'When hit', /^When (hit|attacked):\s*/i],
+  ['every', 'Every few seconds', /^Every [\d.]+s:\s*/i],
+  ['clutch', 'Clutch (below 30% HP)', /^Clutch:\s*/i],
+  ['trigger', 'Triggers', /^(Whenever|When) /i],
+  ['passive', 'Always on', /^/],
+];
+function renderSheet(s) {
+  const groups = Object.fromEntries(WHEN.map(([k]) => [k, []]));
+  const icon = id => `<img src="${iconFor(id)}" alt="">`;
+  for (const slot of ALL_SLOTS) {
+    const it = S.equip[slot];
+    if (!it) continue;
+    const def = ITEMS[it.id];
+    const m = itemMods(it);
+    for (let sent of def.text.split(/(?<=\.)\s+/)) {
+      const [k, , re] = WHEN.find(([, , r]) => r.test(sent));
+      let note = '';
+      if (k === 'every' && def.cd) {
+        const cd = def.cd * (1 - m.cdPct / 100);
+        note = `every ${Math.round(cd * 10) / 10}s`;
+      }
+      if (/^Dual wield:/i.test(sent)) continue;
+      // Strip "On hit:"-style labels (the section says it), but keep "Whenever…" sentences whole.
+      sent = (k === 'trigger' || k === 'passive' ? sent : sent.replace(re, '')).replace(/\.$/, '');
+      groups[k].push({ id: it.id, name: def.name, text: sent.charAt(0).toUpperCase() + sent.slice(1), note });
+    }
+    for (const l of it.pot?.lines ?? []) {
+      const g = l.k === 'onHit' ? 'hit' : ['shield', 'heat', 'thorns', 'slow', 'sand'].includes(l.k) ? 'start' : l.k === 'clutchShield' ? 'clutch' : null;
+      if (g) groups[g].push({ id: it.id, name: `${def.name} · potential`, text: lineText(l).replace(/^(On hit|Clutch|Start):\s*/i, '').replace(/^Start with/, 'Gain') });
+    }
+    if (m.shield && it.up?.st?.ward) groups.start.push({ id: it.id, name: `${def.name} · Ward`, text: `Gain ${(it.up.st.ward) * 4} Shield` });
+  }
+  // What you actually start with, read from a zero-length fight so every item and upgrade is counted.
+  const sim = simulate({ name: 'You', equip: S.equip }, { name: 'Dummy', equip: emptyEquip(), hp: 9999 }, ITEMS, 1, { maxTime: 0.1 });
+  const you = {}, foe = {};
+  for (const e of sim.events) {
+    if (e.t > 0) break;
+    if (e.type === 'shield' && e.side === 'A') you.Shield = (you.Shield ?? 0) + e.n;
+    if (e.type === 'boon' && e.side === 'A') { const n = e.k === 'ls' ? 'Lifesteal' : STATUS_NAME[e.k]; you[n] = (you[n] ?? 0) + (e.k === 'ls' ? e.n * 100 : e.n); }
+    if (e.type === 'status' && e.side === 'B') foe[STATUS_NAME[e.st]] = (foe[STATUS_NAME[e.st]] ?? 0) + e.n;
+  }
+  const fmtBag = (o, pctKey) => Object.entries(o).map(([k, v]) => kwText(`${Math.round(v)}${k === pctKey ? '%' : ''} ${k}`)).join(', ');
+  const startLine = [Object.keys(you).length && `You gain ${fmtBag(you, 'Lifesteal')}`, Object.keys(foe).length && `the enemy gets ${fmtBag(foe)}`].filter(Boolean).join('; ');
+  const row = (i, label, v, sub = '') => `<div class="ss-row">${statIcon(i)}<span class="ss-k">${label}</span><span class="ss-v">${v}</span>${sub ? `<span class="ss-sub">${sub}</span>` : ''}</div>`;
+  const dps = w => (w.dmg / w.interval).toFixed(1);
+  const critExtra = S.equip.helm && ITEMS[S.equip.helm.id].mods?.critMult ? ` (×2.5 at 10+ Luck from ${ITEMS[S.equip.helm.id].name})` : '';
+  const core = [
+    row('hp', 'Max HP', s.hp, s.hpParts.length ? `100 base, ${s.hpParts.join(', ')}` : '100 base'),
+    row('dmg', 'Weapon damage', Math.round(s.main.dmg * 10) / 10, s.main.name),
+    row('spd', 'Attack time', `${s.main.interval.toFixed(2)}s`, `${(1 / s.main.interval).toFixed(2)} attacks per second`),
+    row('dmg', 'Weapon damage per second', dps(s.main), `before crits${s.off ? `, plus ${dps(s.off)} from ${s.off.name}` : ''}`),
+    s.off && row('dmg', 'Offhand weapon', `${Math.round(s.off.dmg * 10) / 10} / ${s.off.interval.toFixed(1)}s`, s.off.name),
+    row('crit', 'Crit chance', `${s.crit}%`, `5% base + 3% per Luck`),
+    row('crit', 'Crit damage', `×${s.main.critMult}`, `weapon crits${critExtra}`),
+    row('luck', 'Luck', s.luck, 'also +3% to every chance-based effect'),
+    row('ls', 'Lifesteal', `${Math.round(s.ls * 10) / 10}%`, 'of weapon damage, from upgrades and weapon'),
+  ].filter(Boolean).join('');
+  const sections = WHEN.filter(([k]) => groups[k].length).map(([k, label]) => `<section class="ss-sec"><h3>${label}</h3>${k === 'start' && startLine ? `<p class="ss-total">${startLine}.</p>` : ''}<ul>${groups[k].map(g => `<li>${icon(g.id)}<span><b>${g.name}</b>${g.note ? ` <span class="ss-note">${g.note}</span>` : ''}<br>${kwText(g.text)}</span></li>`).join('')}</ul></section>`).join('');
+  const startOnly = !groups.start.length && startLine ? `<section class="ss-sec"><h3>Start of fight</h3><p class="ss-total">${startLine}.</p></section>` : '';
+  $('stat-sheet').innerHTML = `<div class="ss-head"><h3>All stats</h3><button type="button" class="sheet-x" id="ss-close" aria-label="Close all stats">&times;</button></div>
+    <div class="ss-core">${core}</div>${startOnly}${sections || '<p class="ss-empty">Equip items to see what they do in a fight.</p>'}`;
+}
+function toggleSheet(open = !sheetOpen) {
+  sheetOpen = open;
+  $('stat-sheet').hidden = !open;
+  renderStats();
+}
+$('stats').addEventListener('click', () => toggleSheet());
+$('stats').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSheet(); } });
+$('stat-sheet').addEventListener('click', e => { if (e.target.closest('#ss-close')) toggleSheet(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen && enchantEl.hidden) toggleSheet(false); });
 const card = $('card'), actions = $('actions');
 let ttItem = null;
 function renderInspector() {
@@ -1480,9 +1585,9 @@ function playEvent(e, quiet) {
       break;
     case 'status':
       if (!quiet) {
-        if (e.n >= 2) floatText(e.side, `+${e.n} ${STATUS_NAME[e.type]}`, getComputedStyle(document.documentElement).getPropertyValue(STATUS_VAR[e.type]) || '#fff', 'small');
+        if (e.n >= 2) floatText(e.side, `+${e.n} ${STATUS_NAME[e.st]}`, getComputedStyle(document.documentElement).getPropertyValue(STATUS_VAR[e.st]) || '#fff', 'small');
         const f = F[e.side];
-        particles.burst(f.holder.position.x, 1.0, 0.1, Math.min(10, 2 + e.n), ST_COLOR[e.type], { max: 1.6, life: 0.4, g: 0 });
+        particles.burst(f.holder.position.x, 1.0, 0.1, Math.min(10, 2 + e.n), ST_COLOR[e.st], { max: 1.6, life: 0.4, g: 0 });
       }
       break;
     case 'thaw':
@@ -1711,7 +1816,7 @@ function lookAhead() {
     if (e.type === 'attack') F[e.side].attack = { at: e.t, main: e.main, style: weaponStyle(F[e.side].equip, e.main), color: weaponColor(F[e.side].equip, e.main) };
     else if (e.type === 'trigger' && e.cast) F[e.side].cast = { at: e.t };
     else if (e.type === 'status' && e.cause === 'item' && e.by && e.by !== e.side) {
-      bolts.launch(handPos(F[e.by]), chestPos(F[e.side]), e.t - LEAD, e.t, ST_COLOR[e.type][0]);
+      bolts.launch(handPos(F[e.by]), chestPos(F[e.side]), e.t - LEAD, e.t, ST_COLOR[e.st][0]);
     }
   }
 }
