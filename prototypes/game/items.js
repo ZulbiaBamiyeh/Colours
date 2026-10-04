@@ -1,10 +1,10 @@
 // Item catalog from the design doc: stats, effects (combat hooks) and model recipes.
 // Effects receive a context `c` from the combat engine (see engine.js).
 
-export const SCHOOLS = ['Fire', 'Frost', 'Venom', 'Desert', 'Holy', 'Blood', 'Fortune'];
+export const SCHOOLS = ['Fire', 'Frost', 'Venom', 'Desert', 'Holy', 'Blood', 'Fortune', 'Thorn'];
 export const SCHOOL_VAR = {
   Fire: '--s-fire', Frost: '--s-frost', Venom: '--s-venom', Desert: '--s-desert',
-  Holy: '--s-holy', Blood: '--s-blood', Fortune: '--s-fortune', Prismatic: '--s-prism',
+  Holy: '--s-holy', Blood: '--s-blood', Fortune: '--s-fortune', Thorn: '--s-thorn', Prismatic: '--s-prism',
 };
 export const SLOTS = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 export const SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', body: 'Body', gloves: 'Gloves', boots: 'Boots', cape: 'Cape', ring1: 'Ring', ring2: 'Ring', amulet: 'Amulet', ring: 'Ring' };
@@ -13,7 +13,7 @@ const PRICE = { common: 3, rare: 5, epic: 7, legendary: 10 };
 const ARMOR_HP = { common: 6, rare: 10, epic: 15, legendary: 20 };
 export const ARMOR_SLOTS = ['helm', 'body', 'gloves', 'boots', 'cape'];
 
-const FIRE = 'Fire', FROST = 'Frost', VENOM = 'Venom', DESERT = 'Desert', HOLY = 'Holy', BLOOD = 'Blood', FORTUNE = 'Fortune', PRISM = 'Prismatic';
+const FIRE = 'Fire', FROST = 'Frost', VENOM = 'Venom', DESERT = 'Desert', HOLY = 'Holy', BLOOD = 'Blood', FORTUNE = 'Fortune', THORN = 'Thorn', PRISM = 'Prismatic';
 const C = 'common', R = 'rare', E = 'epic', L = 'legendary';
 const W = (interval, dmg, onHit, extra = {}) => ({ interval, dmg, onHit, hands: 1, ...extra });
 const W2 = (interval, dmg, onHit, extra = {}) => W(interval, dmg, onHit, { hands: 2, ...extra });
@@ -302,6 +302,48 @@ const LIST = [
     text: 'Whenever you apply a status, also apply a different random status at half the stacks (rounded up).', flags: { prismHeart: true },
     model: { t: 'amulet', shape: 'prismHeart' } },
 
+
+  /* ---------------- Thorn ----------------
+     Thorns strike back whenever an enemy weapon hit lands on you. Strong against fast and dual-wield
+     builds, weak against Burn and Poison (no hits) and Sand (misses never trigger it), which
+     Ironbark Plate and the Sandbriar Ring answer. */
+  { id: 'briar_whip', name: 'Briar Whip', schools: [THORN], slot: 'weapon', rarity: C, kind: 'Whip',
+    text: 'On hit: gain 1 Thorns, up to 6 from this whip.',
+    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 6) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
+    model: { t: 'whip', grip: 0x5a3a24, vine: 0x4f6a2a, thorn: 0xe9d9b0, bloom: 0xe86f9e, hand: -0.3, hold: 0.85 } },
+  { id: 'bramble_maul', name: 'Bramble Maul', schools: [THORN], slot: 'weapon', rarity: R, kind: 'Maul',
+    text: 'On hit: deal bonus damage equal to your Thorns.',
+    weapon: W2(3.8, 16, c => c.me.thorns > 0 && c.hit(c.me.thorns)),
+    model: { t: 'mace', haft: 0x5a3a24, grip: 0x3a2618, head: 0x4f3a28, flange: 0x6f8a3a, gem: 0xe86f9e, spikes: { n: 16, color: 0xe9d9b0, size: 0.11, seed: 3, minY: 0.35 }, hand: -0.4, hold: 1.15 } },
+  { id: 'hedgehog_shield', name: 'Hedgehog Shield', schools: [THORN], slot: 'offhand', rarity: C, kind: 'Shield',
+    text: 'Every 4s: gain 1 Thorns and 4 Shield.', cd: 4, act: c => { c.gain('shield', 4); return c.gain('thorns', 1); },
+    model: { t: 'buckler', a: 0x6a4a2e, b: 0x8a6a3a, c: 0xe86f9e, line: 0x3a2618, spikes: { n: 18, color: 0xe9d9b0, size: 0.1, seed: 5, front: true }, hold: 0.42 } },
+  { id: 'bramble_crown', name: 'Bramble Crown', schools: [THORN], slot: 'helm', rarity: R,
+    text: 'When hit: 30% chance to gain 1 Thorns.', hooks: { whenHit: c => c.chance(0.3) && c.gain('thorns', 1) },
+    model: { t: 'crown', a: 0x5a3a24, b: 0x6f8a3a, c: 0xe86f9e, spikes: { n: 14, color: 0xe9d9b0, size: 0.08, seed: 9 }, wear: { y: 0.3, s: 0.82 } } },
+  { id: 'briar_mail', name: 'Briar Mail', schools: [THORN], slot: 'body', rarity: C,
+    text: 'Start of fight: gain 4 Thorns.', hooks: { start: c => c.gain('thorns', 4) },
+    model: { t: 'armor', kind: 'vest', a: 0x5a4a2e, b: 0x3a2a1c, c: 0x6f8a3a, tint: 0x5a4a2e, spikes: { n: 16, color: 0xe9d9b0, size: 0.08, seed: 11, front: true } } },
+  { id: 'ironbark_plate', name: 'Ironbark Plate', schools: [THORN], slot: 'body', rarity: E,
+    text: 'Every 3s: your Thorns strike the enemy. This counts as Thorns triggering.', cd: 3, act: c => c.thorns(),
+    model: { t: 'armor', kind: 'plate', a: 0x4f3a28, b: 0x6f8a3a, c: 0xe86f9e, tint: 0x4f3a28, spikes: { n: 22, color: 0xe9d9b0, size: 0.1, seed: 13, front: true } } },
+  { id: 'spinefist', name: 'Spinefist', schools: [THORN], slot: 'gloves', rarity: R,
+    text: 'Your weapon hits deal bonus damage equal to half your Thorns.',
+    mods: { hitDmg: (c, d) => d + c.me.thorns * 0.5 },
+    model: { t: 'glove', a: 0x5a4a2e, b: 0x3a2a1c, spikes: { n: 8, color: 0xe9d9b0, size: 0.07, seed: 17 } } },
+  { id: 'nettle_treads', name: 'Nettle Treads', schools: [THORN], slot: 'boots', rarity: C,
+    text: 'Start of fight: gain 2 Thorns. When an enemy attack misses you, gain 1 Thorns.',
+    hooks: { start: c => c.gain('thorns', 2), enemyMiss: c => c.gain('thorns', 1) },
+    model: { t: 'boot', a: 0x4f6a2a, b: 0x3a2a1c, spikes: { n: 10, color: 0xe9d9b0, size: 0.07, seed: 19 } } },
+  { id: 'briar_cloak', name: 'Briar Cloak', schools: [THORN], slot: 'cape', rarity: E,
+    text: 'Clutch: double your Thorns, then gain 3 more.',
+    hooks: { clutch: c => { c.gain('thorns', c.me.thorns); return c.gain('thorns', 3); } },
+    model: { t: 'cape', a: 0x3f5a2a, b: 0x2a1c14, hem: 0xe86f9e, emblem: 'rose', spikes: { n: 14, color: 0xe9d9b0, size: 0.08, seed: 23 } } },
+  { id: 'briarheart', name: 'Briarheart', schools: [THORN], slot: 'amulet', rarity: L,
+    text: 'Whenever your Thorns trigger, gain 1 Thorns. Your Thorns cap rises from 20 to 40.',
+    flags: { briarheart: true }, hooks: { thorned: c => c.gain('thorns', 1) },
+    model: { t: 'amulet', shape: 'rose' } },
+
   /* ---------------- Bridge rings ---------------- */
   { id: 'kindling_band', name: 'Kindling Band', schools: [FIRE, HOLY], slot: 'ring', rarity: R,
     text: 'Whenever you apply Burn, heal 2. Each trigger adds +1 to the heal (max +8). Resets each fight.',
@@ -377,6 +419,28 @@ const LIST = [
   { id: 'blessed_dice', name: 'Blessed Dice', schools: [HOLY, FORTUNE], slot: 'ring', rarity: R,
     text: 'Your heals and Shield gains can crit.', flags: { healCrit: true, shieldCrit: true },
     model: { t: 'ring', band: 0xe8b73a, gem: 0xf4ecd8, shape: 'cube', glow: 0.1, deco: 'wings' } },
+  { id: 'venomspine_ring', name: 'Venomspine Ring', schools: [THORN, VENOM], slot: 'ring', rarity: R,
+    text: 'Whenever your Thorns trigger, apply 1 Poison.', hooks: { thorned: c => c.apply('poison', 1) },
+    model: { t: 'ring', gem: 0x8bd34a, deco: 'spikes' } },
+  { id: 'pyrebriar_ring', name: 'Pyrebriar Ring', schools: [THORN, FIRE], slot: 'ring', rarity: R,
+    text: 'Whenever your Thorns trigger, gain 1 Heat.', hooks: { thorned: c => c.gain('heat', 1) },
+    model: { t: 'ring', gem: 0xff6a1a, deco: 'flame' } },
+  { id: 'rimespine_ring', name: 'Rimespine Ring', schools: [THORN, FROST], slot: 'ring', rarity: R,
+    text: 'Whenever your Thorns trigger, apply 2 Frost.', hooks: { thorned: c => c.apply('frost', 2) },
+    model: { t: 'ring', gem: 0x7fd6ff, deco: 'snow' } },
+  { id: 'bloodbriar_ring', name: 'Bloodbriar Ring', schools: [THORN, BLOOD], slot: 'ring', rarity: R,
+    text: 'Whenever your Thorns trigger, heal for half the damage they dealt.', hooks: { thorned: (c, o) => c.heal(o.dmg * 0.5) },
+    model: { t: 'ring', gem: 0xd8344f, deco: 'fangs' } },
+  { id: 'hallowed_briar', name: 'Hallowed Briar', schools: [THORN, HOLY], slot: 'ring', rarity: R,
+    text: 'Whenever you gain Shield, gain 1 Thorns (at most once per second).',
+    hooks: { gainedShield: c => { if (c.t - (c.data.t ?? -9) < 1) return false; c.data.t = c.t; return c.gain('thorns', 1); } },
+    model: { t: 'ring', gem: 0xf2d67c, shape: 'heart', deco: 'wings' } },
+  { id: 'lucky_thorn', name: 'Lucky Thorn', schools: [THORN, FORTUNE], slot: 'ring', rarity: R,
+    text: 'Your Thorns can crit.', flags: { thornCrit: true },
+    model: { t: 'ring', gem: 0xe86f9e, deco: 'clover' } },
+  { id: 'sandbriar_ring', name: 'Sandbriar Ring', schools: [THORN, DESERT], slot: 'ring', rarity: R,
+    text: 'When an enemy attack misses you, your Thorns strike them anyway.', hooks: { enemyMiss: c => c.thorns() },
+    model: { t: 'ring', gem: 0xe8c27a, deco: 'sand' } },
   { id: 'vampires_die', name: "Vampire's Die", schools: [BLOOD, FORTUNE], slot: 'ring', rarity: R,
     text: 'Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%).',
     hooks: { crit: c => { if ((c.data.ls ?? 0) >= 0.2) return false; c.data.ls = Math.min(0.2, (c.data.ls ?? 0) + 0.02); return true; } },
@@ -391,13 +455,14 @@ const LIST = [
     model: { t: 'amulet', shape: 'phoenix' } },
 ];
 
-const METAL = { Fire: 0x9a4524, Frost: 0xc6d0e2, Venom: 0x4f6a34, Desert: 0xc48a24, Holy: 0xe8b73a, Blood: 0x3a1a20, Fortune: 0x2f8a63, Prismatic: 0xc6d0e2 };
+const METAL = { Thorn: 0x5a3a24, Fire: 0x9a4524, Frost: 0xc6d0e2, Venom: 0x4f6a34, Desert: 0xc48a24, Holy: 0xe8b73a, Blood: 0x3a1a20, Fortune: 0x2f8a63, Prismatic: 0xc6d0e2 };
 const RING_STYLE = {
   ashen_ring: 'flat', rimeheart_ring: 'twist', festering_ring: 'band', dune_ring: 'flat', sanctified_vessel: 'double', sanguine_ring: 'twist',
   loaded_dice: 'flat', fools_opal: 'double', hearthfire_ring: 'band', forgeheart_ring: 'flat', frostfire_band: 'double', hoarfrost_ring: 'twist',
   witchfire_ring: 'twist', glassblowers_ring: 'flat', bloodfire_ring: 'double', lucky_ember: 'band', paralytic_ring: 'twist', scorpion_ring: 'flat',
   leechmaw_ring: 'double', leeching_fang: 'twist', vipers_eye: 'flat', quicksand_ring: 'twist', glacial_aegis: 'double', frozen_blood: 'flat',
   shatter_ring: 'band', oasis_ring: 'double', duelists_ring: 'flat', desert_fox_ring: 'twist', crimson_bulwark: 'double', blessed_dice: 'band', vampires_die: 'flat',
+  venomspine_ring: 'twist', pyrebriar_ring: 'flat', rimespine_ring: 'twist', bloodbriar_ring: 'double', hallowed_briar: 'band', lucky_thorn: 'twist', sandbriar_ring: 'flat',
 };
 for (const def of LIST) {
   if (def.model.t !== 'ring') continue;
@@ -455,7 +520,7 @@ export function rollShopId(day, rng, filter = () => true) {
 const TITLES = {
   Fire: ['Ember', 'Cinder', 'Pyre'], Frost: ['Rime', 'Glacial', 'Wintry'], Venom: ['Blighted', 'Viper', 'Mire'],
   Desert: ['Dune', 'Sirocco', 'Mirage'], Holy: ['Gilded', 'Dawn', 'Sainted'], Blood: ['Crimson', 'Sanguine', 'Feral'],
-  Fortune: ['Lucky', 'Gilded', 'Jackpot'],
+  Fortune: ['Lucky', 'Gilded', 'Jackpot'], Thorn: ['Briar', 'Bramble', 'Thorned'],
 };
 const NOUNS = ['Wanderer', 'Duelist', 'Pilgrim', 'Raider', 'Warden', 'Drifter', 'Knight', 'Hexer'];
 

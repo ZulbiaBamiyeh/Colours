@@ -12,16 +12,16 @@ export function mulberry32(a) {
 }
 
 const DT = 0.1;
-const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25;
+const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20;
 const FATIGUE_AT = 25, MAX_TIME = 75;
 const POISON_EVERY = 3, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 2;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03 };
+export const RULES = { THORNS_CAP, THORNS_CAP_HEART: 40, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03 };
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [
   { k: 'heal', school: 'Holy' }, { k: 'shield', school: 'Holy' }, { k: 'heat', school: 'Fire' },
-  { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' },
+  { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' }, { k: 'thorns', school: 'Thorn' },
 ];
 const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 const r1 = n => Math.round(n * 10) / 10;
@@ -38,11 +38,11 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     const f = {
       side, name: build.name, hp: 0, maxHp: 100, shield: 0,
       st: { burn: 0, poison: 0, frost: 0, slow: 0, sand: 0 },
-      heat: 0, luck: 0, ls: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
+      heat: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0, sandHold: 0,
       burnT: 0, poisonT: 0, slowT: 0, sandT: 0, poisonTicks: 0,
-      start: { shield: 0, heat: 0, slow: 0, sand: 0 }, clutchShield: 0,
+      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0 }, clutchShield: 0,
     };
     for (const slot of SLOT_ORDER) {
       const e = build.equip[slot];
@@ -160,6 +160,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       if (f.flags.shieldCrit && critRoll(f)) n *= 2;
       f.shield += n;
       ev('shield', { side: f.side, n: r1(n) });
+      fire(f, 'gainedShield', { n });
     } else if (type === 'heat') {
       const c = Math.min(f.st.slow, n);
       f.st.slow -= c;
@@ -170,6 +171,12 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       f.heat += add;
       ev('boon', { side: f.side, k: 'heat', n: add });
       fire(f, 'gainedHeat', { n: add });
+    } else if (type === 'thorns') {
+      const cap = f.flags.briarheart ? RULES.THORNS_CAP_HEART : THORNS_CAP;
+      const add = Math.min(n, Math.max(0, cap - f.thorns));
+      if (add <= 0) return false;
+      f.thorns += add;
+      ev('boon', { side: f.side, k: 'thorns', n: add });
     } else if (type === 'luck') {
       f.luck += n;
       ev('boon', { side: f.side, k: 'luck', n });
@@ -217,6 +224,18 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     }
     return true;
   }
+  // Thorns: the owner strikes back for their Thorns stacks. Thorns damage is not a weapon hit,
+  // so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop.
+  function thornsStrike(owner, tgt) {
+    if (owner.dead || tgt.dead || !(owner.thorns > 0)) return false;
+    let n = owner.thorns;
+    let crit = false;
+    if (owner.flags.thornCrit && critRoll(owner)) { n *= 2; crit = true; }
+    ev('thorns', { side: owner.side });
+    damage(owner, tgt, n, 'thorns', { crit });
+    fire(owner, 'thorned', { dmg: n });
+    return true;
+  }
   function boon(f) {
     const b = weightedPick(f, BOONS, x => x.school);
     const k = f.flags.foolsOpal ? 2 : 1;
@@ -224,6 +243,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (b.k === 'shield') return gain(f, 'shield', 8 * k);
     if (b.k === 'heat') return gain(f, 'heat', 2 * k);
     if (b.k === 'luck') return gain(f, 'luck', 2 * k);
+    if (b.k === 'thorns') return gain(f, 'thorns', 2 * k);
     return gain(f, 'ls', 0.03 * k);
   }
 
@@ -244,6 +264,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
       randomStatus: n => apply(me, foe, pickStatus(me), n * (me.flags.foolsOpal ? 2 : 1)),
       randomBoon: () => boon(me),
       luck: () => luckOf(me),
+      thorns: () => thornsStrike(me, foe),
     };
   }
 
@@ -284,6 +305,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     fire(a, 'hit', { crit, main: wp.main });
     if (crit) fire(a, 'crit');
     fire(d, 'whenHit', { dmg: dealt });
+    if (d.thorns > 0 && !d.dead) thornsStrike(d, a);
   }
 
   function burnTick(f) {
@@ -311,7 +333,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, luck: luckOf(f), frozen: f.frozen > 0,
+      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, frozen: f.frozen > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
@@ -327,6 +349,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1) {
     if (s.heat) gain(f, 'heat', s.heat);
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
+    if (s.thorns) gain(f, 'thorns', s.thorns);
   }
   snapshot();
   fire(A, 'start');

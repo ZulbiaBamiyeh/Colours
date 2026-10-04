@@ -266,6 +266,87 @@ function clover(g, m, color, x, y, z, r = 0.08) {
   g.add(mesh(cyl(0.012, 0.012, r * 2), mat, [x + r * 0.6, y - r * 1.4, z], [0, 0, 0.5]));
 }
 
+function rose(g, m, color, x, y, z, r = 0.12) {
+  const mat = m(color, { glow: 0.25 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i * PI) / 3;
+    g.add(mesh(sph(r * 0.55, 7, 5), mat, [x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, z], [0, 0, a], [1.2, 0.8, 0.5]));
+  }
+  g.add(mesh(sph(r * 0.5, 8, 6), m(color, { glow: 0.4 }), [x, y, z + r * 0.2], [0, 0, 0], [1, 1, 0.8]));
+  g.add(mesh(torus(r * 0.25, r * 0.08, 4, 10), m(0x7a1e3e), [x, y, z + r * 0.42]));
+}
+// Scatter thorn spikes over a finished model, pointing out along the surface. Deterministic per seed.
+function addSpikes(g, m, o) {
+  g.updateMatrixWorld(true);
+  const cand = [];
+  const nm = new THREE.Matrix3();
+  g.traverse(obj => {
+    const geo = obj.geometry;
+    if (!obj.isMesh || !geo.attributes.normal) return;
+    nm.getNormalMatrix(obj.matrixWorld);
+    const pos = geo.attributes.position, nor = geo.attributes.normal;
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(obj.matrixWorld);
+      const n = new THREE.Vector3().fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
+      if (o.front && n.z < 0.15) continue;
+      if (o.minY != null && v.y < o.minY) continue;
+      cand.push([v, n]);
+    }
+  });
+  if (!cand.length) return;
+  let seed = (o.seed ?? 1) * 9301 + 49297;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const picked = [cand[Math.floor(rnd() * cand.length)]];
+  const pool = cand.length > 700 ? Array.from({ length: 700 }, () => cand[Math.floor(rnd() * cand.length)]) : cand;
+  const dist = pool.map(([v]) => v.distanceTo(picked[0][0]));
+  while (picked.length < o.n) {
+    let bi = 0;
+    for (let i = 1; i < pool.length; i++) if (dist[i] > dist[bi]) bi = i;
+    if (dist[bi] < 1e-3) break;
+    picked.push(pool[bi]);
+    for (let i = 0; i < pool.length; i++) dist[i] = Math.min(dist[i], pool[i][0].distanceTo(pool[bi][0]));
+  }
+  const mat = m(o.color);
+  const size = o.size ?? 0.08;
+  const geo = cone(size * 0.32, size, 4);
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const [v, n] of picked) {
+    const c = new THREE.Mesh(geo, mat);
+    c.position.copy(v).addScaledVector(n, size * 0.42);
+    c.quaternion.setFromUnitVectors(up, n);
+    g.add(c);
+  }
+}
+function whip(m, p) {
+  const g = new THREE.Group();
+  g.add(mesh(cyl(0.06, 0.07, 0.5, 7), m(p.grip), [0, -0.3, 0]));
+  g.add(mesh(sph(0.08, 7, 5), m(p.grip), [0, -0.58, 0]));
+  g.add(mesh(torus(0.07, 0.025, 5, 10), m(0xc48a24), [0, -0.04, 0], [PI / 2, 0, 0]));
+  const pts = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24;
+    pts.push(new THREE.Vector3(Math.sin(t * 5.5) * 0.3 * t, t * 1.45, Math.cos(t * 5.5) * 0.12 * t));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.035, 5), m(p.vine)));
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 1; i < 14; i++) {
+    const t = i / 14;
+    const at = curve.getPointAt(t), tan = curve.getTangentAt(t);
+    const side = new THREE.Vector3(0, 0, 1).cross(tan).normalize().multiplyScalar(i % 2 ? 1 : -1);
+    const c = mesh(cone(0.022, 0.09, 4), m(p.thorn));
+    c.position.copy(at).addScaledVector(side, 0.05);
+    c.quaternion.setFromUnitVectors(up, side);
+    g.add(c);
+  }
+  for (const t of [0.3, 0.62]) {
+    const at = curve.getPointAt(t);
+    g.add(mesh(sph(0.07, 6, 4), m(0x6f8a3a), [at.x + 0.08, at.y, at.z], [0, 0, 0.6], [1.4, 0.5, 0.3]));
+  }
+  rose(g, m, p.bloom, 0, 0.04, 0.02, 0.09);
+  return g;
+}
+
 /* Weapons */
 function dagger(m, p) {
   const g = new THREE.Group();
@@ -721,6 +802,7 @@ function cape(m, p) {
   const ey = -0.05, ez = 0.2;
   if (p.emblem === 'flame') flames(g, m, 0, ey - 0.15, ez, 0.8);
   if (p.emblem === 'snow') snowflake(g, m, 0xccf5ff, 0, ey, ez, 0.2);
+  if (p.emblem === 'rose') rose(g, m, 0xe86f9e, 0, ey, ez, 0.16);
   if (p.emblem === 'fang') for (const x of [-0.08, 0.08]) g.add(mesh(cone(0.06, 0.26, 5), m(0xf2ecd8), [x, ey, ez], [PI, 0, 0]));
   if (p.emblem === 'swirl') g.add(mesh(torus(0.16, 0.03, 5, 18, PI * 1.6), m(p.trim), [0, ey, ez]));
   if (p.emblem === 'sun') {
@@ -837,6 +919,15 @@ function amulet(m, p) {
   } else if (s === 'prismHeart') {
     const [sat, lit] = rb(m);
     g.add(mesh(rainbow(extrude(HEART, 0.12, 0.03), sat, lit), m(0xffffff, { vc: true }), [0, -0.12, 0]));
+  } else if (s === 'rose') {
+    rose(g, m, 0xd83a6a, 0, -0.14, 0.02, 0.2);
+    const vine = new THREE.CatmullRomCurve3([[-0.26, -0.3, -0.02], [-0.2, -0.02, 0.0], [0, 0.12, 0], [0.22, -0.04, 0.0], [0.26, -0.32, -0.02]].map(v => new THREE.Vector3(...v)));
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(vine, 24, 0.022, 5), m(0x4f6a2a)));
+    for (const t of [0.12, 0.3, 0.7, 0.88]) {
+      const at = vine.getPointAt(t);
+      g.add(mesh(cone(0.02, 0.08, 4), m(0xe9d9b0), [at.x * 1.12, at.y, at.z], [0, 0, at.x > 0 ? -1.2 : 1.2]));
+    }
+    for (const k of [-1, 1]) g.add(mesh(sph(0.07, 6, 4), m(0x6f8a3a), [0.2 * k, -0.24, 0.04], [0, 0, 0.7 * k], [1.4, 0.55, 0.3]));
   } else if (s === 'phoenix') {
     g.add(mesh(extrude(HEART, 0.1, 0.02), m(0xd8344f, { glow: 0.4 }), [0, -0.12, 0]));
     for (const k of [-1, 1]) g.add(mesh(extrude(shapeFrom(WING, k), 0.03, 0.01), m(0xffb04a, { glow: 0.3 }), [0.16 * k, -0.12, -0.02], [0, 0, -0.2 * k], [0.55, 0.55, 1]));
@@ -912,13 +1003,15 @@ const RECIPES = {
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,
-  scrollRoll, goldHammer, cubeItem, lockstone,
+  scrollRoll, goldHammer, cubeItem, lockstone, whip,
 };
 
 export function buildItemModel(def, m = MS) {
   const r = RECIPES[def.model.t];
   if (!r) throw new Error(`No recipe ${def.model.t} for ${def.id}`);
-  return r(m, def.model);
+  const g = r(m, def.model);
+  if (def.model.spikes) addSpikes(g, m, def.model.spikes);
+  return g;
 }
 
 /* Icon poses by slot: [rx, ry, rz], yaw */
@@ -1152,8 +1245,38 @@ export function buildHero(opts = {}, m = MS) {
     head.add(mesh(box(0.08, 0.035, 0.02), m(opts.blush ?? 0xe79a86), [0.22 * s, -0.13, 0.36]));
   }
   const hair = new THREE.Group();
-  hair.add(mesh(new THREE.SphereGeometry(0.455, 12, 8, 0, PI * 2, 0, PI * 0.5), m(opts.hair ?? HAIR), [0, 0.02, -0.02], [-0.42, 0, 0]));
-  for (const [x, r] of [[-0.2, 0.35], [0, 0], [0.2, -0.35]]) hair.add(mesh(cone(0.1, 0.24, 5), m(opts.hair ?? HAIR), [x, 0.2, 0.34], [PI - 0.45, 0, r * 0.6]));
+  const hc = m(opts.hair ?? HAIR);
+  const style = opts.hairStyle ?? 'spiky';
+  const cap = () => hair.add(mesh(new THREE.SphereGeometry(0.455, 12, 8, 0, PI * 2, 0, PI * 0.5), hc, [0, 0.02, -0.02], [-0.42, 0, 0]));
+  const fringe = () => hair.add(mesh(box(0.6, 0.11, 0.14), hc, [0, 0.27, 0.32], [-0.55, 0, 0]));
+  const sides = (len) => { for (const s of [-1, 1]) hair.add(mesh(sph(0.17, 8, 6), hc, [0.36 * s, 0.02 - len * 0.12, -0.04], [0, 0, 0.12 * s], [0.62, 1 + len * 0.7, 1.05])); };
+  if (style !== 'bald') cap();
+  if (style === 'spiky') {
+    for (const [x, r] of [[-0.2, 0.35], [0, 0], [0.2, -0.35]]) hair.add(mesh(cone(0.1, 0.24, 5), hc, [x, 0.2, 0.34], [PI - 0.45, 0, r * 0.6]));
+  } else if (style === 'bob') {
+    fringe();
+    sides(1);
+    hair.add(mesh(sph(0.36, 10, 6), hc, [0, -0.06, -0.14], [0, 0, 0], [1.12, 0.8, 0.9]));
+  } else if (style === 'long') {
+    fringe();
+    sides(2.2);
+    hair.add(mesh(box(0.72, 0.9, 0.2), hc, [0, -0.3, -0.3], [0.08, 0, 0]));
+  } else if (style === 'pony') {
+    fringe();
+    hair.add(mesh(sph(0.07, 6, 5), m(0xe8b73a), [0, 0.18, -0.46]));
+    hair.add(mesh(cone(0.11, 0.58, 6), hc, [0, -0.12, -0.52], [PI + 0.3, 0, 0]));
+  } else if (style === 'bun') {
+    fringe();
+    hair.add(mesh(sph(0.17, 8, 6), hc, [0, 0.42, -0.22]));
+    hair.add(mesh(torus(0.11, 0.025, 5, 10), m(0xe8b73a), [0, 0.33, -0.17], [1.1, 0, 0]));
+  } else if (style === 'curly') {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * PI * 2;
+      hair.add(mesh(sph(0.13, 7, 5), hc, [Math.cos(a) * 0.36, 0.1 + Math.sin(i * 1.7) * 0.08, Math.sin(a) * 0.36 - 0.04]));
+    }
+    for (const x of [-0.18, 0, 0.18]) hair.add(mesh(sph(0.12, 7, 5), hc, [x, 0.3, 0.26]));
+    hair.add(mesh(sph(0.16, 7, 5), hc, [0, 0.42, -0.02]));
+  }
   head.add(hair);
   const helm = new THREE.Group();
   head.add(helm);
@@ -1264,6 +1387,12 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
       if (p.flame) flames(hero.gear.body, M, 0, 0.78, 0.29, 0.3);
       if (p.snow) snowflake(hero.gear.body, M, p.snow, 0, 0.84, 0.29, 0.08);
       if (p.clover) clover(hero.gear.body, M, p.clover, -0.1, 0.88, 0.28, 0.035);
+      if (p.spikes) {
+        for (const k of [-1, 1]) for (const [x, y, rz] of [[0.36, 1.1, -0.5], [0.42, 1.0, -1.0], [0.28, 0.9, -1.3]]) {
+          hero.gear.body.add(mesh(cone(0.03, 0.12, 4), M(p.spikes.color), [x * k, y, 0.05], [0, 0, rz * k]));
+        }
+        for (const [x, y] of [[-0.12, 0.92], [0.12, 0.74], [-0.08, 0.62]]) hero.gear.body.add(mesh(cone(0.025, 0.09, 4), M(p.spikes.color), [x, y, 0.3], [PI / 2, 0, 0]));
+      }
     }
   }
   if (hero.gearKeys.gloves !== key(equip.gloves)) {
@@ -1273,6 +1402,7 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
       const p = ITEMS[equip.gloves.id].model;
       for (const grp of hero.gear.gloves) {
         grp.add(mesh(cyl(0.085, 0.1, 0.12, 8), M(p.b), [0, -0.42, 0]));
+        if (p.spikes) for (const a of [0, 2.1, 4.2]) grp.add(mesh(cone(0.022, 0.08, 4), M(p.spikes.color), [Math.cos(a) * 0.1, -0.42, Math.sin(a) * 0.1], [Math.sin(a) * PI / 2, 0, -Math.cos(a) * PI / 2]));
         if (p.knuckle || p.gem || p.frost) grp.add(mesh(p.spike ? cone(0.025, 0.08, 5) : octa(0.035), M(p.knuckle ?? p.gem ?? p.frost, { glow: 0.5 }), [0, -0.55, 0.08], p.spike ? [PI / 2, 0, 0] : [0, 0, 0]));
       }
     }
@@ -1285,6 +1415,7 @@ export function dressHero(hero, equip, ITEMS, freshUid = null) {
       for (const k of [-1, 1]) {
         hero.gear.boots.add(mesh(cyl(0.125, 0.12, 0.26, 8), M(p.sandal ? (p.wrap ?? 0xe8dcc0) : p.a), [0.13 * k, 0.2, 0]));
         hero.gear.boots.add(mesh(torus(0.125, 0.03, 5, 12), M(p.sandal ? p.a : p.b), [0.13 * k, 0.33, 0], [PI / 2, 0, 0]));
+        if (p.spikes) for (const a of [0.6, 2.5]) hero.gear.boots.add(mesh(cone(0.025, 0.09, 4), M(p.spikes.color), [0.13 * k + Math.cos(a) * 0.13 * k, 0.24, Math.sin(a) * 0.13], [Math.sin(a) * PI / 2, 0, -Math.cos(a) * k * PI / 2]));
         if (p.extra === 'fur') hero.gear.boots.add(mesh(torus(0.13, 0.05, 5, 10), M(0xffffff), [0.13 * k, 0.34, 0], [PI / 2, 0, 0]));
         if (p.extra === 'flames') flames(hero.gear.boots, M, 0.13 * k, 0.32, -0.04, 0.25);
         if (p.extra === 'wings') hero.gear.boots.add(mesh(extrude(shapeFrom(WING, k), 0.02, 0.005), M(0xffffff), [0.22 * k, 0.24, -0.03], [0, -0.4 * k, 0], [0.32, 0.32, 1]));

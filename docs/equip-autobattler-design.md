@@ -54,6 +54,7 @@ The depth comes from three layers:
 | **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
 | **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
 | **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
+| **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. Up to 20 stacks. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
 
 ### Trigger words
@@ -75,6 +76,7 @@ These come from the rules themselves, before any items:
 - Burn beats Heal (healing cut), Shield beats Burn, Poison beats Shield, Heal beats Poison (outheals the slow ramp).
 - Sand beats weapon builds (crit, Lifesteal, on-hit). Burn and Poison beat Sand (they never miss). Fast weapon burst beats the slow Poison ramp.
 - Frost and Slow beat Heat and speed builds. Heat cancels Slow.
+- Thorns beats fast and multi-hit builds (dual wield, Heat, crit daggers): every hit pays. Burn and Poison beat Thorns (no hits to punish), and so do Sand, Frost and Slow (fewer hits land).
 
 ## 5. Slots
 
@@ -107,6 +109,7 @@ These come from the rules themselves, before any items:
 | Holy | Heal, Shield |
 | Blood | Lifesteal |
 | Fortune | Luck |
+| Thorn | Thorns |
 | Prismatic | Random effects |
 
 Every item has a school. Bridge rings and bridge legendaries count toward **both** schools. Equipping items from one school activates **resonance**. Tiers are cumulative, so 6 items also give the 2- and 4-item bonuses:
@@ -120,6 +123,7 @@ Every item has a school. Bridge rings and bridge legendaries count toward **both
 | Holy | Start with 10 Shield | Heals +20% | Shield gains +50% |
 | Blood | +5% Lifesteal | Lifesteal ignores Burn's healing cut | Lifesteal doubled while below 50% HP |
 | Fortune | +3 Luck | Crits deal 2.5× | Every chance roll rolls twice and keeps the better result |
+| Thorn | Start with 2 Thorns | Clutch: gain 5 Thorns | Thorns deal +50% damage |
 
 **Prismatic resonance** (3+ Prismatic items): amounts from random effects +50%. Prismatic items count toward every school, **but only one Prismatic item counts toward school resonance.**
 
@@ -243,9 +247,37 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Ring | Loaded Dice | R | Whenever a chance roll fails (including crits), gain 1 Luck (max 10 from this ring per fight). |
 | Amulet | Fatebound Talisman | L | Everything can crit: heals, Shield gains and status applications. A crit doubles them. |
 
+### Thorn (Thorns)
+
+Thorns is the punish-the-attacker school. Its weakness is built in (statuses and misses never trigger it), and its own items answer that weakness only partly: Ironbark Plate strikes on a timer, and the Sandbriar Ring strikes on misses.
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Briar Whip | C | Whip · 1.4s · 3 dmg. On hit: gain 1 Thorns, up to 6 from this whip. |
+| Weapon (2H) | Bramble Maul | R | Maul · 3.8s · 16 dmg. On hit: deal bonus damage equal to your Thorns. |
+| Offhand | Hedgehog Shield | C | Every 4s: gain 1 Thorns and 4 Shield. |
+| Helm | Bramble Crown | R | When hit: 30% chance to gain 1 Thorns. (Luck raises the chance.) |
+| Body | Briar Mail | C | Start of fight: gain 4 Thorns. |
+| Body | Ironbark Plate | E | Every 3s: your Thorns strike the enemy. This counts as Thorns triggering. |
+| Gloves | Spinefist | R | Your weapon hits deal bonus damage equal to half your Thorns. |
+| Boots | Nettle Treads | C | Start of fight: gain 2 Thorns. When an enemy attack misses you, gain 1 Thorns. |
+| Cape | Briar Cloak | E | Clutch: double your Thorns, then gain 3 more. |
+| Amulet | Briarheart | L | Whenever your Thorns trigger, gain 1 Thorns. Your Thorns cap rises from 20 to 40. |
+
+**How it webs with other schools:**
+- **Holy:** Shield soaks the hits that trigger Thorns, and Hallowed Briar turns Shield gains into Thorns. Juggernaut and Spinefist both turn defence into weapon damage.
+- **Desert:** Sand makes enemies miss, which normally starves Thorns. Nettle Treads and the Sandbriar Ring turn misses into Thorns instead, so Desert becomes a partner rather than a counter.
+- **Blood:** Bloodbriar heals from Thorns damage, and Crimson Chalice's Lifesteal applies to it (it isn't a weapon hit).
+- **Fortune:** Lucky Thorn lets Thorns crit, and Luck raises Bramble Crown's chance.
+- **Fire:** Pyrebriar turns every Thorns trigger into Heat, so being hit makes you faster.
+- **Venom and Frost:** their bridges make each Thorns trigger apply Poison or Frost, which fixes Thorns' weak matchups by borrowing the counter's own tools.
+- **Prismatic:** Thorns joins the random boon pool (2 Thorns).
+
+**Simulator results (prototype, day 9 ghosts):** Thorn-main builds win 44–52% overall. Against each school: Fire 66%, Blood 57%, Fortune 57%, Holy 54%, Desert 50%, Frost 45%, Venom 42%.
+
 ### Prismatic (random)
 
-Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck and +3% Lifesteal. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
+Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck, +3% Lifesteal and 2 Thorns. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
 
 | Slot | Item | Rarity | Effect |
 |---|---|---|---|
@@ -263,7 +295,7 @@ Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons 
 
 ## 8. Bridge rings
 
-Each bridge counts toward both of its schools. Every one of the 21 school pairs has at least one bridge.
+Each bridge counts toward both of its schools. Every one of the 28 school pairs has at least one bridge.
 
 | Ring | Schools | Effect |
 |---|---|---|
@@ -291,6 +323,13 @@ Each bridge counts toward both of its schools. Every one of the 21 school pairs 
 | Crimson Bulwark | Holy · Blood | Whenever a weapon hit Lifesteals, gain 2 Shield. |
 | Blessed Dice | Holy · Fortune | Your heals and Shield gains can crit. |
 | Vampire's Die | Blood · Fortune | Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%). |
+| Venomspine Ring | Thorn · Venom | Whenever your Thorns trigger, apply 1 Poison. |
+| Pyrebriar Ring | Thorn · Fire | Whenever your Thorns trigger, gain 1 Heat. |
+| Rimespine Ring | Thorn · Frost | Whenever your Thorns trigger, apply 2 Frost. |
+| Bloodbriar Ring | Thorn · Blood | Whenever your Thorns trigger, heal for half the damage they dealt. |
+| Hallowed Briar | Thorn · Holy | Whenever you gain Shield, gain 1 Thorns (at most once per second). |
+| Lucky Thorn | Thorn · Fortune | Your Thorns can crit. |
+| Sandbriar Ring | Thorn · Desert | When an enemy attack misses you, your Thorns strike them anyway. |
 
 ### Bridge legendary
 
@@ -300,14 +339,15 @@ Each bridge counts toward both of its schools. Every one of the 21 school pairs 
 
 ### Pair coverage
 
-| | Frost | Venom | Desert | Holy | Blood | Fortune |
-|---|---|---|---|---|---|---|
-| **Fire** | Frostfire, Hoarfrost | Witchfire | Glassblower | Kindling, Hearthfire, Forgeheart, *Phoenix Heart* | Bloodfire | Lucky Ember |
-| **Frost** | | Paralytic | Quicksand | Glacial Aegis | Frozen Blood | Shatter |
-| **Venom** | | | Scorpion | Leechmaw | Leeching Fang | Viper's Eye |
-| **Desert** | | | | Oasis | Duelist's | Desert Fox |
-| **Holy** | | | | | Crimson Bulwark | Blessed Dice |
-| **Blood** | | | | | | Vampire's Die |
+| | Frost | Venom | Desert | Holy | Blood | Fortune | Thorn |
+|---|---|---|---|---|---|---|---|
+| **Fire** | Frostfire, Hoarfrost | Witchfire | Glassblower | Kindling, Hearthfire, Forgeheart, *Phoenix Heart* | Bloodfire | Lucky Ember | Pyrebriar |
+| **Frost** | | Paralytic | Quicksand | Glacial Aegis | Frozen Blood | Shatter | Rimespine |
+| **Venom** | | | Scorpion | Leechmaw | Leeching Fang | Viper's Eye | Venomspine |
+| **Desert** | | | | Oasis | Duelist's | Desert Fox | Sandbriar |
+| **Holy** | | | | | Crimson Bulwark | Blessed Dice | Hallowed Briar |
+| **Blood** | | | | | | Vampire's Die | Bloodbriar |
+| **Fortune** | | | | | | | Lucky Thorn |
 
 Fire · Holy is the flagship pair (built around Kindling Band), so it has the most bridges.
 
@@ -388,6 +428,13 @@ You Slow them, and every Slow you apply becomes Heat (Hoarfrost). Molten Core re
 Resonance: Prismatic 8, Fire 2, Venom 2 (only one Prismatic item counts toward schools).
 Every status you apply brings a second random one (Prism Heart), so the enemy quickly carries all five statuses for Kaleidoscope Lens. Fool's Opal and Prismatic resonance make random amounts much larger. It's a generalist with no hard counter, and no strong matchups either.
 
+### 9. Bramblewall (Thorn · Holy)
+| Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
+|---|---|---|---|---|---|---|---|---|
+| Bramble Maul (2H) | — | Bramble Crown | Ironbark Plate | Spinefist | Pilgrim's Sandals | Briar Cloak | Hallowed Briar, Bloodbriar Ring | Briarheart |
+
+Start with 20 Shield from the sandals, and every Shield gain feeds Hallowed Briar. Each hit taken strikes back and grows Briarheart's stacks, Ironbark Plate strikes every 3s even if the enemy never attacks, and the Maul and Spinefist cash the stacks in as weapon damage. It shreds dual wielders and Heat builds, and struggles against Poison, which ignores the Shield and never hits.
+
 ### Expected matchups (hypotheses for the simulator)
 
 Read across: the row build's expected result against the column build. W = favored, L = unfavored, = = even.
@@ -456,7 +503,7 @@ An item has a **potential tier** with lines: Rare (1 line), Epic (2), Unique (3)
 | Family | Lines |
 |---|---|
 | Weapon | Weapon damage +4/7/10/14% · Attack time −3/5/7/10% · Lifesteal +2/3/5/7% · Luck +1/2/3/4 · On hit: apply 1/1/2 of a status (Epic and up) |
-| Armour | HP +8/12/18/25 · Start with Shield 6/10/15/22 · Start with Heat 2/3/4 (Epic and up) · Clutch: gain Shield 10/15/22 (Epic and up) · Luck +1/1/2/3 |
+| Armour | HP +8/12/18/25 · Start with Shield 6/10/15/22 · Start with Heat 2/3/4 (Epic and up) · Clutch: gain Shield 10/15/22 (Epic and up) · Luck +1/1/2/3 · Start with Thorns 2/3/4/6 |
 | Offhand | Cooldown −4/6/9/12% · HP +6/10/14/20 · Start with Shield 5/8/12/18 · Luck +1/2/2/3 |
 | Accessory | Luck +1/2/3/4 · Lifesteal +2/3/4/6% · HP +6/10/14/20 · Start with Heat 1/2/3/4 · Start: apply Slow 2/3/4/6 · Start: apply Sand 3/4/6 (Epic and up) |
 
@@ -487,7 +534,18 @@ Runs end, but a player's best items shouldn't vanish. This is what gives scroll 
 
 ---
 
-## 12. Guardrails
+## 12. Main menu and cosmetics
+
+The game opens on a main menu with a live, turnable preview of your character. From there you play (or continue a run), start a new run, and later reach the Hall of Fame.
+
+- **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
+- **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
+- **Art style:** Low-poly (dark leather UI) or Pixel (MapleStory-style UI), and Pixel has a light and a dark theme. The first visit follows the system's light or dark setting.
+- **Cosmetics never affect stats.** They're the natural home for rewards that must stay fair: Hall of Fame milestones, seasonal backdrops and event outfits. Your Hall of Fame avatar in exhibitions shows your look and backdrop.
+
+---
+
+## 13. Guardrails
 
 These rules protect the design so balance work is about numbers, not redesigns.
 
@@ -505,7 +563,7 @@ These rules protect the design so balance work is about numbers, not redesigns.
 12. **Deterministic resolution order**, so ghost fights replay identically.
 13. **Hall of Fame items never enter runs.** They're for exhibitions, trading and wagers only.
 
-## 13. Value reference (starting budget)
+## 14. Value reference (starting budget)
 
 Approximate worth of one unit of each effect in damage-equivalent, used to budget items by rarity. The simulator should replace these with measured values.
 
@@ -522,7 +580,7 @@ Approximate worth of one unit of each effect in damage-equivalent, used to budge
 | 1 Heat | about 3% of your output for the rest of the fight |
 | 1 Luck | about 3% weapon damage, plus chance effects |
 
-## 14. Open questions
+## 15. Open questions
 
 - **Burn's 30% healing cut** is what gives Heal a natural weakness. Is 30% the right size?
 - **Luck as a universal chance stat** makes it a strong hub. It's also the stat most likely to dominate.
@@ -530,7 +588,7 @@ Approximate worth of one unit of each effect in damage-equivalent, used to budge
 - **Fire · Holy has four bridges** while every other pair has one or two. Keep it as the flagship pair, or trim it?
 - **Classes:** when they arrive, they could bias the shop toward schools and add a passive, without changing any item.
 
-## 15. Next step: combat simulator
+## 16. Next step: combat simulator
 
 Build a headless simulator before tuning numbers:
 

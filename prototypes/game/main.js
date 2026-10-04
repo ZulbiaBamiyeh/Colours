@@ -48,24 +48,53 @@ const STATUS_ICON = {
   heat: '<path d="M10 4a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/>',
   luck: '<circle cx="9" cy="9" r="3"/><circle cx="15" cy="9" r="3"/><circle cx="9" cy="15" r="3"/><circle cx="15" cy="15" r="3"/>',
   frozen: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  thorns: '<path d="M4 20C9 15 15 9 20 4"/><path d="M8 16l-3.5-1M10.5 13.5l.5-4M14 10l4 .5M16.5 7.5l-.5-3.5"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost' };
-const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn' };
+const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns' };
 
 /* =========================================================
    State
    ========================================================= */
 let uidN = 1;
 const inst = id => ({ uid: uidN++, id });
+// Pixel mode has a light and a dark theme; the first visit follows the system setting.
+function loadDark() {
+  try { const v = localStorage.getItem('pixelDark'); if (v !== null) return v === '1'; } catch { /* storage unavailable */ }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 function loadStyle() { try { return localStorage.getItem('artStyle') === 'pixel' ? 'pixel' : 'smooth'; } catch { return 'smooth'; } }
 const MP = materialFactory('pixel');
 const matFor = style => (style === 'pixel' ? MP : MS);
 const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
 const S = {
   day: 1, gold: 10, lives: 5, maxLives: 5, wins: 0, goal: 10,
-  equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), record: [],
+  equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), pixelDark: loadDark(), record: [], started: false,
   ench: [], use: Array(6).fill(null), shards: 0,
 };
+
+/* ---------- Profile: appearance and backdrop, saved in this browser ---------- */
+const LOOKS = {
+  skin: [0xf3c7a0, 0xe8b48a, 0xc98e62, 0xa4704a, 0x7a4e32, 0x55372a],
+  hair: [0x7a4524, 0x2a1d18, 0xd9a441, 0xb5442a, 0xe8e2d6, 0x4a6ad8, 0xd85a9a, 0x3f8a5a],
+  eyes: [0x2a1d18, 0x2f6ad0, 0x2f8a4a, 0x8a4ad0, 0xc0392b, 0xd99a2a],
+  tunic: [0x5f7fa8, 0xa83f3f, 0x4f8a4f, 0x7a5aa8, 0xc48a24, 0x3a3f4a, 0xd8d0c0, 0x2f8a8a],
+};
+const LOOK_NAME = { skin: 'Skin', hair: 'Hair colour', eyes: 'Eyes', tunic: 'Outfit' };
+const HAIR_STYLES = [['spiky', 'Spiky'], ['bob', 'Bob'], ['long', 'Long'], ['pony', 'Ponytail'], ['bun', 'Bun'], ['curly', 'Curly'], ['bald', 'None']];
+const BACKDROPS = [['hearth', 'Hearth'], ['forge', 'Ember Forge'], ['peaks', 'Frost Peaks'], ['dunes', 'Dune Sunset'], ['chapel', 'Dawn Chapel'], ['night', 'Starry Night'], ['meadow', 'Meadow'], ['mire', 'Mire'], ['roses', 'Rose Garden']];
+const DEFAULT_PROFILE = { name: 'Wanderer', skin: LOOKS.skin[0], hair: LOOKS.hair[0], eyes: LOOKS.eyes[0], tunic: LOOKS.tunic[0], hairStyle: 'spiky', backdrop: 'hearth' };
+function loadProfile() {
+  try { return { ...DEFAULT_PROFILE, ...JSON.parse(localStorage.getItem('profile') || '{}') }; } catch { return { ...DEFAULT_PROFILE }; }
+}
+const P = loadProfile();
+const saveProfile = () => { try { localStorage.setItem('profile', JSON.stringify(P)); } catch { /* storage unavailable */ } };
+const lookOf = p => ({ skin: p.skin, hair: p.hair, eyes: p.eyes, tunic: p.tunic, hairStyle: p.hairStyle });
+const playerName = () => P.name.trim() || 'You';
+function setBackdrop(el, id) {
+  for (const [b] of BACKDROPS) el.classList.remove(`bd-${b}`);
+  el.classList.add('bd', `bd-${id}`);
+}
 
 const getItem = loc => {
   if (!loc) return null;
@@ -948,8 +977,17 @@ function syncTTSeg() {
   document.querySelectorAll('[data-style-seg] button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === S.ttStyle)));
   for (const el of [tt, $('hero'), $('arena')]) el.classList.toggle('pixel', S.ttStyle === 'pixel');
   document.documentElement.classList.toggle('maple', S.ttStyle === 'pixel');
+  document.documentElement.classList.toggle('dark', S.pixelDark);
+  document.querySelectorAll('[data-theme-seg] button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.v === 'dark') === S.pixelDark)));
   restyleArena();
 }
+document.querySelectorAll('[data-theme-seg]').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  S.pixelDark = b.dataset.v === 'dark';
+  try { localStorage.setItem('pixelDark', S.pixelDark ? '1' : '0'); } catch { /* storage unavailable */ }
+  syncTTSeg();
+}));
 document.querySelectorAll('[data-style-seg]').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b || b.dataset.v === S.ttStyle) return;
@@ -973,7 +1011,7 @@ hr.setClearColor(0x000000, 0);
 const hs = new THREE.Scene();
 heroLights(hs);
 const hc = new THREE.PerspectiveCamera(28, 1, 0.1, 60);
-let hero = buildHero({}, matFor(S.ttStyle));
+let hero = buildHero(lookOf(P), matFor(S.ttStyle));
 hs.add(hero.root);
 const hpx = new PixelPass(hr);
 hs.add(pedestal());
@@ -1017,7 +1055,7 @@ as.add(floor);
 as.add(mesh(new THREE.TorusGeometry(3.2, 0.03, 6, 60), MS(0xc09450, { glow: 0.25 }), [0, -0.16, 0], [Math.PI / 2, 0, 0]));
 // Pixel mode stages the fight on a grassy field under the sky backdrop.
 function restyleArena() {
-  floor.material = S.ttStyle === 'pixel' ? MP(0x7dbb5a) : MS(0x2a2119);
+  floor.material = S.ttStyle === 'pixel' ? MP(S.pixelDark ? 0x3d6a45 : 0x7dbb5a) : MS(0x2a2119);
 }
 const GHOST_LOOK = { skin: 0xc4bfe6, hair: 0x5a5a8a, tunic: 0x6a5a8a, eyes: 0x8fe3ff, eyesGlow: 0.9, blush: 0x9a8fd0 };
 const F = { A: null, B: null };
@@ -1122,11 +1160,13 @@ function startBattle() {
   const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
   Object.assign(B, { sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
   clearArena();
-  F.A = makeFighterView('A', playerEquip, {});
+  F.A = makeFighterView('A', playerEquip, lookOf(P));
   F.B = makeFighterView('B', ghost.equip, GHOST_LOOK);
-  $('hud-A').innerHTML = hudHTML('A', 'You', `Day ${S.day} build`, playerEquip);
+  $('hud-A').innerHTML = hudHTML('A', playerName(), `Day ${S.day} build`, playerEquip);
+  setBackdrop($('bd-a'), P.backdrop);
+  setBackdrop($('bd-b'), BACKDROPS[Math.floor(rng() * BACKDROPS.length)][0]);
   $('hud-B').innerHTML = hudHTML('B', ghost.name, `Ghost · Day ${S.day}`, ghost.equip);
-  $('vs-a').textContent = 'You';
+  $('vs-a').textContent = playerName();
   $('vs-b').textContent = ghost.name;
   $('log').innerHTML = '';
   $('floats').innerHTML = '';
@@ -1161,6 +1201,7 @@ function updateHud(force) {
     for (const k of ['burn', 'poison', 'frost', 'slow', 'sand']) if (s.st[k] > 0) chips.push([k, k === 'frost' ? `${s.st.frost}/10` : s.st[k]]);
     if (s.heat > 0) chips.push(['heat', s.heat]);
     if (s.luck > 0) chips.push(['luck', s.luck]);
+    if (s.thorns > 0) chips.push(['thorns', s.thorns]);
     const html = chips.map(([k, v]) => `<button type="button" class="schip${k === 'frozen' ? ' frozen' : ''}" data-st="${k}" data-side="${side}" style="--sc: var(${STATUS_VAR[k]})" aria-label="${STATUS_NAME[k] ?? 'Frozen'} ${k === 'frozen' ? '' : v}: what it does"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>${v}</button>`).join('');
     if (hudCache[side].chips !== html) { root.querySelector('.schips').innerHTML = html; hudCache[side].chips = html; }
     if (statusTip && statusTip.side === side) refreshStatusTip(fr);
@@ -1177,7 +1218,7 @@ function updateHud(force) {
 /* ---------- Status explanations ---------- */
 function statusInfo(k, s) {
   const pct = n => `${Math.round(n * 100)}%`;
-  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : s.st[k];
+  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : s.st[k];
   switch (k) {
     case 'burn': return [`Burn ${n}`, `Takes ${n} damage every second, then loses 1 stack. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
     case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s. Poison never wears off and ignores Shield.`];
@@ -1186,6 +1227,7 @@ function statusInfo(k, s) {
     case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Loses 1 stack every 2s.`];
     case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
     case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
+    case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. Caps at ${RULES.THORNS_CAP}.`];
     case 'frozen': return ['Frozen', `Weapon and items are stopped for up to ${RULES.FREEZE_TIME}s. Burn and Poison still tick.`];
   }
   return [k, ''];
@@ -1256,7 +1298,7 @@ function floatText(side, text, color, cls = '') {
   floatCount++;
   setTimeout(() => { el.remove(); floatCount--; }, 1150);
 }
-const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#d08aff', self: '#ff8a8a' };
+const KIND_COLOR = { hit: '#fff4e0', burn: '#ff9a4a', poison: '#a8e05a', pure: '#e9b8ff', reflect: '#ffd27a', fatigue: '#d08aff', self: '#ff8a8a', thorns: '#f08cb0' };
 const ST_COLOR = { burn: [0xff8a2a, 0xffc04a], poison: [0x8bd34a, 0x5aa83a], frost: [0xbfefff, 0x7fd6ff], slow: [0x7fb0ff, 0xa8c8ff], sand: [0xdbb470, 0xc9a060] };
 function fxDamage(e) {
   const f = F[e.side];
@@ -1276,6 +1318,13 @@ function fxDamage(e) {
   } else if (e.kind === 'poison') {
     particles.burst(x, y, z, 6, ST_COLOR.poison, { max: 1.2, up: 0.6, g: 0, life: 0.6 });
     f.flash = Math.max(f.flash, 0.35); f.flashColor.set(0x8bd34a);
+  } else if (e.kind === 'thorns') {
+    f.knock = Math.max(f.knock, 0.45);
+    f.flash = Math.max(f.flash, 0.5); f.flashColor.set(0xf08cb0);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      particles.emit({ x, y, z, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, vz: 0, drag: 5, life: 0.3, size: 0.045, color: i % 2 ? 0xf08cb0 : 0xe9d9b0 });
+    }
   } else if (e.kind === 'fatigue') {
     particles.burst(x, 0.3, 0, 8, [0xb070ff, 0x7040c0], { max: 1, up: 1.5, g: 0, life: 0.7 });
   } else {
@@ -1299,6 +1348,7 @@ function playEvent(e, quiet) {
       if (e.kind === 'hit') log(`<b>${sideName(other(e.side))}</b> hit <b>${sideName(e.side)}</b> for ${n}${e.crit ? ' <span class="crit">(crit)</span>' : ''}${e.absorbed >= 1 ? `, ${Math.round(e.absorbed)} blocked` : ''}.`);
       else if (e.kind === 'burn' || e.kind === 'poison') log(`<span class="k-${e.kind}">${e.kind === 'burn' ? 'Burn' : 'Poison'}</span> deals ${n} to <b>${sideName(e.side)}</b>${e.crit ? ' <span class="crit">(crit)</span>' : ''}.`);
       else if (e.kind === 'pure') log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'take', 'takes')} ${n} damage.`);
+      else if (e.kind === 'thorns') log(`<span class="k-thorns">${e.side === 'A' ? `<b>${sideName('B')}</b>'s` : 'Your'} Thorns</span> strike <b>${sideName(e.side)}</b> for ${n}${e.crit ? ' <span class="crit">(crit)</span>' : ''}.`);
       else if (e.kind === 'reflect') log(`${e.side === 'A' ? 'Your' : `<b>${sideName(e.side)}</b>'s`} attack is reflected for ${n}.`);
       else if (e.kind === 'self') log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'pay', 'pays')} ${n} HP.`);
       break;
@@ -1350,6 +1400,12 @@ function playEvent(e, quiet) {
       break;
     case 'reflect':
       if (!quiet) floatText(e.side, 'Reflected', '#ffd27a', 'small');
+      break;
+    case 'thorns':
+      if (!quiet) {
+        const f = F[e.side];
+        particles.burst(f.holder.position.x + f.dir * 0.3, 1.0, 0.15, 10, [0xf08cb0, 0xe9d9b0], { max: 3.2, life: 0.25, g: 0, size: 0.04, flat: 1 });
+      }
       break;
     case 'fatigue':
       if (!B.fatigueShown) { B.fatigueShown = true; log('<b>Fatigue</b> sets in: both fighters take growing damage each second.'); }
@@ -1673,7 +1729,7 @@ function restyleHeroes() {
   const m = matFor(S.ttStyle);
   hs.remove(hero.root);
   const yaw = hero.root.rotation.y;
-  hero = buildHero({}, m);
+  hero = buildHero(lookOf(P), m);
   hero.root.rotation.y = yaw;
   hs.add(hero.root);
   dressHero(hero, S.equip, ITEMS);
@@ -1690,6 +1746,115 @@ function restyleHeroes() {
     f.mats = collectMats(h.root);
     f.flashOn = false;
   }
+  buildMenuHero();
+}
+
+/* =========================================================
+   Main menu: customise your look and backdrop, then play
+   ========================================================= */
+const menuStage = $('menu-stage');
+const menuCanvas = $('menu-hero');
+const mr = new THREE.WebGLRenderer({ canvas: menuCanvas, antialias: true, alpha: true });
+mr.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+mr.setClearColor(0x000000, 0);
+const mscene = new THREE.Scene();
+heroLights(mscene);
+mscene.add(pedestal());
+const mcam = new THREE.PerspectiveCamera(28, 1, 0.1, 60);
+const mpx = new PixelPass(mr);
+let menuHero = null;
+let menuYaw = 0.38, menuDrag = null;
+const onMenu = () => document.body.classList.contains('on-menu');
+function buildMenuHero() {
+  const yaw = menuHero ? menuHero.root.rotation.y : menuYaw;
+  if (menuHero) mscene.remove(menuHero.root);
+  menuHero = buildHero(lookOf(P), matFor(S.ttStyle));
+  dressHero(menuHero, S.equip, ITEMS);
+  menuHero.root.rotation.y = yaw;
+  mscene.add(menuHero.root);
+}
+function sizeMenu() {
+  const w = menuStage.clientWidth, h = menuStage.clientHeight;
+  if (!w || !h) return;
+  mr.setSize(w, h, false);
+  mpx.setSize(w, h);
+  mcam.aspect = w / h;
+  const tanH = Math.tan(THREE.MathUtils.degToRad(mcam.fov / 2));
+  const d = Math.max(1.55 / tanH, 1.0 / (tanH * mcam.aspect));
+  mcam.position.set(0, 1.2 + d * 0.06, d);
+  mcam.lookAt(0, 1.08, 0);
+  mcam.updateProjectionMatrix();
+}
+new ResizeObserver(sizeMenu).observe(menuStage);
+menuCanvas.addEventListener('pointerdown', e => { menuDrag = e.clientX; menuCanvas.setPointerCapture(e.pointerId); });
+menuCanvas.addEventListener('pointermove', e => { if (menuDrag === null) return; menuYaw += (e.clientX - menuDrag) * 0.012; menuDrag = e.clientX; });
+for (const ev of ['pointerup', 'pointercancel']) menuCanvas.addEventListener(ev, () => { menuDrag = null; });
+
+const hex = n => `#${n.toString(16).padStart(6, '0')}`;
+function renderMenu() {
+  for (const k of Object.keys(LOOKS)) {
+    $(`sw-${k}`).innerHTML = LOOKS[k].map((c, i) => `<button type="button" class="sw${P[k] === c ? ' on' : ''}" data-look="${k}" data-v="${c}" style="--c:${hex(c)}" aria-pressed="${P[k] === c}" aria-label="${LOOK_NAME[k]} ${i + 1}"></button>`).join('');
+  }
+  $('sw-hairStyle').innerHTML = HAIR_STYLES.map(([id, label]) => `<button type="button" class="chipbtn${P.hairStyle === id ? ' on' : ''}" data-look="hairStyle" data-v="${id}" aria-pressed="${P.hairStyle === id}">${label}</button>`).join('');
+  $('backdrops').innerHTML = BACKDROPS.map(([id, label]) => `<button type="button" class="bdcard${P.backdrop === id ? ' on' : ''}" data-look="backdrop" data-v="${id}" aria-pressed="${P.backdrop === id}"><span class="bd bd-${id}" aria-hidden="true"></span><span>${label}</span></button>`).join('');
+  if (document.activeElement !== $('pname')) $('pname').value = P.name;
+  $('nameplate').textContent = playerName();
+  $('play').textContent = S.started ? 'Continue run' : 'Play';
+  $('menu-newrun').hidden = !S.started;
+  $('menu-run').textContent = S.started ? `Day ${S.day} · ${S.wins} win${S.wins === 1 ? '' : 's'} · ${S.lives} li${S.lives === 1 ? 'fe' : 'ves'} left` : 'Reach 10 wins before you run out of lives.';
+  setBackdrop(menuStage, P.backdrop);
+}
+function applyLook() {
+  saveProfile();
+  setBackdrop($('stage'), P.backdrop);
+  restyleHeroes();
+  renderMenu();
+}
+function showMenu() {
+  if (screenEl.classList.contains('in-battle')) return;
+  closeSheet();
+  hideTip();
+  document.body.classList.add('on-menu');
+  buildMenuHero();
+  renderMenu();
+  sizeMenu();
+  $('play').focus({ preventScroll: true });
+}
+function hideMenu() {
+  document.body.classList.remove('on-menu');
+  S.started = true;
+  render();
+  sizeHero();
+}
+$('menu').addEventListener('click', e => {
+  const b = e.target.closest('[data-look]');
+  if (b) {
+    const k = b.dataset.look;
+    P[k] = k === 'hairStyle' || k === 'backdrop' ? b.dataset.v : +b.dataset.v;
+    applyLook();
+    return;
+  }
+  if (e.target.closest('#play')) hideMenu();
+  else if (e.target.closest('#menu-newrun')) { newRun(); hideMenu(); }
+  else if (e.target.closest('#randomise')) {
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    for (const k of Object.keys(LOOKS)) P[k] = pick(LOOKS[k]);
+    P.hairStyle = pick(HAIR_STYLES)[0];
+    P.backdrop = pick(BACKDROPS)[0];
+    applyLook();
+  }
+});
+$('pname').addEventListener('input', e => {
+  P.name = e.target.value.slice(0, 16);
+  saveProfile();
+  $('nameplate').textContent = playerName();
+});
+$('menu-btn').addEventListener('click', showMenu);
+function drawMenu(dt) {
+  if (!reduceMotion && menuDrag === null) menuYaw += dt * 0.3;
+  animateHero(menuHero, t, dt, reduceMotion);
+  menuHero.root.rotation.y += (menuYaw - menuHero.root.rotation.y) * 0.18;
+  if (S.ttStyle === 'pixel') mpx.render(mscene, mcam); else mr.render(mscene, mcam);
 }
 
 /* =========================================================
@@ -1704,7 +1869,9 @@ function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   t += dt;
-  if (screenEl.classList.contains('in-battle')) {
+  if (onMenu()) {
+    drawMenu(dt);
+  } else if (screenEl.classList.contains('in-battle')) {
     const simDt = stepBattle(dt);
     animateFighters(t, dt, simDt);
     if (S.ttStyle === 'pixel') apx.render(as, ac); else ar.render(as, ac);
@@ -1723,11 +1890,14 @@ syncSpeed();
 refreshShop();
 render();
 dressHero(hero, S.equip, ITEMS);
+setBackdrop($('stage'), P.backdrop);
 sizeHero();
+if (location.search.includes('play')) S.started = true;
+else showMenu();
 requestAnimationFrame(loop);
 
 // Test hook, only with ?debug in the URL.
-if (location.search.includes('debug')) window.__game = { S, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge };
+if (location.search.includes('debug')) window.__game = { S, P, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge, showMenu };
 
 // Ambient background: embers rise in Low-poly mode; in Pixel mode the same motes become falling leaves under drifting clouds.
 {
