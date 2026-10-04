@@ -4,8 +4,8 @@ import {
   ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost,
 } from './items.js';
 import {
-  USE, isUse, rollUseId, family, STATS, FAMILY_STATS, TIERS, lineText, slotsTotal, slotsLeft, steps, scrollChance,
-  applyScroll, applyHammer, rollCube, itemMods, sellBonus, upgradeGhost,
+  USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
+  GEMS, GEM_KINDS, gemKind, gemText, gemsOf, socketsOf, gemGhost,
 } from './upgrades.js';
 import { simulate, mulberry32, RULES } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
@@ -89,7 +89,7 @@ const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
 const S = {
   day: 1, gold: 10, lives: 5, maxLives: 5, wins: 0, goal: 10,
   equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), pixelDark: loadDark(), record: [], started: false,
-  ench: [], use: Array(6).fill(null), shards: 0,
+  ench: [], use: Array(6).fill(null),
 };
 
 /* ---------- Profile: appearance and backdrop, saved in this browser ---------- */
@@ -136,8 +136,8 @@ function refreshShop() {
   S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : { ...inst(id), locked: false, sold: false }));
   rollEnch();
 }
-// The Enchanter shelf: 3 consumables. Every 3rd day the Lucky Merchant puts a rare one in the last spot at 1 gold off.
-const LUCKY_IDS = ['chaos_scroll', 'mirror_cube', 'golden_hammer'];
+// The Jeweler's shelf: 3 gems. Every 3rd day the Lucky Merchant puts a rare gem in the last spot at 1 gold off.
+const LUCKY_IDS = ['gem_echo', 'gem_quicksilver', 'gem_catalyst'];
 const luckyDay = day => day % 3 === 0;
 function rollEnch() {
   S.ench = Array.from({ length: 3 }, () => ({ ...inst(rollUseId(S.day, rng)), sold: false }));
@@ -251,10 +251,13 @@ function sell(loc) {
   if (w === 'use') { if (--item.n <= 0) S.use[+k] = null; }
   else if (w === 'bag') S.bag[+k] = null;
   else S.equip[k] = null;
+  // Gems come back out of gear you sell, as long as the Gems row has room.
+  let back = 0, lost = 0;
+  if (!isUse(item.id)) for (const g of gemsOf(item)) { if (GEMS[g].cursed || !addGem(g)) lost++; else back++; }
   S.gold += v;
   bumpGold();
   if (S.sel === loc && !getItem(loc)) S.sel = null;
-  toast(`Sold ${ALL[item.id].name} for ${v} gold.`);
+  toast(`Sold ${ALL[item.id].name} for ${v} gold.${back ? ` ${back} gem${back > 1 ? 's' : ''} back in your Gems row.` : ''}${lost ? ` ${lost} gem${lost > 1 ? 's' : ''} lost.` : ''}`);
   commit();
 }
 function swapBag(a, b) {
@@ -325,7 +328,7 @@ function drop(from, target) {
 }
 
 /* =========================================================
-   Consumables: the Use row, scrolls, cubes and the forge
+   Gems: the Gems row, the Jeweler and socketing
    ========================================================= */
 const STACK = 9;
 const useFits = (id, i) => !S.use[i] || (S.use[i].id === id && S.use[i].n < STACK);
@@ -340,7 +343,7 @@ function buyUse(i, dest) {
   const def = USE[o.id];
   const price = enchPrice(o);
   const slot = useRoom(o.id, dest);
-  if (slot < 0) { toast(dest != null ? 'That Use slot holds something else.' : 'Your Use row is full. Use or sell a consumable first.'); return -1; }
+  if (slot < 0) { toast(dest != null ? 'That slot holds a different gem.' : 'Your Gems row is full. Set or sell a gem first.'); return -1; }
   if (!pay(price)) return -1;
   if (S.use[slot]) S.use[slot].n++;
   else S.use[slot] = { uid: o.uid, id: o.id, n: 1 };
@@ -364,24 +367,37 @@ function moveUse(a, b) {
   S.sel = `use:${b}`;
   commit();
 }
-// Why a consumable can't go on this item, or null when it can.
+// Why a gem can't go into this item, or null when it can. A full item can still take one: it replaces a gem.
 function useCheck(useId, item) {
-  const d = USE[useId];
-  if (!item || isUse(item.id)) return 'Consumables go on gear: an equipped item or one in your bag.';
-  const name = ITEMS[item.id].name;
-  if (d.kind === 'lock') return 'Lockstones are spent in the cube window: tick a line to keep it.';
-  if ((d.kind === 'scroll' || d.kind === 'chaos') && slotsLeft(item) <= 0) return `${name} has no upgrade slots left.`;
-  if (d.kind === 'hammer' && item.up?.extra) return `${name} has already been hammered.`;
+  if (!item || isUse(item.id)) return 'Gems go into gear: an equipped item or one in your bag.';
   return null;
 }
-const useCount = id => S.use.reduce((n, s) => n + (s && s.id === id ? s.n : 0), 0);
 function spendUse(i) {
   const s = S.use[i];
   if (--s.n <= 0) S.use[i] = null;
 }
-function spendById(id) {
-  const i = S.use.findIndex(s => s && s.id === id);
-  if (i >= 0) spendUse(i);
+// Put a gem back in the Gems row; false when there's no room.
+function addGem(id) {
+  const slot = useRoom(id);
+  if (slot < 0) return false;
+  if (S.use[slot]) S.use[slot].n++;
+  else S.use[slot] = { uid: uidN++, id, n: 1 };
+  return true;
+}
+const PRY_COST = 2;
+// Take a gem out of gear: pay to keep it, or (for cursed gems, which can't be kept) it's destroyed.
+function pryGem(loc, i) {
+  const item = getItem(loc);
+  const id = item?.gems?.[i];
+  if (!id) return;
+  const def = GEMS[id];
+  if (def.cursed) return toast(`${def.name} is cursed: it can't be taken out, only replaced by another gem.`);
+  if (useRoom(id) < 0) return toast('Your Gems row is full. Set or sell a gem first.');
+  if (!pay(PRY_COST)) return;
+  item.gems.splice(i, 1);
+  addGem(id);
+  toast(`Took ${def.name} out of ${ITEMS[item.id].name} for ${PRY_COST} gold.`);
+  commit();
 }
 
 /* ---------- Targeting: pick an item after "Use on an item" ---------- */
@@ -396,13 +412,12 @@ function markTargets() {
 function startTargeting(i) {
   const s = S.use[i];
   if (!s) return;
-  if (USE[s.id].kind === 'lock') return toast(useCheck(s.id, {}));
   targeting = i;
   closeSheet();
   document.body.classList.add('targeting');
   markTargets();
-  if (!document.querySelector('.can-use')) { stopTargeting(); return toast(`Nothing here can take a ${USE[s.id].name} right now.`); }
-  toast(`Choose an item for the ${USE[s.id].name}. Esc cancels.`);
+  if (!document.querySelector('.can-use')) { stopTargeting(); return toast(`Equip or buy some gear to set the ${USE[s.id].name} gem into.`); }
+  toast(`Choose an item for the ${USE[s.id].name} gem. Esc cancels.`);
 }
 function stopTargeting() {
   targeting = null;
@@ -410,33 +425,32 @@ function stopTargeting() {
   markTargets();
 }
 
-/* ---------- The enchant window ---------- */
+/* ---------- The socketing window ---------- */
 const enchantEl = $('enchant');
 let E = null;
 const signed = n => `${n >= 0 ? '+' : '−'}${Math.abs(n)}`;
-// Mirrors the caps in itemMods so the numbers shown never promise more than combat gives.
-const CAPS = [['dmgPct', 'atk', 6, 30, 'weapon damage +30%'], ['spdPct', 'spd', 3, 25, 'attack time −25%'], ['cdPct', 'cd', 4, 25, 'cooldown −25%']];
-function stepsHTML(item) {
+// Retired upgrades: Hall of Fame items kept before gems still show their scroll steps and cube lines.
+function legacyHTML(item) {
   const st = item.up?.st ?? {};
   const ks = Object.keys(st).filter(k => st[k]);
-  const capped = CAPS.filter(([line, k, per, cap]) => (st[k] ?? 0) * per + (item.pot?.lines ?? []).filter(l => l.k === line).reduce((n, l) => n + l.v, 0) > cap);
-  return (ks.length ? ks.map(k => `<span class="up-chip">${STATS[k].name} ${signed(st[k])} · ${STATS[k].text(st[k]).replace(' weapon damage', ' damage')}</span>`).join('') : '')
-    + (capped.length ? `<span class="up-cap">Capped at ${capped.map(c => c[4]).join(', ')}</span>` : '');
+  if (!ks.length && !item.pot) return '';
+  return `<div class="up-box"><span class="up-slots">Upgrades from before gems</span>${ks.map(k => `<span class="up-chip">${STATS[k].name} ${signed(st[k])} · ${STATS[k].text(st[k]).replace(' weapon damage', ' damage')}</span>`).join('')}
+    ${item.pot ? `<div class="pot t${item.pot.tier}"><span class="pot-tier">${TIERS[item.pot.tier]} potential</span>${item.pot.lines.map(l => `<span class="pot-line">${lineText(l)}</span>`).join('')}</div>` : ''}</div>`;
 }
-function potHTML(pot, lockable = false) {
-  if (!pot) return '<p class="pot-none">No potential yet. The first cube gives it Rare potential.</p>';
-  return `<div class="pot t${pot.tier}"><span class="pot-tier">${TIERS[pot.tier]} potential</span>${pot.lines.map((l, i) => (lockable
-    ? `<label class="pot-line"><input type="checkbox" data-lockline="${i}"${E.lock === i ? ' checked' : ''}><span>${lineText(l)}</span></label>`
-    : `<span class="pot-line">${lineText(l)}</span>`)).join('')}</div>`;
-}
-// Upgrade summary for the inspector and tooltips.
-function upgradeHTML(item, compact = false) {
+const gemIcon = id => `<span class="gem-ico" style="--gc: #${GEMS[id].color.toString(16).padStart(6, '0')}"><img src="${iconFor(id)}" alt=""></span>`;
+// An item's sockets: each gem and what it does in this item, then any empty sockets.
+// pry: show a Remove button per gem (the inspector, for gear you own).
+function socketsHTML(item, pry = false) {
   if (!item || isUse(item.id) || !ITEMS[item.id]) return '';
-  const used = item.up?.used ?? 0;
-  const slots = `<span class="up-slots">Upgrade slots ${slotsLeft(item)} / ${slotsTotal(item)} left${item.up?.extra ? ' · hammered' : ''}</span>`;
-  if (compact && !used && !item.pot && !item.up?.extra) return '';
-  return `<div class="up-box">${slots}${stepsHTML(item)}${item.pot ? potHTML(item.pot) : compact ? '' : '<span class="pot-none">No potential</span>'}</div>`;
+  const def = ITEMS[item.id];
+  const gems = gemsOf(item);
+  const n = socketsOf(item);
+  const rows = gems.map((id, i) => `<div class="sock">${gemIcon(id)}<span><b class="${GEMS[id].cursed ? 'cursed' : ''}">${GEMS[id].name}</b> ${kwText(gemText(id, def))}</span>${pry ? `<button type="button" class="btn mini-plain" data-pry="${i}" title="${GEMS[id].cursed ? 'Cursed: can only be replaced' : `Take it out for ${PRY_COST} gold`}"${GEMS[id].cursed ? ' aria-disabled="true"' : ''}>${GEMS[id].cursed ? 'Cursed' : `Remove · ${PRY_COST}`}</button>` : ''}</div>`);
+  for (let i = gems.length; i < n; i++) rows.push('<div class="sock empty"><span class="gem-ico"></span><span>Empty socket</span></div>');
+  return `<div class="socks"><span class="socks-cap">Sockets · ${GEM_KINDS[gemKind(def)]}</span>${rows.join('')}</div>${legacyHTML(item)}`;
 }
+// Back-compat name used by tooltips.
+const upgradeHTML = (item, compact = false) => (compact && !gemsOf(item ?? {}).length && !item?.up && !item?.pot ? '' : socketsHTML(item));
 function openEnchant(useIdx, loc) {
   const stack = S.use[useIdx];
   const item = getItem(loc);
@@ -445,164 +459,79 @@ function openEnchant(useIdx, loc) {
   if (why) return toast(why);
   hideTip();
   closeSheet();
-  const stats = FAMILY_STATS[family(ITEMS[item.id])];
-  E = { kind: 'use', useIdx, useId: stack.id, item, phase: 'confirm', stat: stats[0], lock: -1, res: null, roll: null };
-  renderEnchant();
-}
-function openForge() {
-  if (S.shards < 3) return;
-  const pool = ITEM_IDS.filter(id => ITEMS[id].rarity === 'legendary');
-  const picks = [];
-  while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
-  E = { kind: 'forge', picks };
-  hideTip();
+  E = { useIdx, useId: stack.id, item, phase: 'confirm', replace: -1 };
   renderEnchant();
 }
 function closeEnchant() {
-  if (!E || E.phase === 'choose') return;
+  if (!E) return;
   E = null;
   enchantEl.hidden = true;
   commit();
 }
-function removeGear(item) {
-  for (const k of ALL_SLOTS) if (S.equip[k] === item) S.equip[k] = null;
-  S.bag = S.bag.map(b => (b === item ? null : b));
-  if (S.sel && !getItem(S.sel)) S.sel = null;
-}
 const sparks = n => Array.from({ length: n }, (_, i) => `<i style="--a:${(i * 360) / n + Math.random() * 20}deg;--d:${50 + Math.random() * 40}px"></i>`).join('');
 function enchantHead(def, item) {
   return `<div class="en-head">
-    <span class="en-ico"><img src="${iconFor(def.id)}" alt=""></span>
+    <span class="en-ico">${gemIcon(def.id)}</span>
     <svg class="en-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
     <span class="en-ico item r-${ITEMS[item.id].rarity} en-target"><img src="${iconFor(item.id)}" alt="">${badges(item)}</span>
-    <div class="en-title"><span class="en-name r-${def.rarity}" id="en-title">${def.name}</span><span class="en-sub">on ${ITEMS[item.id].name}</span></div>
+    <div class="en-title"><span class="en-name r-${def.rarity}" id="en-title">${def.name}</span><span class="en-sub">into ${ITEMS[item.id].name}</span></div>
   </div>`;
 }
+// Does an Echo gem have anything to repeat here?
+const echoUseless = (gemId, def) => gemId === 'gem_echo' && gemKind(def) !== 'weapon' && !def.hooks && !def.act;
 function renderEnchant() {
   if (!E) { enchantEl.hidden = true; return; }
-  const btn = (act, label, primary) => `<button type="button" class="btn${primary ? ' primary' : ''}" data-en="${act}">${label}</button>`;
-  let body = '', foot = '';
-  if (E.kind === 'forge') {
-    body = `<div class="en-title"><span class="en-name r-legendary" id="en-title">The Forge</span><span class="en-sub">3 Shards make a legendary. Choose one.</span></div>
-      <div class="forge">${E.picks.map(id => `<button type="button" class="forge-pick" data-pick="${id}"><span class="en-ico item r-legendary"><img src="${iconFor(id)}" alt=""></span><b class="r-legendary">${ITEMS[id].name}</b><span>${slotLabel(ITEMS[id])}</span><span class="fp-text">${kwText(ITEMS[id].text)}</span></button>`).join('')}</div>`;
-    foot = btn('close', 'Later', false);
-  } else {
-    const def = USE[E.useId];
-    const item = E.item;
-    const fam = family(ITEMS[item.id]);
-    const left = S.use[E.useIdx]?.id === E.useId ? S.use[E.useIdx].n : 0;
-    body = enchantHead(def, item);
-    if (E.phase === 'confirm') {
-      if (def.kind === 'scroll' || def.kind === 'chaos') {
-        const p = scrollChance(item, def);
-        const fails = item.up?.fails ?? 0;
-        const st = item.up?.st ?? {};
-        if (def.kind === 'scroll') {
-          body += `<div class="en-label">Choose a stat</div><div class="en-stats">${FAMILY_STATS[fam].map(k => {
-            const cur = st[k] ?? 0;
-            return `<button type="button" class="en-stat${E.stat === k ? ' on' : ''}" data-stat="${k}" aria-pressed="${E.stat === k}"><b>${STATS[k].name}</b><span>${cur ? STATS[k].text(cur) : 'None yet'}</span><span class="to">→ ${STATS[k].text(cur + def.gain)}</span></button>`;
-          }).join('')}</div>`;
-        } else {
-          body += `<div class="en-label">Both stats change by −2 to +4 steps</div><div class="en-stats">${FAMILY_STATS[fam].map(k => `<div class="en-stat"><b>${STATS[k].name}</b><span>${st[k] ? STATS[k].text(st[k]) : 'None yet'}</span><span class="to">${STATS[k].per}</span></div>`).join('')}</div>`;
-        }
-        body += `<div class="en-odds"><span class="big">${Math.round(p * 100)}%</span><span>success${fails ? `, including +${fails * 5}% from ${fails} failed attempt${fails > 1 ? 's' : ''}` : ''}</span></div>
-          <p class="en-note">Upgrade slots: ${slotsLeft(item)} of ${slotsTotal(item)} left. This uses one whether it works or not.</p>
-          ${def.destroy ? `<p class="en-warn">On failure, a ${Math.round(def.destroy * 100)}% chance ${ITEMS[item.id].name} is destroyed. It leaves a Shard.</p>` : ''}`;
-        foot = btn('go', 'Read scroll', true) + btn('close', 'Cancel', false);
-      } else if (def.kind === 'hammer') {
-        body += `<p class="en-note">Adds one upgrade slot: ${slotsLeft(item)} / ${slotsTotal(item)} → ${slotsLeft(item) + 1} / ${slotsTotal(item) + 1}. Each item can be hammered once.</p>`;
-        foot = btn('go', 'Strike', true) + btn('close', 'Cancel', false);
-      } else {
-        const locks = useCount('lockstone');
-        const lockable = !!item.pot && locks > 0;
-        body += `<div class="en-label">Current potential</div>${potHTML(item.pot, lockable)}
-          <p class="en-note">${def.text}${lockable ? ` Tick a line to keep it (uses 1 of your ${locks} Lockstone${locks > 1 ? 's' : ''}).` : item.pot ? ' Buy a Lockstone to keep a line through a reroll.' : ''}</p>`;
-        foot = btn('go', 'Roll cube', true) + btn('close', 'Cancel', false);
-      }
-    } else if (E.phase === 'choose') {
-      body += `<div class="en-label">${E.roll.tierUp ? `<b class="tierup">Tier up: ${TIERS[E.roll.pot.tier]}!</b> ` : ''}Keep either set</div>
-        <div class="en-pair"><div><span class="en-label">Before</span>${potHTML(E.roll.old)}</div><div class="new"><span class="en-label">New</span>${potHTML(E.roll.pot)}</div></div>`;
-      foot = btn('old', 'Keep before', false) + btn('new', 'Keep new', true);
+  const btn = (act, label, primary, extra = '') => `<button type="button" class="btn${primary ? ' primary' : ''}" data-en="${act}" ${extra}>${label}</button>`;
+  const def = GEMS[E.useId];
+  const item = E.item;
+  const idef = ITEMS[item.id];
+  const gems = gemsOf(item);
+  const full = gems.length >= socketsOf(item);
+  let body = enchantHead(def, item), foot = '';
+  if (E.phase === 'confirm') {
+    body += `<div class="en-label">In ${GEM_KINDS[gemKind(idef)].toLowerCase()}</div><p class="en-gem">${kwText(gemText(def.id, idef))}</p>`;
+    if (echoUseless(def.id, idef)) body += `<p class="en-warn">${idef.name} has no triggered effects for Echo to repeat.</p>`;
+    if (def.cursed) body += '<p class="en-warn">Cursed gems can\'t be taken out again, only replaced by another gem.</p>';
+    if (full) {
+      body += `<div class="en-label">Sockets full: choose a gem to replace. It is destroyed.</div><div class="en-stats">${gems.map((g, i) => `<button type="button" class="en-stat${E.replace === i ? ' on' : ''}" data-rep="${i}" aria-pressed="${E.replace === i}">${gemIcon(g)}<b>${GEMS[g].name}</b><span>${kwText(gemText(g, idef))}</span></button>`).join('')}</div>`;
+      foot = btn('go', 'Replace gem', true, E.replace < 0 ? 'aria-disabled="true"' : '') + btn('close', 'Cancel', false);
     } else {
-      const r = E.res;
-      const word = { success: 'Success!', fail: 'Failed', destroy: 'Destroyed', hammer: 'Slot added', cube: E.roll?.tierUp ? `Tier up: ${TIERS[E.item.pot.tier]}!` : 'Rerolled', kept: 'Done' }[r];
-      const detail = r === 'success' ? E.changes.map(c => `${STATS[c.k].name} ${signed(c.d)}`).join(' · ')
-        : r === 'fail' ? `The scroll fizzled. The next attempt on this item gets +5%.`
-        : r === 'destroy' ? `${ITEMS[item.id].name} crumbled into a Shard (${S.shards} / 3).`
-        : r === 'hammer' ? `Upgrade slots: ${slotsLeft(item)} / ${slotsTotal(item)} left.` : '';
-      body += `<div class="en-result ${r}"><span class="en-burst" aria-hidden="true">${r === 'fail' ? '' : sparks(r === 'destroy' ? 10 : 16)}</span><span class="en-word">${word}</span>${detail ? `<span class="en-detail">${detail}</span>` : ''}</div>`;
-      if (r === 'cube' || r === 'kept') body += potHTML(item.pot);
-      else if (r !== 'destroy') body += `<div class="en-after">${stepsHTML(item)}</div>`;
-      const again = r !== 'destroy' && left > 0 && !useCheck(E.useId, item);
-      foot = (again ? btn('again', `Again · ${left} left`, false) : '') + (r === 'destroy' && S.shards >= 3 ? btn('forge', 'Forge a legendary', true) : '') + btn('close', 'Done', !(r === 'destroy' && S.shards >= 3));
+      body += `<p class="en-note">${idef.name} has ${socketsOf(item) - gems.length} of ${socketsOf(item)} socket${socketsOf(item) > 1 ? 's' : ''} free. You can take a gem out later for ${PRY_COST} gold.</p>`;
+      foot = btn('go', 'Set gem', true) + btn('close', 'Cancel', false);
     }
+  } else {
+    body += `<div class="en-result success"><span class="en-burst" aria-hidden="true">${sparks(16)}</span><span class="en-word">Socketed</span></div>${socketsHTML(item)}`;
+    const left = S.use[E.useIdx]?.id === E.useId ? S.use[E.useIdx].n : 0;
+    foot = btn('close', 'Done', true);
+    if (left > 0 && gemsOf(item).length < socketsOf(item)) foot = btn('again', `Set another · ${left} left`, false) + foot;
   }
   enchantEl.innerHTML = `<div class="result-card en-card" role="dialog" aria-modal="true" aria-labelledby="en-title">${body}<div class="en-foot">${foot}</div></div>`;
   enchantEl.hidden = false;
-  enchantEl.querySelector('.btn.primary, .btn')?.focus({ preventScroll: true });
+  enchantEl.querySelector('.btn.primary:not([aria-disabled]), .btn')?.focus({ preventScroll: true });
 }
 function enchantAct(act) {
   if (act === 'close') return closeEnchant();
-  if (act === 'forge') return openForge();
-  if (act === 'again') { E.phase = 'confirm'; E.lock = -1; return renderEnchant(); }
-  const item = E.item;
-  if (act === 'old' || act === 'new') {
-    item.pot = act === 'new' ? E.roll.pot : E.roll.old;
-    E.res = 'kept';
-    E.phase = 'result';
-    commit();
-    return renderEnchant();
-  }
+  if (act === 'again') { E.phase = 'confirm'; E.replace = -1; return renderEnchant(); }
   if (act !== 'go' || S.use[E.useIdx]?.id !== E.useId) return;
-  const def = USE[E.useId];
-  spendUse(E.useIdx);
-  if (def.kind === 'scroll' || def.kind === 'chaos') {
-    const r = applyScroll(item, def, E.stat, rng);
-    E.res = r.result;
-    E.changes = r.changes;
-    if (r.result === 'destroy') { removeGear(item); S.shards++; }
-  } else if (def.kind === 'hammer') {
-    applyHammer(item);
-    E.res = 'hammer';
+  const item = E.item;
+  item.gems = gemsOf(item);
+  if (item.gems.length >= socketsOf(item)) {
+    if (E.replace < 0) return;
+    item.gems.splice(E.replace, 1, E.useId);
   } else {
-    if (E.lock >= 0) spendById('lockstone');
-    E.roll = rollCube(item, def, rng, E.lock);
-    E.lock = -1;
-    if (def.choose) { E.phase = 'choose'; commit(); return renderEnchant(); }
-    item.pot = E.roll.pot;
-    E.res = 'cube';
+    item.gems.push(E.useId);
   }
+  spendUse(E.useIdx);
   E.phase = 'result';
   commit();
   renderEnchant();
 }
 enchantEl.addEventListener('click', e => {
   const b = e.target.closest('[data-en]');
-  if (b) return enchantAct(b.dataset.en);
-  const st = e.target.closest('[data-stat]');
-  if (st && E?.phase === 'confirm') { E.stat = st.dataset.stat; return renderEnchant(); }
-  const pick = e.target.closest('[data-pick]');
-  if (pick && E?.kind === 'forge') {
-    const free = freeBag();
-    if (!free.length) return toast('Free a bag slot for the legendary first.');
-    const item = inst(pick.dataset.pick);
-    S.bag[free[0]] = item;
-    S.shards -= 3;
-    freshUid = item.uid;
-    S.sel = `bag:${free[0]}`;
-    toast(`Forged ${ITEMS[item.id].name}.`);
-    E = null;
-    enchantEl.hidden = true;
-    commit();
-    return;
-  }
+  if (b) { if (b.getAttribute('aria-disabled') !== 'true') enchantAct(b.dataset.en); return; }
+  const rep = e.target.closest('[data-rep]');
+  if (rep && E?.phase === 'confirm') { E.replace = +rep.dataset.rep; return renderEnchant(); }
   if (e.target === enchantEl) closeEnchant();
-});
-enchantEl.addEventListener('change', e => {
-  const c = e.target.closest('[data-lockline]');
-  if (!c) return;
-  E.lock = c.checked ? +c.dataset.lockline : -1;
-  renderEnchant();
 });
 
 /* =========================================================
@@ -651,12 +580,15 @@ for (let i = 0; i < 3; i++) {
 }
 const glyph = k => `<svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${GLYPH[k]}</svg>`;
 const schoolDot = sc => `<span class="dot" style="--sc: var(${SCHOOL_VAR[sc]})"></span>`;
-// Corner badges: +N scroll steps and a potential-tier gem on gear, stack size on consumables.
+// Corner badges: socket pips (filled with each gem's colour) on gear, stack size on gems.
+// Old Hall of Fame items keep their scroll-step badge.
 function badges(item) {
   if (isUse(item.id)) return item.n > 1 ? `<span class="b-n">${item.n}</span>` : '';
+  if (!ITEMS[item.id]) return '';
+  const gems = gemsOf(item);
+  const pips = Array.from({ length: socketsOf(item) }, (_, i) => (gems[i] ? `<i style="--gc: #${GEMS[gems[i]].color.toString(16).padStart(6, '0')}"></i>` : '<i class="e"></i>')).join('');
   const st = steps(item);
-  return (st ? `<span class="b-up${st < 0 ? ' neg' : ''}">${signed(st)}</span>` : '')
-    + (item.pot ? `<span class="b-pot t${item.pot.tier}"></span>` : '');
+  return `<span class="b-socks" aria-hidden="true">${pips}</span>${st ? `<span class="b-up${st < 0 ? ' neg' : ''}">${signed(st)}</span>` : ''}`;
 }
 function itemBtn(item, loc, extraLabel = '') {
   const def = ALL[item.id];
@@ -685,7 +617,6 @@ function renderBag() {
   bagCells.forEach((cell, i) => { cell.innerHTML = S.bag[i] ? itemBtn(S.bag[i], `bag:${i}`, ', in bag') : ''; });
   useCells.forEach((cell, i) => { const u = S.use[i]; cell.innerHTML = u ? itemBtn(u, `use:${i}`, `, ${u.n} in Use row`) : ''; });
   $('bag-count').textContent = `${S.bag.filter(Boolean).length} / 6`;
-  $('shards').innerHTML = `<span class="shard-gem" aria-hidden="true"></span>Shards ${S.shards} / 3${S.shards >= 3 ? ' <button type="button" class="btn primary mini" id="forge">Forge</button>' : ''}`;
 }
 function renderShop() {
   S.shop.forEach((o, i) => {
@@ -717,7 +648,7 @@ function renderShop() {
         ${o.lucky ? '<span class="lucky-tag">Lucky</span>' : ''}`;
   });
   const until = 3 - (S.day % 3);
-  $('ench-note').textContent = luckyDay(S.day) ? 'The Lucky Merchant is in town' : `Lucky Merchant in ${until} day${until > 1 ? 's' : ''}`;
+  $('ench-note').textContent = luckyDay(S.day) ? 'The Lucky Merchant brought a rare gem' : `Lucky Merchant in ${until} day${until > 1 ? 's' : ''}`;
 }
 /* ---------- Stats: the four tiles, and the full stat sheet they open ---------- */
 const STAT_ICON = {
@@ -731,22 +662,32 @@ const STAT_VAR = { hp: '--danger', dmg: '--gold', spd: '--s-frost', crit: '--s-f
 const statIcon = k => `<svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(${STAT_VAR[k]})">${STAT_ICON[k]}</svg>`;
 let sheetOpen = false;
 // Everything the stat sheet shows, from the equipped items and their upgrades.
+const gemFx = it => gemsOf(it).map(id => GEMS[id].fx[gemKind(ITEMS[it.id])]);
+const gemSum = (it, k) => gemFx(it).reduce((a, x) => a + (x[k] ?? 0), 0);
 function buildStats() {
-  let hp = 100, luck = 0, ls = 0;
+  let hp = 100, luck = 0, ls = 0, quick = 0;
   const hpParts = [];
   for (const k of ALL_SLOTS) {
     const it = S.equip[k];
     if (!it) continue;
     const m = itemMods(it);
-    const add = (ITEMS[it.id].hp || 0) + m.hp;
-    if (add) hpParts.push(`${ITEMS[it.id].name} +${add}`);
+    const fx = gemFx(it);
+    const boost = fx.reduce((a, x) => a * (x.boost ?? 1), 1);
+    const add = Math.round((ITEMS[it.id].hp || 0) * boost + m.hp + gemSum(it, 'hp'));
+    if (add) hpParts.push(`${ITEMS[it.id].name} ${add > 0 ? '+' : '−'}${Math.abs(add)}`);
     hp += add;
-    luck += (ITEMS[it.id].stats?.luck || 0) + m.luck;
+    luck += (ITEMS[it.id].stats?.luck || 0) + m.luck + gemSum(it, 'luck');
     ls += m.ls;
+    if (!ITEMS[it.id].cd) quick += fx.filter(x => x.quick).length;
   }
   const weapon = (it, w) => {
     const m = it ? itemMods(it) : itemMods({});
-    return { name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (1 + m.dmgPct / 100), interval: w.interval * (1 - m.spdPct / 100), critMult: Math.max(2, w.critMult || 2), ls: (w.ls || 0) * 100 };
+    const g = k => (it ? gemSum(it, k) : 0);
+    return {
+      name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (1 + (m.dmgPct + g('dmgPct')) / 100),
+      interval: w.interval * (1 - (m.spdPct + g('spdPct')) / 100) * (1 - Math.min(30, quick * 4) / 100),
+      critMult: Math.max(2, w.critMult || 2), ls: ((w.ls || 0) + g('ls')) * 100, critBonus: g('critBonus') * 100,
+    };
   };
   const mainDef = S.equip.weapon && ITEMS[S.equip.weapon.id];
   const main = weapon(S.equip.weapon, mainDef ? mainDef.weapon : { interval: 1.5, dmg: 1 });
@@ -803,6 +744,12 @@ function renderSheet(s) {
       const g = l.k === 'onHit' ? 'hit' : ['shield', 'heat', 'thorns', 'slow', 'sand'].includes(l.k) ? 'start' : l.k === 'clutchShield' ? 'clutch' : null;
       if (g) groups[g].push({ id: it.id, name: `${def.name} · potential`, text: lineText(l).replace(/^(On hit|Clutch|Start):\s*/i, '').replace(/^Start with/, 'Gain') });
     }
+    for (const g of gemsOf(it)) {
+      let sent = gemText(g, def).replace(/^Cursed\.\s*/, '');
+      const [k, , re] = WHEN.find(([, , r]) => r.test(sent));
+      sent = (k === 'trigger' || k === 'passive' ? sent : sent.replace(re, '')).replace(/\.$/, '');
+      groups[k].push({ id: g, name: `${def.name} · ${GEMS[g].name} gem`, text: sent.charAt(0).toUpperCase() + sent.slice(1) });
+    }
     if (m.shield && it.up?.st?.ward) groups.start.push({ id: it.id, name: `${def.name} · Ward`, text: `Gain ${(it.up.st.ward) * 4} Shield` });
   }
   // What you actually start with, read from a zero-length fight so every item and upgrade is counted.
@@ -825,7 +772,7 @@ function renderSheet(s) {
     row('spd', 'Attack time', `${s.main.interval.toFixed(2)}s`, `${(1 / s.main.interval).toFixed(2)} attacks per second`),
     row('dmg', 'Weapon damage per second', dps(s.main), `before crits${s.off ? `, plus ${dps(s.off)} from ${s.off.name}` : ''}`),
     s.off && row('dmg', 'Offhand weapon', `${Math.round(s.off.dmg * 10) / 10} / ${s.off.interval.toFixed(1)}s`, s.off.name),
-    row('crit', 'Crit chance', `${s.crit}%`, `5% base + 3% per Luck`),
+    row('crit', 'Crit chance', `${s.crit}%`, `5% base + 3% per Luck${s.main.critBonus ? `, plus ${s.main.critBonus}% on ${s.main.name} from gems` : ''}`),
     row('crit', 'Crit damage', `×${s.main.critMult}`, `weapon crits${critExtra}`),
     row('luck', 'Luck', s.luck, 'also +3% to every chance-based effect'),
     row('ls', 'Lifesteal', `${Math.round(s.ls * 10) / 10}%`, 'of weapon damage, from upgrades and weapon'),
@@ -844,6 +791,8 @@ $('stats').addEventListener('click', () => toggleSheet());
 $('stats').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSheet(); } });
 $('stat-sheet').addEventListener('click', e => { if (e.target.closest('#ss-close')) toggleSheet(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen && enchantEl.hidden) toggleSheet(false); });
+// A gem's three effects, one per kind of item.
+const gemEffectsHTML = def => `<div class="gem-fx">${Object.entries(GEM_KINDS).map(([k, label]) => `<div><span class="gk">${label}</span><span>${kwText(def.text[k])}</span></div>`).join('')}</div>`;
 const card = $('card'), actions = $('actions');
 let ttItem = null;
 function renderInspector() {
@@ -860,14 +809,14 @@ function renderInspector() {
   const [w, k] = loc.split(':');
   const btn = (act, label, primary, extra = '') => `<button type="button" class="btn${primary ? ' primary' : ''}" data-act="${act}" ${extra}>${label}</button>`;
   if (isUse(item.id)) {
-    const def = USE[item.id];
+    const def = GEMS[item.id];
     const price = w === 'ench' ? enchPrice(item) : def.price;
-    card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
-      <div class="chips"><span class="chip">Enchanter</span><span class="chip">${{ scroll: 'Scroll', chaos: 'Scroll', hammer: 'Hammer', cube: 'Cube', lock: 'Lockstone' }[def.kind]}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
-      <p class="c-effect">${kwText(def.text)}</p>
-      <span class="c-value">${w === 'ench' ? `In the Enchanter · Costs ${price} gold${item.lucky ? ' (Lucky Merchant: 1 off)' : ''}` : `In your Use row · ${item.n} held · Sells for ${sellValue(item)} each`}</span>`;
+    card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name} gem</span>
+      <div class="chips"><span class="chip">Gem</span>${def.school ? `<span class="chip">${schoolDot(def.school)}${def.school}</span>` : ''}<span class="chip">${def.cursed ? 'Cursed' : RARITY_NAME[def.rarity]}</span></div>
+      ${gemEffectsHTML(def)}
+      <span class="c-value">${w === 'ench' ? `At the Jeweler · Costs ${price} gold${item.lucky ? ' (Lucky Merchant: 1 off)' : ''}` : `In your Gems row · ${item.n} held · Sells for ${sellValue(item)} each`}</span>`;
     if (w === 'ench') actions.innerHTML = btn('buyuse', `${COIN.replace('<svg', '<svg width="16" height="16"')}Buy for ${price}`, true, S.gold < price ? 'aria-disabled="true"' : '');
-    else actions.innerHTML = (def.kind === 'lock' ? '' : btn('use', 'Use on an item', true)) + btn('sell', `Sell 1 for ${sellValue(item)}`, false);
+    else actions.innerHTML = btn('use', 'Set into an item', true) + btn('sell', `Sell 1 for ${sellValue(item)}`, false);
     return;
   }
   const def = ITEMS[item.id];
@@ -877,7 +826,7 @@ function renderInspector() {
     <div class="chips">${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
     <span class="c-stats">${statLine(def)}</span>
     <p class="c-effect">${kwText(def.text)}</p>
-    ${w === 'shop' ? '' : upgradeHTML(item)}
+    ${socketsHTML(item, w !== 'shop')}
     <span class="c-value">${where} · ${value}</span>`;
   if (w === 'shop') {
     const o = S.shop[+k];
@@ -926,7 +875,7 @@ function bumpGold() {
 const tip = $('tip');
 function showTipFor(el, def, item = null) {
   tip.innerHTML = isUse(def.id)
-    ? `<span class="t-name r-${def.rarity}">${def.name}</span><span class="t-meta">Enchanter · ${RARITY_NAME[def.rarity]}${item?.n > 1 ? ` · ${item.n} held` : ''}</span><span>${def.text}</span>`
+    ? `<span class="t-name r-${def.rarity}">${def.name} gem</span><span class="t-meta">Gem · ${def.school ?? (def.cursed ? 'Cursed' : RARITY_NAME[def.rarity])}${item?.n > 1 ? ` · ${item.n} held` : ''}</span>${gemEffectsHTML(def)}`
     : `<span class="t-name r-${def.rarity}">${def.name}</span>
     <span class="t-meta">${def.schools.join(' · ')} · ${slotLabel(def)} · ${RARITY_NAME[def.rarity]}</span>
     <span>${statLine(def)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
@@ -1048,7 +997,8 @@ document.addEventListener('click', e => {
     stopTargeting();
     if (!b) return;
   }
-  if (e.target.closest('#forge')) { openForge(); return; }
+  const pry = e.target.closest('[data-pry]');
+  if (pry && S.sel) { pryGem(S.sel, +pry.dataset.pry); return; }
   const lock = e.target.closest('[data-lock]');
   if (lock) { toggleLock(+lock.dataset.lock); return; }
   const b = e.target.closest('.item');
@@ -1318,7 +1268,7 @@ function hudHTML(side, name, sub, equip) {
     if (!e) continue;
     const def = ITEMS[e.id];
     const timed = def.weapon || def.dual || def.cd;
-    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}${steps(e) ? ` <span class="hup">${signed(steps(e))}</span>` : ''}${e.pot ? ` <span class="b-pot inline t${e.pot.tier}"></span>` : ''}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
+    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}${steps(e) ? ` <span class="hup">${signed(steps(e))}</span>` : ''}${e.pot ? ` <span class="b-pot inline t${e.pot.tier}"></span>` : ''}${gemsOf(e).map(g => `<span class="hgem" title="${GEMS[g].name} gem" style="--gc: #${GEMS[g].color.toString(16).padStart(6, '0')}"></span>`).join('')}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
     <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
@@ -1331,7 +1281,7 @@ function startBattle(ex = null) {
   hideTip();
   statusTip = null;
   const ghost = ex ? ex.ghost : makeGhost(S.day, rng);
-  if (!ex) upgradeGhost(ghost, S.day, rng);
+  if (!ex) gemGhost(ghost, S.day, rng);
   const src = ex ? ex.equip : S.equip;
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, src[k] ? { ...src[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
@@ -1881,7 +1831,7 @@ $('runover').addEventListener('click', e => {
   if (e.target.closest('#ro-hof')) { m.hidden = true; hideTip(); newRun(); S.started = false; showMenu('hof'); }
 });
 function newRun() {
-  Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null), shards: 0 });
+  Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null) });
   refreshShop();
   commit();
   sizeHero();
@@ -2346,7 +2296,7 @@ const hofItem = uid => HOF.items.find(i => i.uid === uid) ?? null;
 const clone = o => (o ? JSON.parse(JSON.stringify(o)) : undefined);
 // Upgrades are copied as steps and lines, so kept items follow future balance changes.
 function keepInHof(item, meta) {
-  const kept = { uid: `h${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`, id: item.id, up: clone(item.up), pot: clone(item.pot), kept: meta };
+  const kept = { uid: `h${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`, id: item.id, up: clone(item.up), pot: clone(item.pot), gems: [...gemsOf(item)], kept: meta };
   HOF.items.unshift(kept);
   rival = null;
   saveHof();
@@ -2381,7 +2331,7 @@ function makeRival() {
   const n = Math.max(1, loadoutCount());
   const day = 10 + Math.floor(rng() * 6);
   const g = makeGhost(day, rng);
-  upgradeGhost(g, day, rng);
+  gemGhost(g, day, rng);
   const have = ALL_SLOTS.filter(k => g.equip[k]);
   const keep = [...have.filter(k => k === 'weapon'), ...have.filter(k => k !== 'weapon').sort(() => rng() - 0.5)].slice(0, n);
   const pick = a => a[Math.floor(rng() * a.length)];
@@ -2525,8 +2475,7 @@ function endExhibition(outcome) {
 function devHofItem() {
   const pool = ITEM_IDS.filter(id => ITEMS[id].rarity !== 'common');
   const item = inst(pool[Math.floor(rng() * pool.length)]);
-  upgradeGhost({ equip: { weapon: item } }, 15, rng);
-  if (!item.pot && rng() < 0.7) item.pot = rollCube(item, USE.bright_cube, rng).pot;
+  gemGhost({ equip: { weapon: item }, schools: ITEMS[item.id].schools }, 15, rng);
   keepInHof(item, { date: new Date().toISOString().slice(0, 10), dev: true });
   renderHof();
   renderMenu();
@@ -2597,7 +2546,7 @@ else showMenu();
 requestAnimationFrame(loop);
 
 // Test hook, only with ?debug in the URL.
-if (location.search.includes('debug')) window.__game = { S, P, HOF, ITEMS, USE, inst, commit, startBattle, B, openEnchant, openForge, showMenu, showRunOver, devHofItem };
+if (location.search.includes('debug')) window.__game = { S, P, HOF, ITEMS, USE, GEMS, inst, commit, startBattle, B, openEnchant, showMenu, showRunOver, devHofItem };
 
 // Ambient background: embers rise in Low-poly mode; in Pixel mode the same motes become falling leaves under drifting clouds.
 {

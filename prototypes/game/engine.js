@@ -1,6 +1,6 @@
 // Deterministic combat simulation, following the design doc's keyword rules.
 // simulate() runs a whole fight up front and returns per-tick frames and an event list for playback.
-import { itemMods } from './upgrades.js';
+import { itemMods, GEMS, gemKind, gemsOf } from './upgrades.js';
 
 export function mulberry32(a) {
   return function () {
@@ -48,7 +48,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0, regen: 0 },
+      start: { shield: 0, heat: 0, slow: 0, sand: 0, poison: 0, thorns: 0, regen: 0 },
+      // Gem bonuses (upgrades.js): status caps, Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
+      capBonus: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
       stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, regen: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
@@ -59,21 +61,44 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       const def = ITEMS[e.id];
       // Scroll steps and cube lines (upgrades.js) adjust a per-fighter copy, never the shared def.
       const m = itemMods(e);
-      const it = { def, slot, data: {}, busy: false, timer: 0, cd: def.cd ? def.cd * (1 - m.cdPct / 100) : 0 };
+      // Socketed gems: each one's effect for this kind of item (weapon, armour or jewellery).
+      const gfx = gemsOf(e).map(id => { const g = GEMS[id]; if (g.school) f.schools[g.school] = (f.schools[g.school] || 0) + 1; return g.fx[gemKind(def)]; });
+      const sum = k => gfx.reduce((a, x) => a + (x[k] ?? 0), 0);
+      const boost = gfx.reduce((a, x) => a * (x.boost ?? 1), 1);
+      const quick = gfx.filter(x => x.quick).length;
+      const it = {
+        def, slot, data: {}, busy: false, timer: 0, boost,
+        echo: 1 - gfx.reduce((a, x) => a * (1 - (x.echo ?? 0)), 1),
+        cd: def.cd ? def.cd * (1 - m.cdPct / 100) * 0.75 ** quick : 0,
+      };
+      if (quick && !def.cd) f.gemSpd += 4 * quick;
       f.items.push(it);
-      f.maxHp += (def.hp || 0) + m.hp;
-      f.luck += m.luck;
+      f.maxHp += (def.hp || 0) * boost + m.hp + sum('hp');
+      f.luck += m.luck + sum('luck');
       f.ls += m.ls / 100;
-      for (const k in f.start) f.start[k] += m[k];
+      for (const k in f.start) f.start[k] += m[k] ?? 0;
       f.clutchShield += m.clutchShield;
+      for (const x of gfx) {
+        for (const k in x.start ?? {}) f.start[k] += x.start[k];
+        for (const k in x.capBonus ?? {}) f.capBonus[k] = (f.capBonus[k] ?? 0) + x.capBonus[k];
+        for (const k of ['freezeBonus', 'thornsBonus', 'healPct', 'lowDmgPct', 'selfCatalyst']) f[k] += x[k] ?? 0;
+        // A gem's own triggered effects ride along as a companion of its item (same slot, same boost).
+        if (x.hooks) f.items.push({ def: { hooks: x.hooks, schools: [] }, slot, data: {}, busy: false, timer: 0, boost, gem: true });
+      }
       if (def.stats) { f.luck += def.stats.luck || 0; }
       if (def.flags) Object.assign(f.flags, def.flags);
-      const tune = w => ({ ...w, dmg: w.dmg * (1 + m.dmgPct / 100), interval: w.interval * (1 - m.spdPct / 100), extra: m.onHit });
+      const tune = w => ({
+        ...w, dmg: w.dmg * (1 + (m.dmgPct + sum('dmgPct')) / 100), interval: w.interval * (1 - (m.spdPct + sum('spdPct')) / 100), extra: m.onHit,
+        ls: (w.ls || 0) + sum('ls'), critBonus: sum('critBonus'), catalyst: sum('catalyst'),
+        echoHits: Math.min(Infinity, ...gfx.map(x => x.echoHits ?? Infinity)),
+        gemHit: gfx.filter(x => x.hit).map(x => ({ fn: x.hit, data: {}, slot, boost })),
+      });
       if (def.weapon) f.weapons.push({ it, w: tune(def.weapon), timer: 0, main: true, slot });
       if (def.dual) f.weapons.push({ it, w: tune(def.dual), timer: 0, main: false, slot });
       if (def.cd) f.cds.push(it);
       for (const s of def.schools) if (s !== 'Prismatic') f.schools[s] = (f.schools[s] || 0) + 1;
     }
+    if (f.gemSpd) for (const wp of f.weapons) wp.w.interval *= 1 - Math.min(30, f.gemSpd) / 100;
     if (!f.weapons.some(w => w.main)) f.weapons.unshift({ it: null, w: { interval: 1.5, dmg: 1, hands: 1 }, timer: 0, main: true, slot: 'weapon' });
     if (build.hp) f.maxHp = build.hp;
     f.hp = f.maxHp;
@@ -91,7 +116,11 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (!h || it.busy) continue;
       it.busy = true;
       let did = false;
-      try { did = h(ctx(f, it), payload); } finally { it.busy = false; }
+      try {
+        did = h(ctx(f, it), payload);
+        // Echo gem: a chance for the item's effect to happen again.
+        if (did && it.echo && rng() < it.echo) h(ctx(f, it), payload);
+      } finally { it.busy = false; }
       if (did) ev('trigger', { side: f.side, slot: it.slot });
     }
   }
@@ -160,7 +189,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function credit(f, key, n) { f.stats.dealt[key] = (f.stats.dealt[key] ?? 0) + n; }
   function heal(f, n, o = {}) {
     if (!(n > 0) || f.dead) return false;
-    n = mod(f, 'heal', n);
+    n = mod(f, 'heal', n) * (1 + f.healPct / 100);
     if (f.st.burn > 0) n *= BURN_HEAL_CUT;
     if (f.flags.healCrit && critRoll(f)) n *= 2;
     const room = Math.max(0, f.maxHp - f.hp);
@@ -218,7 +247,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   }
   function freeze(tgt, dur, force, src) {
     if (tgt.dead || (!force && tgt.thaw > 0)) return false;
-    tgt.frozen = Math.max(tgt.frozen, dur);
+    tgt.frozen = Math.max(tgt.frozen, dur + (src?.freezeBonus ?? 0));
     tgt.thaw = 0;
     tgt.st.frost = 0;
     ev('freeze', { side: tgt.side, dur });
@@ -240,9 +269,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (type === 'slow') {
         const c = Math.min(tgt.heat, n);
         tgt.heat -= c;
-        tgt.st.slow = Math.min(SLOW_CAP, tgt.st.slow + n - c);
+        tgt.st.slow = Math.min(capOf(src, 'slow'), tgt.st.slow + n - c);
       } else if (type === 'sand') {
-        tgt.st.sand = Math.min(SAND_CAP, tgt.st.sand + n);
+        tgt.st.sand = Math.min(capOf(src, 'sand'), tgt.st.sand + n);
       } else if (type === 'poison' || type === 'burn') {
         n = Math.min(n, Math.max(0, capOf(src, type) - tgt.st[type]));
         if (n <= 0) return false;
@@ -263,7 +292,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   // pulse is Ironbark's timer. It still strikes, and bridge rings still notice, but it does not grow Thorns.
   function thornsStrike(owner, tgt, pulse) {
     if (owner.dead || tgt.dead || !(owner.thorns > 0)) return false;
-    let n = owner.thorns;
+    let n = owner.thorns + owner.thornsBonus;
     let crit = false;
     if (owner.flags.thornCrit && critRoll(owner)) { n *= 2; crit = true; }
     ev('thorns', { side: owner.side });
@@ -273,8 +302,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   }
   // Statuses never wear off; caps keep them in check. Wildfire lifts its owner's Burn cap.
   function capOf(src, type) {
-    if (type === 'burn') return src.flags.wildfire ? BURN_CAP_WILDFIRE : BURN_CAP;
-    return { poison: POISON_CAP, slow: SLOW_CAP, sand: SAND_CAP }[type] ?? Infinity;
+    const bonus = src.capBonus[type] ?? 0;
+    if (type === 'burn') return (src.flags.wildfire ? BURN_CAP_WILDFIRE : BURN_CAP) + bonus;
+    return ({ poison: POISON_CAP, slow: SLOW_CAP, sand: SAND_CAP }[type] ?? Infinity) + bonus;
   }
   // Cleanse: remove stacks from your biggest debuff (Burn, Poison, Slow or Sand; not the Frost meter), one at a time. Mirror of the Moon sends them back.
   function cleanse(f, n) {
@@ -315,10 +345,14 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
 
   function ctx(me, it, foeOverride) {
     const foe = foeOverride ?? other(me);
+    // Hollow gem: this item's amounts are boosted. Whole-number amounts round up or down by chance, so +40% on 1 still counts.
+    const b = it?.boost ?? 1;
+    const ampF = n => n * b;
+    const ampI = n => { if (b === 1) return n; const x = n * b, lo = Math.floor(x); return lo + (rng() < x - lo ? 1 : 0); };
     return {
       me, foe, data: it ? it.data : {}, t,
       rng,
-      apply: (type, n) => apply(me, foe, type, n),
+      apply: (type, n) => apply(me, foe, type, ampI(n)),
       addRaw: (type, n) => {
         if (type === 'poison' || type === 'burn') n = Math.min(n, Math.max(0, capOf(me, type) - foe.st[type]));
         if (!(n > 0)) return false;
@@ -326,9 +360,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         ev('status', { side: foe.side, st: type, n });
         return true;
       },
-      gain: (type, n) => gain(me, type, n),
-      heal: n => heal(me, n),
-      hit: n => damage(me, foe, n, 'pure', { slot: it?.slot }) > 0,
+      gain: (type, n) => gain(me, type, type === 'shield' || type === 'ls' ? ampF(n) : ampI(n)),
+      heal: n => heal(me, ampF(n)),
+      hit: n => damage(me, foe, ampF(n), 'pure', { slot: it?.slot }) > 0,
       selfDamage: n => damage(me, me, n, 'self') > 0,
       chance: p => chance(me, p),
       freeze: dur => freeze(foe, dur, true, me),
@@ -337,10 +371,11 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       randomBoon: () => boon(me),
       luck: () => luckOf(me),
       thorns: pulse => thornsStrike(me, foe, pulse),
-      cleanse: n => cleanse(me, n),
+      cleanse: n => cleanse(me, ampI(n)),
     };
   }
 
+  const statusTypes = f => STATUSES.reduce((n, k) => n + (f.st[k] > 0 ? 1 : 0), 0);
   function attack(a, d, wp) {
     const w = wp.w;
     ev('attack', { side: a.side, slot: wp.slot, main: wp.main });
@@ -361,8 +396,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     let crit;
     if (a.autoCrit > 0) { crit = true; a.autoCrit--; }
     else if (a.flags.shatter && d.frozen > 0) crit = true;
-    else crit = critRoll(a);
-    let dmg = w.dmg;
+    else crit = critRoll(a) || (w.critBonus > 0 && rng() < w.critBonus);
+    let dmg = w.dmg + (w.catalyst ? w.catalyst * statusTypes(d) : 0);
+    if (a.lowDmgPct && a.hp < a.maxHp * 0.5) dmg *= 1 + a.lowDmgPct / 100;
+    if (a.selfCatalyst) dmg *= 1 + (a.selfCatalyst * statusTypes(a)) / 100;
     if (a.flags.juggernaut) dmg += a.shield * 0.25;
     dmg = mod(a, 'hitDmg', dmg);
     if (crit) dmg *= Math.max(2, w.critMult || 2, mod(a, 'critMult', 2));
@@ -376,8 +413,15 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       heal(a, dealt * ls, { ls: true });
       fire(a, 'lifestole', { n: dealt * ls });
     }
-    if (w.onHit) w.onHit(ctx(a, wp.it));
-    for (const x of w.extra ?? []) apply(a, d, x.type, x.n);
+    wp.hits = (wp.hits ?? 0) + 1;
+    const onHits = () => {
+      if (w.onHit) w.onHit(ctx(a, wp.it));
+      for (const x of w.extra ?? []) apply(a, d, x.type, x.n);
+      for (const g of w.gemHit ?? []) g.fn(ctx(a, g), { crit, n: wp.hits });
+    };
+    onHits();
+    // Echo gem: every Nth hit, this weapon's on-hit effects happen twice.
+    if (wp.hits % w.echoHits === 0) onHits();
     fire(a, 'hit', { crit, main: wp.main });
     if (crit) fire(a, 'crit');
     fire(d, 'whenHit', { dmg: dealt });
@@ -458,6 +502,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (s.heat) gain(f, 'heat', s.heat);
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
+    if (s.poison) apply(f, other(f), 'poison', s.poison, { generated: true });
     if (s.thorns) gain(f, 'thorns', s.thorns);
     if (s.regen) gain(f, 'regen', s.regen);
   }
@@ -511,7 +556,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
           ev('trigger', { side: f.side, slot: it.slot, cast: true });
           it.busy = true;
           cause = 'item';
-          try { it.def.act(ctx(f, it)); } finally { it.busy = false; cause = 'other'; }
+          try {
+            it.def.act(ctx(f, it));
+            if (it.echo && rng() < it.echo) it.def.act(ctx(f, it));
+          } finally { it.busy = false; cause = 'other'; }
         }
       }
     }

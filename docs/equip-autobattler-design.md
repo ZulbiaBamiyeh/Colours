@@ -10,7 +10,7 @@ The depth comes from three layers:
 
 1. **Keywords** (Burn, Frost, Sand, ...) with simple rules that counter each other.
 2. **Slots** that decide *how* an item triggers, while its **school** decides *what* it does. Every school can fill every slot, so you can stack one school or combine two.
-3. **Bridges and legendaries** that connect schools into a web of builds, plus scrolls and cubes for gambling on upgrades.
+3. **Bridges and legendaries** that connect schools into a web of builds, plus gems and sockets that change what each item does.
 
 ## 2. Run structure (proposed)
 
@@ -20,9 +20,9 @@ The depth comes from three layers:
 | Day | Shop phase, then one fight. |
 | Opponent | An asynchronous ghost: a snapshot of another player's build from the same day number. |
 | Gold | 10 per day. Unspent gold carries over. |
-| Shop | 5 gear offers plus 3 Enchanter offers (scrolls and cubes). Reroll 1 gold rerolls both shelves. Lock gear offers between days. Sell items for 50%, plus 1 gold per successful scroll. |
-| Lucky Merchant | Every 3rd day, one Enchanter offer is a guaranteed rare consumable (Chaos Scroll, Mirror Cube or Golden Hammer) at 1 gold off. |
-| Bag | Two tabs. **Equip:** 6 slots for items you're holding (a bench, not a build slot). **Use:** 6 slots for scrolls and cubes, stacking up to 9 of each. |
+| Shop | 5 gear offers plus 3 Jeweler offers (gems). Reroll 1 gold rerolls both shelves. Lock gear offers between days. Sell items for 50%; their gems come back to you. |
+| Lucky Merchant | Every 3rd day, one Jeweler offer is a guaranteed rare gem (Echo, Quicksilver or Catalyst) at 1 gold off. |
+| Bag | Two tabs. **Equip:** 6 slots for items you're holding (a bench, not a build slot). **Gems:** 6 slots for gems, stacking up to 9 of each. |
 | Rarity by day | Common and Rare from day 1, Epic from day 3, Legendary from day 5 (rare). |
 | Relic days | Days 5 and 10: choose 1 of 3 legendaries. |
 | Classes | Not yet. Weapon choice and school stacking act as soft classes for now. |
@@ -490,77 +490,80 @@ Every build should have at least two good and two bad matchups. Speed Thief curr
 
 ---
 
-## 10. Scrolls, cubes and the Use tab
+## 10. Gems and sockets
 
-Upgrades are consumables bought from the **Enchanter** shelf and kept in the bag's **Use** tab. Drag one onto any item, in the bag or equipped, or select it and click Use, then pick the item. A window shows the odds and possible results before you confirm.
+Gems replaced scrolls, cubes and lockstones. Every piece of gear has **sockets: 1 on commons, 2 on rares and up.** Gems are the only consumables: bought from the **Jeweler** shelf, kept in the bag's **Gems** row, and set into gear by dragging a gem onto an item or by selecting it and clicking *Set into an item*.
 
-### Scrolls: stats, with risk
+**One gem, three effects.** What a gem does depends on the kind of item it sits in:
 
-Every item has **upgrade slots by rarity: Common 2, Rare 3, Epic 4, Legendary 3.** Each scroll attempt uses a slot whether it works or not. Successful steps show as a **+N** badge on the item.
+- **Weapon:** anything that attacks, including dual-wield offhands.
+- **Armour:** helm, body, gloves, boots, cape, and offhands that don't attack.
+- **Jewellery:** rings and the amulet.
 
-**What a scroll improves depends on the slot.** You choose which of the two stats when you apply it:
+So where a gem goes is the decision. A gem also counts toward its school for status picks, the way an item does.
 
-| Slot | Stat | One step |
+### The gems
+
+**School gems (common, 2 gold):**
+
+| Gem | Weapon | Armour | Jewellery |
+|---|---|---|---|
+| Ember (Fire) | Every 3rd hit: 1 Burn | Every 3rd time you're hit: 1 Burn to the attacker | Burn cap +2 |
+| Rime (Frost) | On hit: 2 Frost | Every 2nd time you're hit: 1 Slow to the attacker | Freezes last 1s longer |
+| Viper (Venom) | Every 3rd hit: 2 Poison | Start: 2 Poison | Poison cap +4 |
+| Dune (Desert) | On hit: 1 Sand | When hit: 30% chance of 1 Sand on the attacker | Start: 3 Sand |
+| Halo (Holy) | On hit: heal 1 | Start: 6 Shield | Healing +15% |
+| Garnet (Blood) | +6% Lifesteal on this weapon | +8 max HP | Below 50% HP: weapons deal +10% |
+| Clover (Fortune) | +5% crit on this weapon | +2 Luck | On crit: +1 Luck (up to 5) |
+| Briar (Thorn) | On crit: 2 Thorns | Start: 1 Thorns | Thorns deal +1 |
+| Moonstone (Lunar) | First hit: 1 Regen | Start: 1 Regen | Every 3rd Regen tick: Cleanse 1 |
+
+**Rare gems (4 gold, from day 2):**
+
+| Gem | Weapon | Armour and jewellery |
 |---|---|---|
-| Weapon, dual-wield offhand | Attack | +6% of the weapon's base damage |
-| | Haste | −3% attack time |
-| Other offhands | Focus | −4% cooldown |
-| | Vitality | +5 HP |
-| Helm, body, gloves, boots, cape | Vitality | +5 HP |
-| | Ward | Start each fight with +4 Shield |
-| Ring, amulet | Fortune | +1 Luck |
-| | Leech | +1.5% Lifesteal |
+| Echo | Every 3rd hit, the weapon's on-hit effects happen twice | The item's effects have a 50% chance to happen twice |
+| Quicksilver | Attacks 6% faster | The item's cooldown is 25% shorter; without one, your weapon is 4% faster |
+| Catalyst | +2 damage per different status on the enemy | Armour: +8% weapon damage per different status on you. Jewellery: all status caps +3 |
 
-| Scroll | Odds | On success | On failure | Price |
-|---|---|---|---|---|
-| Blessed Scroll | 100% | +1 step | – | 2 |
-| Scroll | 60% | +2 steps | Slot used | 3 |
-| Dark Scroll | 30% | +5 steps | Slot used, and 50% chance the item is destroyed | 4 |
-| Chaos Scroll | 60% | Both of the item's stats change by −2 to +4 steps | Slot used | 5 |
-| Golden Hammer | 100% | +1 upgrade slot (once per item, uses no slot) | – | 6 |
+**Cursed gem (1 gold, from day 2):** **Hollow.**
+- **In a weapon:** +15% damage, and its on-hit effects are 15% stronger, at −10 max HP.
+- **In armour:** the item's HP and effects are 60% stronger, at −4 max HP.
+- **In jewellery:** the item's effects are 60% stronger, at −3 max HP.
 
-- **Bad-luck protection:** each failed scroll on an item adds +5% to that item's next attempt.
-- **Shards:** a destroyed item leaves a Shard. 3 Shards forge a legendary: choose 1 of 3.
-- **Luck doesn't affect scroll or cube rolls.** Luck is a combat stat.
-- There is deliberately no protection scroll and no slot recovery. Risk is the point, and the Dark Scroll is the only way to lose an item.
+A cursed gem can't be taken out, only replaced.
 
-### Cubes: potential lines
+### Rules
 
-An item has a **potential tier** with lines: Rare (1 line), Epic (2), Unique (3), Legendary (3, strongest values). A new item has no potential; the first cube gives it Rare.
+- **Full sockets:** a new gem replaces one you choose, and the old gem is destroyed.
+- **Taking a gem out:** costs 2 gold and returns it to the Gems row.
+- **Selling gear:** returns its gems to the Gems row while there's room. Cursed gems are lost.
+- **Display:** gear shows its sockets as small diamond pips (filled with the gem's colour). The battle panel shows each fighter's gems next to their items.
+- **Luck** doesn't affect anything about gems; it's a combat stat.
 
-| Cube | Effect | Price |
-|---|---|---|
-| Plain Cube | Rerolls all lines. The tier never rises. | 3 |
-| Bright Cube | Rerolls, with a chance to raise the tier: Rare→Epic 10%, Epic→Unique 6%, Unique→Legendary 3%. | 5 |
-| Mirror Cube | Works like a Bright Cube, then shows old and new lines side by side and you keep either set. | 7 |
-| Lockstone | When cubing, tick a line to lock: it stays through the reroll and one Lockstone is used. | 3 |
+### Tuning (simulator, day 8)
 
-**Line pools** (values at Rare / Epic / Unique / Legendary). Lines are stats and status sources only. They never add a school tag, never contain rule text and never act as bridges.
+- **Per gem:** one extra gem on a random item of a random build wins 46–62% against the same build without it. The jewellery effects at the bottom of that range (longer Freezes, Luck on crit, higher caps) are build-enablers, and do little for builds not aimed at them.
+- **Overall:** a fully gemmed day-8 ghost (about 5 gems) beats its ungemmed twin 78% of the time.
+- **Schools:** with gems on both sides, every school lands at 41–57% on days 3 / 8 / 14.
 
-| Family | Lines |
-|---|---|
-| Weapon | Weapon damage +4/7/10/14% · Attack time −3/5/7/10% · Lifesteal +2/3/5/7% · Luck +1/2/3/4 · On hit: apply 1/1/2 of a status (Epic and up) |
-| Armour | HP +8/12/18/25 · Start with Shield 6/10/15/22 · Start with Heat 2/3/4 (Epic and up) · Clutch: gain Shield 10/15/22 (Epic and up) · Luck +1/1/2/3 · Start with Thorns 2/3/4/6 |
-| Offhand | Cooldown −4/6/9/12% · HP +6/10/14/20 · Start with Shield 5/8/12/18 · Luck +1/2/2/3 |
-| Accessory | Luck +1/2/3/4 · Lifesteal +2/3/4/6% · HP +6/10/14/20 · Start with Heat 1/2/3/4 · Start: apply Slow 2/3/4/6 · Start: apply Sand 3/4/6 (Epic and up) |
+### Ghosts
 
-**Caps across all items:** weapon damage +30%, attack time −25%, cooldown −25%. The jackpot is a source line like "On hit: apply 2 Burn" on a non-Fire weapon, which lets a build borrow a status without a bridge ring.
-
-### Ghosts upgrade too
-
-Ghost builds get scroll steps and potential tiers that scale with the day, so they keep pace with what players invest.
+Ghosts socket about 0.6 gems per day, up to their free sockets. Most are their own schools' gems, with about 25% rare gems from day 3 and the odd Hollow.
 
 In the prototype, ghosts are generated by a shopper that spends about a player's budget (10 gold on day 1, then 9 a day, unspent gold carries). Each day it sees one plain market plus two rerolls that favour its schools. It plans around two schools (85% of ghosts; the rest go mono), counts each piece's fit, and values a school less the more of it it already wears, so builds mix rather than run a full single-school set. Bridge pieces that reach into a third school still fit. From day 3 an empty slot can take an off-school filler piece, which is the first thing it replaces. Result: about 2 items on day 1, 5.4 on day 3 (never fewer than 4), 7.7 on day 5 and 8.3 on day 8. The top school makes up 60–70% of a ghost's gear.
 
-### The Enchanter shelf
+### The Jeweler shelf
 
-3 offers, rerolled together with the gear offers. Blessed Scrolls, Scrolls, Plain Cubes and Lockstones are common; Dark Scrolls and Bright Cubes uncommon; Chaos Scrolls, Mirror Cubes and Golden Hammers rare and only from Day 3.
+3 gems, rerolled together with the gear offers. School gems are common; Echo, Quicksilver, Catalyst and Hollow appear from day 2. Every 3rd day the Lucky Merchant puts a rare gem in the last spot at 1 gold off.
+
+**Retired:** scrolls, cubes, lockstones, the Golden Hammer, Shards and the Forge. Hall of Fame items kept before the change still carry their scroll steps and potential lines, shown as "Upgrades from before gems".
 
 ## 11. Hall of Fame, exhibitions and trading
 
-Runs end, but a player's best items shouldn't vanish. This is what gives scroll and cube results lasting value.
+Runs end, but a player's best items shouldn't vanish. This is what gives a well-socketed item lasting value.
 
-- **Hall of Fame:** after winning a run (10 wins), choose **one item** you finished with, equipped or in the bag, to keep. It keeps its scroll steps and potential lines.
+- **Hall of Fame:** after winning a run (10 wins), choose **one item** you finished with, equipped or in the bag, to keep. It keeps its gems.
 - **Exhibition 1v1:** at any time, equip a set from your Hall of Fame (one item per slot) and fight another player's Hall of Fame avatar. No gold, lives or run progress: it's for fun and bragging rights.
 - **Hall of Fame items never enter runs.** Runs stay fair for everyone, and the hall stays a collection.
 - **Upgrades are stored as steps and lines, not final numbers**, so Hall of Fame items follow future balance changes automatically.
@@ -602,8 +605,8 @@ These rules protect the design so balance work is about numbers, not redesigns.
 7. **No re-triggering.** An effect can't trigger the same item again in the same instant. Generated effects, like Prism Heart's extra status, can't trigger their own source.
 8. **Bridges appear only on rings, and legendaries only in the amulet.** You get at most two bridges and one rule-changer.
 9. **Only one Prismatic item counts toward school resonance.**
-10. **Scroll and cube lines are stats and sources only**, and never add school tags.
-11. **All scaling resets every fight.** Progression across the run comes from the shop, scrolls and cubes, not from permanent buffs.
+10. **Gems change what an item does but never add bridge effects.** A gem counts toward its school only for status picks.
+11. **All scaling resets every fight.** Progression across the run comes from the shop and gems, not from permanent buffs.
 12. **Deterministic resolution order**, so ghost fights replay identically.
 13. **Hall of Fame items never enter runs.** They're for exhibitions, trading and wagers only.
 

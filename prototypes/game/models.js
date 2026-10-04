@@ -1009,13 +1009,43 @@ function lockstone(m) {
   return g;
 }
 
+// A cut gem. cut: round (brilliant), oval, drop (pear), hex (step cut) or star; cursed gems are dark with a violet glow.
+function gemStone(m, p) {
+  const g = new THREE.Group();
+  const col = p.cursed ? 0x2a1838 : p.color;
+  const glow = p.cursed ? 0 : 0.08;
+  const sides = { round: 8, oval: 8, drop: 6, hex: 6, star: 5 }[p.cut] ?? 8;
+  // Lighter crown and table, darker pavilion: the contrast is what reads as a cut stone at icon size.
+  const tint = k => new THREE.Color(col).lerp(new THREE.Color(k > 0 ? 0xffffff : 0x000000), Math.abs(k)).getHex();
+  const crown = mesh(cyl(0.26, 0.42, 0.16, sides), m(tint(0.04), { glow }), [0, 0.08, 0]);
+  const table = mesh(cyl(0.25, 0.25, 0.02, sides), m(tint(0.3), { glow: glow + 0.15 }), [0, 0.17, 0]);
+  const girdle = mesh(cyl(0.43, 0.43, 0.04, sides), m(tint(0.12), { glow }), [0, -0.02, 0]);
+  const pav = mesh(cone(0.43, 0.46, sides), m(tint(-0.35), { glow: glow * 0.6 }), [0, -0.27, 0], [PI, 0, 0]);
+  const gem = new THREE.Group();
+  gem.add(crown, table, girdle, pav);
+  if (p.cut === 'oval') gem.scale.set(1.25, 1, 0.85);
+  if (p.cut === 'drop') { gem.scale.set(0.9, 1.25, 0.9); gem.add(mesh(cone(0.18, 0.3, 6), m(col, { glow }), [0, 0.38, 0])); }
+  if (p.cut === 'star') for (let i = 0; i < 5; i++) {
+    const spoke = new THREE.Group();
+    spoke.rotation.y = (i / 5) * PI * 2;
+    spoke.add(mesh(cone(0.08, 0.26, 4), m(p.cursed ? 0xa25cff : col, { glow: p.cursed ? 0.9 : 0.5 }), [0.48, 0, 0], [0, 0, -PI / 2]));
+    gem.add(spoke);
+  }
+  gem.rotation.set(0.55, 0, 0.18);
+  g.add(gem);
+  g.add(mesh(octa(0.06), m(0xffffff, { glow: 1 }), [0.16, 0.2, 0.32]));
+  if (p.cursed) g.add(mesh(octa(0.1), m(0xa25cff, { glow: 1 }), [0, 0, 0.36]));
+  g.userData.anim = t => { gem.rotation.y = Math.sin(t * 1.2) * 0.35; };
+  return g;
+}
+
 const RECIPES = {
   cinder: (m) => cinder(m), maul: (m) => maul(m), kindling: (m) => kindling(m), haloHelm: (m) => haloHelm(m), prismStaff: (m) => prismStaff(m),
   dagger, sword, mace, hammer, axe, cleaver, scythe, glaive,
   buckler, tome, censer, brazier, lantern, bell, pouch, coin,
   hood, crown, mask, wrap, goggles,
   armor, glove, boot, cape, ring, amulet,
-  scrollRoll, goldHammer, cubeItem, lockstone, whip,
+  scrollRoll, goldHammer, cubeItem, lockstone, whip, gemStone,
 };
 
 export function buildItemModel(def, m = MS) {

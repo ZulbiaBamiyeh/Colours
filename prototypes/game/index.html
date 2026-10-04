@@ -549,9 +549,28 @@
   .t0 { --pc: #4f9de0; } .t1 { --pc: #a25cff; } .t2 { --pc: #f2c14e; } .t3 { --pc: #5fd068; }
   .hup { color: var(--gold); font-size: 0.75rem; }
 
-  /* ---------- Use row, shards, targeting ---------- */
-  .shards { display: inline-flex; align-items: center; gap: 6px; }
-  .shard-gem { width: 9px; height: 12px; background: linear-gradient(#e9d7ff, #a25cff); clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%); }
+  /* ---------- Gems: socket pips, socket lists, gem effects ---------- */
+  .b-socks { position: absolute; z-index: 1; top: 4px; right: 4px; display: flex; gap: 3px; pointer-events: none; }
+  .b-socks i { width: 7px; height: 7px; transform: rotate(45deg); border-radius: 1px; background: var(--gc); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 4px var(--gc); }
+  .b-socks i.e { background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+  .gem-ico { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 7px; background: radial-gradient(circle, color-mix(in srgb, var(--gc, #888) 35%, transparent), transparent 70%); }
+  .gem-ico img { width: 26px; height: 26px; }
+  .socks { display: grid; gap: 4px; margin: 6px 0; }
+  .socks-cap { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--parch-faint); }
+  .sock { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; line-height: 1.3; }
+  .sock > span:nth-child(2) { flex: 1; min-width: 0; }
+  .sock.empty { color: var(--parch-faint); }
+  .sock.empty .gem-ico { border: 1px dashed var(--brass-dim); background: none; width: 24px; height: 24px; margin: 2px; transform: rotate(45deg) scale(0.7); }
+  .sock .btn { flex: none; }
+  .sock b.cursed, .en-name.cursed { color: #c58cff; }
+  .gem-fx { display: grid; gap: 5px; margin: 6px 0; font-size: 0.9rem; line-height: 1.35; }
+  .gem-fx > div { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; }
+  .gem-fx .gk { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parch-faint); padding-top: 2px; }
+  .tip .gem-fx > div { grid-template-columns: 70px minmax(0, 1fr); }
+  .en-gem { margin: 0; font-size: 1rem; }
+  .hgem { display: inline-block; width: 7px; height: 7px; margin-left: 5px; transform: rotate(45deg); border-radius: 1px; background: var(--gc); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 4px var(--gc); vertical-align: 1px; }
+  .en-stat .gem-ico { justify-self: start; }
+  /* ---------- Use row, targeting ---------- */
   .btn.mini { padding: 1px 9px; font-size: 0.78rem; box-shadow: 0 2px 0 var(--gold-deep); }
   #use-cells .slot { --slot-size: clamp(36px, 5.2vh, 46px); }
   .slot.can-use { box-shadow: inset 2px 2px 0 var(--slot-dark), inset -2px -2px 0 var(--slot-hi), 0 0 0 2px #4fc79c, 0 0 14px rgba(79, 199, 156, 0.5); animation: pulse 1.2s ease-in-out infinite; }
@@ -1572,16 +1591,16 @@
     <section class="panel market" data-drop="sell" aria-label="Market">
       <div class="ph"><h2>Market</h2><span class="rule"></span><button type="button" class="reroll" id="reroll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>Reroll &middot; 1</button></div>
       <div class="offers" id="offers"></div>
-      <div class="ph sub"><h3>Enchanter</h3><span class="rule"></span><span class="aside" id="ench-note"></span></div>
+      <div class="ph sub"><h3>Jeweler</h3><span class="rule"></span><span class="aside" id="ench-note"></span></div>
       <div class="ench" id="ench"></div>
-      <p class="market-foot">Drag gear onto a slot to buy and equip it. Drag a scroll or cube onto an item to buy and use it.</p>
+      <p class="market-foot">Drag gear onto a slot to buy and equip it. Drag a gem onto an item to buy it and set it into a socket.</p>
     </section>
     <section class="panel bag" aria-label="Bag">
-      <div class="ph"><h2>Bag</h2><span class="rule"></span><span class="aside shards" id="shards"></span><span class="aside" id="bag-count"></span></div>
+      <div class="ph"><h2>Bag</h2><span class="rule"></span><span class="aside" id="bag-count"></span></div>
       <div class="bag-grid">
         <span class="row-cap">Gear</span>
         <div class="bag-cells" id="bag-cells"></div>
-        <span class="row-cap">Use</span>
+        <span class="row-cap">Gems</span>
         <div class="bag-cells" id="use-cells"></div>
         <div class="sellzone" id="sellzone" data-drop="sell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1.5 3h-3z"/><path d="M10.5 7C6 9 4 13 4 16a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5c0-3-2-7-6.5-9"/><path d="M12 11v6M10.5 12.5h2.3a1 1 0 0 1 0 2h-1.6a1 1 0 0 0 0 2H14"/></svg><span>Sell here &middot; half price</span></div>
       </div>
