@@ -24,7 +24,7 @@ const BOONS = [
   { k: 'heal', school: 'Holy' }, { k: 'shield', school: 'Holy' }, { k: 'heat', school: 'Fire' },
   { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' }, { k: 'thorns', school: 'Thorn' }, { k: 'regen', school: 'Lunar' },
 ];
-const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
+const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet', 'trinket1', 'trinket2'];
 const r1 = n => Math.round(n * 10) / 10;
 
 // opts.maxTime ends the fight early as a draw (used by the practice dummy).
@@ -51,6 +51,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       start: { shield: 0, heat: 0, slow: 0, sand: 0, poison: 0, thorns: 0, regen: 0 },
       // Gem bonuses (upgrades.js): status caps, Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
       capBonus: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
+      // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
+      stasis: 0, berserk: 0, below: {}, hist: [],
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
       stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, regen: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
@@ -99,6 +101,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       for (const s of def.schools) if (s !== 'Prismatic') f.schools[s] = (f.schools[s] || 0) + 1;
     }
     if (f.gemSpd) for (const wp of f.weapons) wp.w.interval *= 1 - Math.min(30, f.gemSpd) / 100;
+    // Trinkets that trade weapon speed for an effect (Anchor Chain).
+    const slowW = f.items.reduce((m, it) => m * (it.def.weaponSlow ?? 1), 1);
+    if (slowW !== 1) for (const wp of f.weapons) wp.w.interval *= slowW;
     if (!f.weapons.some(w => w.main)) f.weapons.unshift({ it: null, w: { interval: 1.5, dmg: 1, hands: 1 }, timer: 0, main: true, slot: 'weapon' });
     if (build.hp) f.maxHp = build.hp;
     f.hp = f.maxHp;
@@ -138,7 +143,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     return ok;
   }
   const critRoll = f => chance(f, 0.05);
-  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, Math.max(0.4, 1 + 0.03 * f.heat - 0.03 * f.st.slow)));
+  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, Math.max(0.4, 1 + 0.03 * f.heat - 0.03 * f.st.slow)) * (f.berserk > 0 ? f.berserkSpd : 1));
 
   function weightedPick(f, options, schoolOf) {
     const w = options.map(o => (f.flags.foolsOpal ? 1 : 1 + (f.schools[schoolOf(o)] || 0)));
@@ -150,6 +155,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
 
   /* ---------- core actions ---------- */
   function checkClutch(f) {
+    // One-time HP thresholds for trinkets: hp50 and hp40 fire once each on the way down.
+    for (const p of [50, 40]) {
+      if (!f.below[p] && !f.dead && f.hp > 0 && f.hp < f.maxHp * (p / 100)) { f.below[p] = true; fire(f, `hp${p}`); }
+    }
     if (!f.clutch && !f.dead && f.hp > 0 && f.hp < f.maxHp * 0.3) {
       f.clutch = true;
       ev('clutch', { side: f.side });
@@ -164,6 +173,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   }
   function damage(src, tgt, n, kind, meta = {}) {
     if (!(n > 0) || tgt.dead) return 0;
+    // Stasis blocks all damage.
+    if (tgt.stasis > 0) return 0;
+    if (tgt.berserk > 0) n *= tgt.berserkTaken;
     if (kind === 'hit') n = incoming(src, tgt, n);
     let absorbed = 0;
     if (kind !== 'poison' && kind !== 'fatigue' && kind !== 'self') {
@@ -372,6 +384,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       luck: () => luckOf(me),
       thorns: pulse => thornsStrike(me, foe, pulse),
       cleanse: n => cleanse(me, ampI(n)),
+      freezeFoe: dur => freeze(foe, dur, false, me),
+      pure: n => damage(me, foe, n, 'pure', { slot: it?.slot }),
+      moment: (k, data = {}) => ev('moment', { side: me.side, k, ...data }),
+      capOf: type => capOf(me, type),
     };
   }
 
@@ -379,6 +395,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function attack(a, d, wp) {
     const w = wp.w;
     ev('attack', { side: a.side, slot: wp.slot, main: wp.main });
+    if (d.stasis > 0) { ev('immune', { side: d.side }); return; }
     const miss = rng() < 0.04 * a.st.sand;
     fire(d, 'attacked', { miss });
     if (miss) {
@@ -516,8 +533,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     t = r1(tick * DT);
     for (const f of [A, B]) {
       const src = other(f);
-      if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * (src.flags.wildfire && src.heat >= WILDFIRE_AT ? 1.25 : 1) * BURN_PER * DT);
-      if (f.st.poison > 0) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
+      if (f.stasis > 0) { /* gold: Burn and Poison wait */ } else if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * (src.flags.wildfire && src.heat >= WILDFIRE_AT ? 1.25 : 1) * BURN_PER * DT);
+      if (f.st.poison > 0 && !(f.stasis > 0)) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
       f.burnT += DT;
       if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0 || f.tick.burn > 0) burnTick(f); }
       f.poisonT += DT;
@@ -530,6 +547,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
           if (f.shown[k] >= 1) { ev('dmg', { side: f.side, n: r1(f.shown[k]), kind: k, absorbed: 0, dot: true }); f.shown[k] = 0; }
         }
       }
+      if (f.stasis > 0) f.stasis = Math.max(0, f.stasis - DT);
+      if (f.berserk > 0) f.berserk = Math.max(0, f.berserk - DT);
+      f.hist.push(f.hp);
+      if (f.hist.length > 31) f.hist.shift();
       if (f.frozen > 0) {
         f.frozen = Math.max(0, f.frozen - DT);
         if (f.frozen === 0) { f.thaw = 2; ev('thaw', { side: f.side }); }
@@ -543,6 +564,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       const sp = speed(f) * DT;
       if (!sp) continue;
       for (const wp of f.weapons) {
+        if (f.stasis > 0) continue;
         wp.timer += sp;
         if (wp.timer >= wp.w.interval) {
           wp.timer -= wp.w.interval;
