@@ -266,6 +266,12 @@ function clover(g, m, color, x, y, z, r = 0.08) {
   g.add(mesh(cyl(0.012, 0.012, r * 2), mat, [x + r * 0.6, y - r * 1.4, z], [0, 0, 0.5]));
 }
 
+function crescent(g, m, color, x, y, z, r = 0.2, glow = 0.5) {
+  const s = new THREE.Shape();
+  s.absarc(0, 0, r, PI * 0.5, PI * 1.5, false);
+  s.absarc(r * 0.38, 0, r * 0.8, PI * 1.5, PI * 0.5, true);
+  g.add(mesh(extrude(s, r * 0.3, r * 0.06), m(color, { glow }), [x, y, z], [0, 0, -0.35]));
+}
 function rose(g, m, color, x, y, z, r = 0.12) {
   const mat = m(color, { glow: 0.25 });
   for (let i = 0; i < 6; i++) {
@@ -803,6 +809,7 @@ function cape(m, p) {
   if (p.emblem === 'flame') flames(g, m, 0, ey - 0.15, ez, 0.8);
   if (p.emblem === 'snow') snowflake(g, m, 0xccf5ff, 0, ey, ez, 0.2);
   if (p.emblem === 'rose') rose(g, m, 0xe86f9e, 0, ey, ez, 0.16);
+  if (p.emblem === 'crescent') crescent(g, m, 0xe8ecff, 0, ey, ez, 0.2, 0.6);
   if (p.emblem === 'fang') for (const x of [-0.08, 0.08]) g.add(mesh(cone(0.06, 0.26, 5), m(0xf2ecd8), [x, ey, ez], [PI, 0, 0]));
   if (p.emblem === 'swirl') g.add(mesh(torus(0.16, 0.03, 5, 18, PI * 1.6), m(p.trim), [0, ey, ez]));
   if (p.emblem === 'sun') {
@@ -919,6 +926,11 @@ function amulet(m, p) {
   } else if (s === 'prismHeart') {
     const [sat, lit] = rb(m);
     g.add(mesh(rainbow(extrude(HEART, 0.12, 0.03), sat, lit), m(0xffffff, { vc: true }), [0, -0.12, 0]));
+  } else if (s === 'moon') {
+    g.add(mesh(cyl(0.24, 0.24, 0.05, 24), m(0x2c3050), [0, -0.14, -0.02], [PI / 2, 0, 0]));
+    g.add(mesh(torus(0.24, 0.03, 6, 26), m(0xc6d0e2), [0, -0.14, 0]));
+    crescent(g, m, 0xe8ecff, 0.02, -0.14, 0.03, 0.17, 0.8);
+    for (const [x, y] of [[0.12, -0.04], [0.14, -0.22], [0.06, -0.3]]) g.add(mesh(octa(0.025), m(0x9aa8ff, { glow: 1 }), [x, y, 0.04]));
   } else if (s === 'rose') {
     rose(g, m, 0xd83a6a, 0, -0.14, 0.02, 0.2);
     const vine = new THREE.CatmullRomCurve3([[-0.26, -0.3, -0.02], [-0.2, -0.02, 0.0], [0, 0.12, 0], [0.22, -0.04, 0.0], [0.26, -0.32, -0.02]].map(v => new THREE.Vector3(...v)));

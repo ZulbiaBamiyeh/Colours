@@ -42,7 +42,7 @@ const LINES = {
   ],
   accessory: [
     { k: 'luck', v: [1, 2, 3, 4] }, { k: 'ls', v: [2, 3, 4, 6] }, { k: 'hp', v: [6, 10, 14, 20] },
-    { k: 'heat', v: [1, 2, 3, 4] }, { k: 'slow', v: [2, 3, 4, 6] }, { k: 'sand', v: [null, 3, 4, 6] },
+    { k: 'heat', v: [1, 2, 3, 4] }, { k: 'regen', v: [1, 2, 3, 4] }, { k: 'slow', v: [2, 3, 4, 6] }, { k: 'sand', v: [null, 3, 4, 6] },
   ],
 };
 export function lineText(l) {
@@ -56,6 +56,7 @@ export function lineText(l) {
     case 'shield': return `Start with ${l.v} Shield`;
     case 'heat': return `Start with ${l.v} Heat`;
     case 'thorns': return `Start with ${l.v} Thorns`;
+    case 'regen': return `Start with ${l.v} Regen`;
     case 'clutchShield': return `Clutch: gain ${l.v} Shield`;
     case 'slow': return `Start: apply ${l.v} Slow`;
     case 'sand': return `Start: apply ${l.v} Sand`;
@@ -171,7 +172,7 @@ export function rollCube(item, useDef, rng, lockIndex = -1) {
 
 // Totals an item's upgrades into numbers the engine and UI use.
 export function itemMods(item) {
-  const m = { hp: 0, luck: 0, ls: 0, shield: 0, heat: 0, thorns: 0, slow: 0, sand: 0, clutchShield: 0, dmgPct: 0, spdPct: 0, cdPct: 0, onHit: [] };
+  const m = { hp: 0, luck: 0, ls: 0, shield: 0, heat: 0, thorns: 0, regen: 0, slow: 0, sand: 0, clutchShield: 0, dmgPct: 0, spdPct: 0, cdPct: 0, onHit: [] };
   const st = item.up?.st ?? {};
   m.dmgPct += (st.atk ?? 0) * 6;
   m.spdPct += (st.spd ?? 0) * 3;

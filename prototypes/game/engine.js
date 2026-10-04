@@ -12,17 +12,17 @@ export function mulberry32(a) {
 }
 
 const DT = 0.1;
-const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20;
+const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20, BURN_CAP = 8, BURN_CAP_WILDFIRE = 16, REGEN_CAP = 12, REGEN_EVERY = 2, BURN_PER = 0.5;
 const FATIGUE_AT = 25, MAX_TIME = 75;
-const POISON_EVERY = 3, POISON_DECAY = 2, POISON_CAP = 20, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 2;
+const POISON_EVERY = 3, POISON_CAP = 20, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
 const WILDFIRE_AT = 8;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { THORNS_CAP, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, POISON_DECAY, POISON_CAP, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT };
+export const RULES = { THORNS_CAP, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, POISON_CAP, BURN_CAP, BURN_CAP_WILDFIRE, REGEN_CAP, REGEN_EVERY, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT };
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [
   { k: 'heal', school: 'Holy' }, { k: 'shield', school: 'Holy' }, { k: 'heat', school: 'Fire' },
-  { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' }, { k: 'thorns', school: 'Thorn' },
+  { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' }, { k: 'thorns', school: 'Thorn' }, { k: 'regen', school: 'Lunar' },
 ];
 const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 const r1 = n => Math.round(n * 10) / 10;
@@ -43,12 +43,12 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       st: { burn: 0, poison: 0, frost: 0, slow: 0, sand: 0 },
       heat: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
-      fullLs: 0, autoCrit: 0, diceLuck: 0, sandHold: 0,
-      burnT: 0, poisonT: 0, poisonDecay: 0, slowT: 0, sandT: 0, poisonTicks: 0,
+      fullLs: 0, autoCrit: 0, diceLuck: 0,
+      burnT: 0, poisonT: 0, regenT: 0, poisonTicks: 0, regen: 0,
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0 },
+      start: { shield: 0, heat: 0, slow: 0, sand: 0, thorns: 0, regen: 0 },
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
       stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
@@ -200,6 +200,12 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (add <= 0) return false;
       f.thorns += add;
       ev('boon', { side: f.side, k: 'thorns', n: add });
+    } else if (type === 'regen') {
+      const add = Math.min(n, Math.max(0, REGEN_CAP - f.regen));
+      if (add <= 0) return false;
+      f.regen += add;
+      ev('boon', { side: f.side, k: 'regen', n: add });
+      fire(f, 'gainedRegen', { n: add });
     } else if (type === 'luck') {
       f.luck += n;
       ev('boon', { side: f.side, k: 'luck', n });
@@ -236,11 +242,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         tgt.st.slow = Math.min(SLOW_CAP, tgt.st.slow + n - c);
       } else if (type === 'sand') {
         tgt.st.sand = Math.min(SAND_CAP, tgt.st.sand + n);
-      } else if (type === 'poison') {
-        const room = Math.max(0, POISON_CAP - tgt.st.poison);
-        n = Math.min(n, room);
+      } else if (type === 'poison' || type === 'burn') {
+        n = Math.min(n, Math.max(0, capOf(src, type) - tgt.st[type]));
         if (n <= 0) return false;
-        tgt.st.poison += n;
+        tgt.st[type] += n;
       } else {
         tgt.st[type] += n;
       }
@@ -265,6 +270,36 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     fire(owner, 'thorned', { dmg: n, pulse: !!pulse });
     return true;
   }
+  // Statuses never wear off; caps keep them in check. Wildfire lifts its owner's Burn cap.
+  function capOf(src, type) {
+    if (type === 'burn') return src.flags.wildfire ? BURN_CAP_WILDFIRE : BURN_CAP;
+    return { poison: POISON_CAP, slow: SLOW_CAP, sand: SAND_CAP }[type] ?? Infinity;
+  }
+  // Cleanse: remove stacks from your biggest debuff (Burn, Poison, Slow or Sand; not the Frost meter), one at a time. Mirror of the Moon sends them back.
+  function cleanse(f, n) {
+    if (f.dead || !(n > 0)) return 0;
+    const removed = {};
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      let best = null;
+      for (const k of ['burn', 'poison', 'slow', 'sand']) if (f.st[k] > 0 && (!best || f.st[k] > f.st[best])) best = k;
+      if (!best) break;
+      f.st[best]--;
+      removed[best] = (removed[best] ?? 0) + 1;
+      total++;
+    }
+    if (!total) return 0;
+    ev('cleanse', { side: f.side, n: total });
+    if (f.flags.moonMirror) for (const [k, m] of Object.entries(removed)) apply(f, other(f), k, m, { generated: true });
+    fire(f, 'cleansed', { n: total, removed });
+    return total;
+  }
+  function regenTick(f) {
+    let n = f.regen;
+    if (f.flags.regenCrit && critRoll(f)) n *= 2;
+    heal(f, n, { regen: true });
+    fire(f, 'regenTick', { n });
+  }
   function boon(f) {
     const b = weightedPick(f, BOONS, x => x.school);
     const k = f.flags.foolsOpal ? 2 : 1;
@@ -273,6 +308,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (b.k === 'heat') return gain(f, 'heat', 2 * k);
     if (b.k === 'luck') return gain(f, 'luck', 2 * k);
     if (b.k === 'thorns') return gain(f, 'thorns', 2 * k);
+    if (b.k === 'regen') return gain(f, 'regen', 2 * k);
     return gain(f, 'ls', 0.03 * k);
   }
 
@@ -283,7 +319,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       rng,
       apply: (type, n) => apply(me, foe, type, n),
       addRaw: (type, n) => {
-        if (type === 'poison') n = Math.min(n, Math.max(0, POISON_CAP - foe.st.poison));
+        if (type === 'poison' || type === 'burn') n = Math.min(n, Math.max(0, capOf(me, type) - foe.st[type]));
         if (!(n > 0)) return false;
         foe.st[type] += n;
         ev('status', { side: foe.side, st: type, n });
@@ -300,6 +336,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       randomBoon: () => boon(me),
       luck: () => luckOf(me),
       thorns: pulse => thornsStrike(me, foe, pulse),
+      cleanse: n => cleanse(me, n),
     };
   }
 
@@ -364,7 +401,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     f.shown[kind] += n;
     checkClutch(f);
   }
-  // The 1s Burn tick: hooks, crits (a crit repeats that second's Burn as a bonus hit) and decay.
+  // The 1s Burn tick: hooks and crits (a crit repeats that second's Burn as a bonus hit). Burn no longer decays.
   function burnTick(f) {
     const src = other(f);
     let dmg = f.tick.burn;
@@ -373,7 +410,6 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (dmg > 0 && src.flags.chalice) chaliceHeal(src, f, dmg);
     if (dmg > 0) ev('dotTick', { side: f.side, kind: 'burn', n: r1(dmg) });
     fire(src, 'burnTick', { dmg });
-    if (!(src.flags.wildfire && src.heat >= WILDFIRE_AT)) f.st.burn = Math.max(0, f.st.burn - 1);
   }
   function poisonTick(f) {
     const src = other(f);
@@ -405,7 +441,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, frozen: f.frozen > 0,
+      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
@@ -422,6 +458,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
     if (s.thorns) gain(f, 'thorns', s.thorns);
+    if (s.regen) gain(f, 'regen', s.regen);
   }
   snapshot();
   fire(A, 'start');
@@ -433,29 +470,20 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     t = r1(tick * DT);
     for (const f of [A, B]) {
       const src = other(f);
-      if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * DT);
+      if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * (src.flags.wildfire && src.heat >= WILDFIRE_AT ? 1.25 : 1) * BURN_PER * DT);
       if (f.st.poison > 0) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
       f.burnT += DT;
       if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0 || f.tick.burn > 0) burnTick(f); }
       f.poisonT += DT;
       if (f.poisonT >= POISON_EVERY - 0.001) { f.poisonT -= POISON_EVERY; if (f.st.poison > 0 || f.tick.poison > 0) poisonTick(f); }
-      f.poisonDecay += DT;
-      if (f.poisonDecay >= POISON_DECAY - 0.001) { f.poisonDecay -= POISON_DECAY; f.st.poison = Math.max(0, f.st.poison - 1); }
+      f.regenT += DT;
+      if (f.regenT >= REGEN_EVERY - 0.001) { f.regenT -= REGEN_EVERY; if (f.regen > 0) regenTick(f); }
       // Report the drained damage twice a second, so the UI can float small numbers at a calm pace.
       if (tick % 5 === 0) {
         for (const k of ['burn', 'poison']) {
           if (f.shown[k] >= 1) { ev('dmg', { side: f.side, n: r1(f.shown[k]), kind: k, absorbed: 0, dot: true }); f.shown[k] = 0; }
         }
       }
-      f.slowT += DT;
-      if (f.slowT >= 1.999) { f.slowT -= 2; f.st.slow = Math.max(0, f.st.slow - 1); }
-      f.sandT += DT;
-      if (f.sandT >= 1.999) {
-        f.sandT -= 2;
-        const hold = f.sandHold > 0 || mod(other(f), 'sandHold', false);
-        if (!hold) f.st.sand = Math.max(0, f.st.sand - 1);
-      }
-      if (f.sandHold > 0) f.sandHold = Math.max(0, f.sandHold - DT);
       if (f.frozen > 0) {
         f.frozen = Math.max(0, f.frozen - DT);
         if (f.frozen === 0) { f.thaw = 2; ev('thaw', { side: f.side }); }

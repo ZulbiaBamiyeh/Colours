@@ -1,10 +1,10 @@
 // Item catalog from the design doc: stats, effects (combat hooks) and model recipes.
 // Effects receive a context `c` from the combat engine (see engine.js).
 
-export const SCHOOLS = ['Fire', 'Frost', 'Venom', 'Desert', 'Holy', 'Blood', 'Fortune', 'Thorn'];
+export const SCHOOLS = ['Fire', 'Frost', 'Venom', 'Desert', 'Holy', 'Blood', 'Fortune', 'Thorn', 'Lunar'];
 export const SCHOOL_VAR = {
   Fire: '--s-fire', Frost: '--s-frost', Venom: '--s-venom', Desert: '--s-desert',
-  Holy: '--s-holy', Blood: '--s-blood', Fortune: '--s-fortune', Thorn: '--s-thorn', Prismatic: '--s-prism',
+  Holy: '--s-holy', Blood: '--s-blood', Fortune: '--s-fortune', Thorn: '--s-thorn', Lunar: '--s-lunar', Prismatic: '--s-prism',
 };
 export const SLOTS = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 export const SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', body: 'Body', gloves: 'Gloves', boots: 'Boots', cape: 'Cape', ring1: 'Ring', ring2: 'Ring', amulet: 'Amulet', ring: 'Ring' };
@@ -13,7 +13,7 @@ const PRICE = { common: 3, rare: 5, epic: 7, legendary: 10 };
 const ARMOR_HP = { common: 6, rare: 10, epic: 15, legendary: 20 };
 export const ARMOR_SLOTS = ['helm', 'body', 'gloves', 'boots', 'cape'];
 
-const FIRE = 'Fire', FROST = 'Frost', VENOM = 'Venom', DESERT = 'Desert', HOLY = 'Holy', BLOOD = 'Blood', FORTUNE = 'Fortune', THORN = 'Thorn', PRISM = 'Prismatic';
+const FIRE = 'Fire', FROST = 'Frost', VENOM = 'Venom', DESERT = 'Desert', HOLY = 'Holy', BLOOD = 'Blood', FORTUNE = 'Fortune', THORN = 'Thorn', LUNAR = 'Lunar', PRISM = 'Prismatic';
 const C = 'common', R = 'rare', E = 'epic', L = 'legendary';
 const W = (interval, dmg, onHit, extra = {}) => ({ interval, dmg, onHit, hands: 1, ...extra });
 const W2 = (interval, dmg, onHit, extra = {}) => W(interval, dmg, onHit, { hands: 2, ...extra });
@@ -21,13 +21,13 @@ const W2 = (interval, dmg, onHit, extra = {}) => W(interval, dmg, onHit, { hands
 const LIST = [
   /* ---------------- Fire ---------------- */
   { id: 'cinder_knife', name: 'Cinder Knife', schools: [FIRE], slot: 'weapon', rarity: C, kind: 'Dagger',
-    text: 'On hit: apply 1 Burn.', weapon: W(1.0, 3, c => c.apply('burn', 1)),
+    text: 'On hit: apply 1 Burn.', weapon: W(1.2, 3, c => c.apply('burn', 1)),
     model: { t: 'cinder', hand: -0.24, hold: 0.85 } },
   { id: 'sunbrand', name: 'Sunbrand', schools: [FIRE], slot: 'weapon', rarity: R, kind: 'Greatsword',
-    text: 'On hit: apply 4 Burn and gain 2 Heat.', weapon: W2(4.0, 20, c => { c.apply('burn', 4); c.gain('heat', 2); }),
+    text: 'On hit: apply 2 Burn and gain 2 Heat.', weapon: W2(4.0, 20, c => { c.apply('burn', 2); c.gain('heat', 2); }),
     model: { t: 'sword', len: 1.85, w: 0.15, blade: 0x5a4f5a, edge: 0xff7a2a, glow: 0.6, fuller: 0xffb04a, guard: 0x8a4b22, guardW: 0.72, tips: 0xff8a2a, grip: 0x5c2d1c, gem: 0xffa31a, gemGlow: 0.9, hilt: 0.55, hand: -0.3, hold: 0.55 } },
   { id: 'ember_censer', name: 'Ember Censer', schools: [FIRE], slot: 'offhand', rarity: C, kind: 'Censer',
-    text: 'Every 4s: apply 4 Burn.', cd: 4, act: c => c.apply('burn', 4),
+    text: 'Every 4s: apply 2 Burn.', cd: 4, act: c => c.apply('burn', 2),
     model: { t: 'censer', a: 0x7d401b, b: 0xc48a24, glow: 0xff8a2a, hold: 0.45, grip: 1.0 } },
   { id: 'kindled_brazier', name: 'Kindled Brazier', schools: [FIRE], slot: 'offhand', rarity: R, kind: 'Brazier',
     text: 'Every 4s: gain 2 Heat.', cd: 4, act: c => c.gain('heat', 2),
@@ -40,19 +40,19 @@ const LIST = [
     text: 'When hit: apply 1 Burn to the attacker.', hooks: { whenHit: c => c.apply('burn', 1) },
     model: { t: 'armor', kind: 'plate', a: 0x4a3a34, b: 0x7d401b, c: 0xe0a040, flame: true, tint: 0x6a3a2a } },
   { id: 'stoked_gauntlets', name: 'Stoked Gauntlets', schools: [FIRE], slot: 'gloves', rarity: R,
-    text: 'On crit: apply 3 Burn and gain 1 Heat.', hooks: { crit: c => { c.apply('burn', 3); return c.gain('heat', 1); } },
+    text: 'On crit: apply 2 Burn and gain 1 Heat.', hooks: { crit: c => { c.apply('burn', 2); return c.gain('heat', 1); } },
     model: { t: 'glove', a: 0x3a2a22, b: 0x5c2d1c, knuckle: 0xff8a2a, knuckleGlow: 0.9 } },
   { id: 'firewalkers', name: 'Firewalkers', schools: [FIRE], slot: 'boots', rarity: C,
     text: 'Start of fight: gain 4 Heat.', hooks: { start: c => c.gain('heat', 4) },
     model: { t: 'boot', a: 0x5c2d1c, b: 0x2a1a12, extra: 'flames' } },
   { id: 'phoenix_cloak', name: 'Phoenix Cloak', schools: [FIRE], slot: 'cape', rarity: E,
-    text: 'Clutch: apply 8 Burn and gain 4 Heat.', hooks: { clutch: c => { c.apply('burn', 8); return c.gain('heat', 4); } },
+    text: 'Clutch: apply 5 Burn and gain 4 Heat.', hooks: { clutch: c => { c.apply('burn', 5); return c.gain('heat', 4); } },
     model: { t: 'cape', a: 0xc0392b, b: 0x3a1a12, hem: 0xff9a2a, hemGlow: 0.6, emblem: 'flame' } },
   { id: 'ashen_ring', name: 'Ashen Ring', schools: [FIRE], slot: 'ring', rarity: R,
     text: 'Burn ticks deal +1 damage per 5 Heat you have.', flags: { ashen: true },
     model: { t: 'ring', band: 0x47414f, gem: 0xff5320, deco: 'flame' } },
   { id: 'wildfire', name: 'Wildfire', schools: [FIRE], slot: 'amulet', rarity: L,
-    text: "While you have 8+ Heat, Burn on the enemy doesn't decay.", flags: { wildfire: true },
+    text: 'Your Burn cap rises from 8 to 16. While you have 8+ Heat, your Burn deals 25% more damage.', flags: { wildfire: true },
     model: { t: 'amulet', shape: 'flame' } },
   { id: 'molten_core', name: 'Molten Core', schools: [FIRE], slot: 'amulet', rarity: L,
     text: 'Heat has no cap. Weapon hits deal +10% damage per 5 Heat. You lose 1 HP per second per 10 Heat.', flags: { molten: true },
@@ -138,8 +138,7 @@ const LIST = [
     text: 'Every 3s: apply 3 Sand.', cd: 3, act: c => c.apply('sand', 3),
     model: { t: 'pouch', a: 0xb08a5a, b: 0x6a4424, c: 0xdbb470, hold: 0.45, grip: 0.46 } },
   { id: 'nomads_wrap', name: "Nomad's Wrap", schools: [DESERT], slot: 'helm', rarity: R,
-    text: "While the enemy has 10+ Sand, their Sand doesn't decay and their weapon hits deal 15% less damage.", flags: { sandTax: true },
-    mods: { sandHold: (c, v) => v || c.foe.st.sand >= 10 },
+    text: 'While the enemy has 10+ Sand, their weapon hits deal 15% less damage.', flags: { sandTax: true },
     model: { t: 'wrap', a: 0xe8d8b0, b: 0xc0392b, c: 0x4fb2e8, wear: { y: 0.06, s: 0.82 } } },
   { id: 'dustveil_robe', name: 'Dustveil Robe', schools: [DESERT], slot: 'body', rarity: C,
     text: 'When hit: apply 3 Sand to the attacker.', hooks: { whenHit: c => c.apply('sand', 3) },
@@ -151,8 +150,8 @@ const LIST = [
     text: 'Start of fight: apply 8 Sand.', hooks: { start: c => c.apply('sand', 8) },
     model: { t: 'boot', a: 0xb08a5a, b: 0x6a4424, c: 0xdbb470, extra: 'swirl' } },
   { id: 'sirocco_cloak', name: 'Sirocco Cloak', schools: [DESERT], slot: 'cape', rarity: E,
-    text: "Clutch: set the enemy's Sand to its cap. It doesn't decay for 5s.",
-    hooks: { clutch: c => { c.apply('sand', 15); c.foe.sandHold = 5; return true; } },
+    text: "Clutch: set the enemy's Sand to its cap.",
+    hooks: { clutch: c => c.apply('sand', 15) },
     model: { t: 'cape', a: 0xd9b77e, b: 0x8a5a2b, trim: 0xc48a24, emblem: 'swirl' } },
   { id: 'dune_ring', name: 'Dune Ring', schools: [DESERT], slot: 'ring', rarity: R,
     text: 'Whenever an enemy attack misses: apply 1 Sand.', hooks: { enemyMiss: c => c.apply('sand', 1) },
@@ -248,7 +247,7 @@ const LIST = [
     text: 'Every 2s: 60% chance to gain 1 Luck.', cd: 2, act: c => c.chance(0.6) && c.gain('luck', 1),
     model: { t: 'coin', a: 0xf2c14e, b: 0xc98f1e, c: 0x2f8a63, hold: 0.4 } },
   { id: 'gamblers_hood', name: "Gambler's Hood", schools: [FORTUNE], slot: 'helm', rarity: R,
-    text: '+4 Luck. While you have 10+ Luck, crits deal 2.5×.', stats: { luck: 4 },
+    text: '+5 Luck. While you have 10+ Luck, crits deal 2.5×.', stats: { luck: 5 },
     mods: { critMult: (c, v) => (c.luck() >= 10 ? Math.max(v, 2.5) : v) },
     model: { t: 'hood', a: 0x24684c, b: 0xf2c14e, lining: 0x123a2a, card: true, gem: 0xf2c14e, wear: { y: -0.01, s: 0.96 } } },
   { id: 'charmed_vest', name: 'Charmed Vest', schools: [FORTUNE], slot: 'body', rarity: C,
@@ -309,8 +308,8 @@ const LIST = [
      builds, weak against Burn and Poison (no hits) and Sand (misses never trigger it), which
      Ironbark Plate and the Sandbriar Ring answer. */
   { id: 'briar_whip', name: 'Briar Whip', schools: [THORN], slot: 'weapon', rarity: C, kind: 'Whip',
-    text: 'On hit: gain 1 Thorns, up to 1 from this whip.',
-    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 1) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
+    text: 'On hit: gain 1 Thorns, up to 3 from this whip.',
+    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 3) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
     model: { t: 'whip', grip: 0x5a3a24, vine: 0x4f6a2a, thorn: 0xe9d9b0, bloom: 0xe86f9e, hand: -0.3, hold: 0.85 } },
   { id: 'bramble_maul', name: 'Bramble Maul', schools: [THORN], slot: 'weapon', rarity: R, kind: 'Maul',
     text: 'On hit: deal bonus damage equal to your Thorns, then gain 2 Thorns.',
@@ -323,7 +322,7 @@ const LIST = [
     text: 'When hit: 30% chance to gain 1 Thorns.', hooks: { whenHit: c => c.chance(0.3) && c.gain('thorns', 1) },
     model: { t: 'crown', a: 0x5a3a24, b: 0x6f8a3a, c: 0xe86f9e, spikes: { n: 14, color: 0xe9d9b0, size: 0.08, seed: 9 }, wear: { y: 0.3, s: 0.82 } } },
   { id: 'briar_mail', name: 'Briar Mail', schools: [THORN], slot: 'body', rarity: C,
-    text: 'Start of fight: gain 1 Thorns.', hooks: { start: c => c.gain('thorns', 1) },
+    text: 'Start of fight: gain 3 Thorns.', hooks: { start: c => c.gain('thorns', 3) },
     model: { t: 'armor', kind: 'vest', a: 0x5a4a2e, b: 0x3a2a1c, c: 0x6f8a3a, tint: 0x5a4a2e, spikes: { n: 16, color: 0xe9d9b0, size: 0.08, seed: 11, front: true } } },
   { id: 'ironbark_plate', name: 'Ironbark Plate', schools: [THORN], slot: 'body', rarity: E,
     text: 'Every 3s: your Thorns strike the enemy. This strike does not grant you Thorns.', cd: 3, act: c => c.thorns(true),
@@ -344,6 +343,44 @@ const LIST = [
     text: 'Whenever an enemy weapon hit triggers your Thorns, gain 1 Thorns on every third trigger.',
     hooks: { thorned: (c, o) => { if (o?.pulse) return false; c.data.n = (c.data.n ?? 0) + 1; return c.data.n % 3 === 0 && c.gain('thorns', 1); } },
     model: { t: 'amulet', shape: 'rose' } },
+
+
+  /* ---------------- Lunar ----------------
+     Regen heals 1 per stack every 2s and never wears off. Cleanse removes stacks from your biggest debuffs.
+     The counter to status builds, weak against burst (it heals slowly) and Burn (which cuts healing). */
+  { id: 'moon_sickle', name: 'Moon Sickle', schools: [LUNAR], slot: 'weapon', rarity: C, kind: 'Sickle',
+    text: 'On hit: gain 1 Regen, up to 8 from this sickle.',
+    weapon: W(1.6, 4, c => { if ((c.data.n ?? 0) >= 8) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('regen', 1); }),
+    model: { t: 'sword', curve: 0.32, blade: 0xd8def0, edge: 0x9aa8ff, glow: 0.4, guard: 0x6a74a8, grip: 0x2c3050, gem: 0x9aa8ff, hold: 0.78 } },
+  { id: 'tidecaller', name: 'Tidecaller', schools: [LUNAR], slot: 'weapon', rarity: R, kind: 'Staff',
+    text: 'On hit: Cleanse 2, and gain 1 Regen for each stack removed.',
+    weapon: W2(3.4, 16, c => { const n = c.cleanse(2); return n > 0 && c.gain('regen', n); }),
+    model: { t: 'glaive', haft: 0x2c3050, blade: 0xd8def0, trim: 0x9aa8ff, tassel: 0x6a74a8, gem: 0x9aa8ff, hand: -0.5, hold: 0.58 } },
+  { id: 'moonwell_flask', name: 'Moonwell Flask', schools: [LUNAR], slot: 'offhand', rarity: C, kind: 'Flask',
+    text: 'Every 5s: gain 2 Regen.', cd: 5, act: c => c.gain('regen', 2),
+    model: { t: 'lantern', a: 0x6a74a8, b: 0xd8def0, glow: 0x9aa8ff, hold: 0.45, grip: 0.66 } },
+  { id: 'clarity_chime', name: 'Clarity Chime', schools: [LUNAR], slot: 'offhand', rarity: R, kind: 'Bell',
+    text: 'Every 4s: Cleanse 2.', cd: 4, act: c => c.cleanse(2) > 0,
+    model: { t: 'bell', a: 0xc6d0e2, b: 0x9aa8ff, hold: 0.45, grip: 0.74 } },
+  { id: 'crescent_circlet', name: 'Crescent Circlet', schools: [LUNAR], slot: 'helm', rarity: R,
+    text: 'Whenever your Regen ticks, Cleanse 1.', hooks: { regenTick: c => c.cleanse(1) > 0 },
+    model: { t: 'crown', a: 0xc6d0e2, b: 0x9aa8ff, c: 0xf4f0ff, wear: { y: 0.3, s: 0.82 } } },
+  { id: 'moonweave_robe', name: 'Moonweave Robe', schools: [LUNAR], slot: 'body', rarity: C,
+    text: 'Start of fight: gain 4 Regen.', hooks: { start: c => c.gain('regen', 4) },
+    model: { t: 'armor', kind: 'robe', a: 0x3a4070, b: 0xc6d0e2, tint: 0x3a4070 } },
+  { id: 'tidal_gloves', name: 'Tidal Gloves', schools: [LUNAR], slot: 'gloves', rarity: R,
+    text: 'On crit: gain 2 Regen.', hooks: { crit: c => c.gain('regen', 2) },
+    model: { t: 'glove', a: 0x3a4070, b: 0xc6d0e2, gem: 0x9aa8ff } },
+  { id: 'moonstep_boots', name: 'Moonstep Boots', schools: [LUNAR], slot: 'boots', rarity: C,
+    text: 'Start of fight: gain 2 Regen. Whenever you Cleanse, gain 1 Regen.',
+    hooks: { start: c => c.gain('regen', 2), cleansed: c => c.gain('regen', 1) },
+    model: { t: 'boot', a: 0x3a4070, b: 0xc6d0e2, extra: 'wings' } },
+  { id: 'tide_cloak', name: 'Tide Cloak', schools: [LUNAR], slot: 'cape', rarity: E,
+    text: 'Clutch: Cleanse 15 and gain 6 Regen.', hooks: { clutch: c => { c.cleanse(15); return c.gain('regen', 6); } },
+    model: { t: 'cape', a: 0x3a4070, b: 0x1a1e38, hem: 0x9aa8ff, hemGlow: 0.5, emblem: 'crescent' } },
+  { id: 'moon_mirror', name: 'Mirror of the Moon', schools: [LUNAR], slot: 'amulet', rarity: L,
+    text: 'Stacks you Cleanse are applied to the enemy instead of vanishing.', flags: { moonMirror: true },
+    model: { t: 'amulet', shape: 'moon' } },
 
   /* ---------------- Bridge rings ---------------- */
   { id: 'kindling_band', name: 'Kindling Band', schools: [FIRE, HOLY], slot: 'ring', rarity: R,
@@ -442,6 +479,32 @@ const LIST = [
   { id: 'sandbriar_ring', name: 'Sandbriar Ring', schools: [THORN, DESERT], slot: 'ring', rarity: R,
     text: 'When an enemy attack misses you, your Thorns strike them anyway.', hooks: { enemyMiss: c => c.thorns() },
     model: { t: 'ring', gem: 0xe8c27a, deco: 'sand' } },
+  { id: 'ember_moon', name: 'Ember Moon', schools: [LUNAR, FIRE], slot: 'ring', rarity: R,
+    text: 'Whenever your Regen ticks, apply 1 Burn.', hooks: { regenTick: c => c.apply('burn', 1) },
+    model: { t: 'ring', gem: 0xff6a1a, deco: 'flame' } },
+  { id: 'frostmoon_band', name: 'Frostmoon Band', schools: [LUNAR, FROST], slot: 'ring', rarity: R,
+    text: 'Whenever the enemy Freezes, gain 3 Regen.', hooks: { enemyFreeze: c => c.gain('regen', 3) },
+    model: { t: 'ring', gem: 0x7fd6ff, deco: 'snow' } },
+  { id: 'nightshade_ring', name: 'Nightshade Ring', schools: [LUNAR, VENOM], slot: 'ring', rarity: R,
+    text: 'Whenever you Cleanse, apply 2 Poison.', hooks: { cleansed: c => c.apply('poison', 2) },
+    model: { t: 'ring', gem: 0x8bd34a, deco: 'drop' } },
+  { id: 'mirage_moon', name: 'Mirage Moon', schools: [LUNAR, DESERT], slot: 'ring', rarity: R,
+    text: 'Whenever an enemy attack misses you, gain 1 Regen.', hooks: { enemyMiss: c => c.gain('regen', 1) },
+    model: { t: 'ring', gem: 0xe8c27a, deco: 'sand' } },
+  { id: 'hallowed_tide', name: 'Hallowed Tide', schools: [LUNAR, HOLY], slot: 'ring', rarity: R,
+    text: 'Whenever you gain Shield, Cleanse 1 (at most once per second).',
+    hooks: { gainedShield: c => { if (c.t - (c.data.t ?? -9) < 1) return false; c.data.t = c.t; return c.cleanse(1) > 0; } },
+    model: { t: 'ring', gem: 0xf2d67c, shape: 'sphere', deco: 'wings' } },
+  { id: 'bloodmoon_ring', name: 'Bloodmoon Ring', schools: [LUNAR, BLOOD], slot: 'ring', rarity: R,
+    text: 'Whenever you Lifesteal, gain 1 Regen (at most once per second).',
+    hooks: { lifestole: c => { if (c.t - (c.data.t ?? -9) < 1) return false; c.data.t = c.t; return c.gain('regen', 1); } },
+    model: { t: 'ring', gem: 0xd8344f, deco: 'fangs' } },
+  { id: 'lucky_moon', name: 'Lucky Moon', schools: [LUNAR, FORTUNE], slot: 'ring', rarity: R,
+    text: 'Your Regen ticks can crit.', flags: { regenCrit: true },
+    model: { t: 'ring', gem: 0x9aa8ff, deco: 'clover' } },
+  { id: 'moonbriar', name: 'Moonbriar', schools: [LUNAR, THORN], slot: 'ring', rarity: R,
+    text: 'Whenever your Thorns trigger, gain 1 Regen.', hooks: { thorned: c => c.gain('regen', 1) },
+    model: { t: 'ring', gem: 0xe86f9e, deco: 'spikes' } },
   { id: 'vampires_die', name: "Vampire's Die", schools: [BLOOD, FORTUNE], slot: 'ring', rarity: R,
     text: 'Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%).',
     hooks: { crit: c => { if ((c.data.ls ?? 0) >= 0.2) return false; c.data.ls = Math.min(0.2, (c.data.ls ?? 0) + 0.02); return true; } },
@@ -456,13 +519,14 @@ const LIST = [
     model: { t: 'amulet', shape: 'phoenix' } },
 ];
 
-const METAL = { Thorn: 0x5a3a24, Fire: 0x9a4524, Frost: 0xc6d0e2, Venom: 0x4f6a34, Desert: 0xc48a24, Holy: 0xe8b73a, Blood: 0x3a1a20, Fortune: 0x2f8a63, Prismatic: 0xc6d0e2 };
+const METAL = { Lunar: 0xb8c0dc, Thorn: 0x5a3a24, Fire: 0x9a4524, Frost: 0xc6d0e2, Venom: 0x4f6a34, Desert: 0xc48a24, Holy: 0xe8b73a, Blood: 0x3a1a20, Fortune: 0x2f8a63, Prismatic: 0xc6d0e2 };
 const RING_STYLE = {
   ashen_ring: 'flat', rimeheart_ring: 'twist', festering_ring: 'band', dune_ring: 'flat', sanctified_vessel: 'double', sanguine_ring: 'twist',
   loaded_dice: 'flat', fools_opal: 'double', hearthfire_ring: 'band', forgeheart_ring: 'flat', frostfire_band: 'double', hoarfrost_ring: 'twist',
   witchfire_ring: 'twist', glassblowers_ring: 'flat', bloodfire_ring: 'double', lucky_ember: 'band', paralytic_ring: 'twist', scorpion_ring: 'flat',
   leechmaw_ring: 'double', leeching_fang: 'twist', vipers_eye: 'flat', quicksand_ring: 'twist', glacial_aegis: 'double', frozen_blood: 'flat',
   shatter_ring: 'band', oasis_ring: 'double', duelists_ring: 'flat', desert_fox_ring: 'twist', crimson_bulwark: 'double', blessed_dice: 'band', vampires_die: 'flat',
+  ember_moon: 'band', frostmoon_band: 'twist', nightshade_ring: 'flat', mirage_moon: 'double', hallowed_tide: 'band', bloodmoon_ring: 'twist', lucky_moon: 'flat', moonbriar: 'double',
   venomspine_ring: 'twist', pyrebriar_ring: 'flat', rimespine_ring: 'twist', bloodbriar_ring: 'double', hallowed_briar: 'band', lucky_thorn: 'twist', sandbriar_ring: 'flat',
 };
 for (const def of LIST) {
@@ -543,7 +607,7 @@ export function rollShopOffers(day, rng, exclude = () => false) {
 const TITLES = {
   Fire: ['Ember', 'Cinder', 'Pyre'], Frost: ['Rime', 'Glacial', 'Wintry'], Venom: ['Blighted', 'Viper', 'Mire'],
   Desert: ['Dune', 'Sirocco', 'Mirage'], Holy: ['Gilded', 'Dawn', 'Sainted'], Blood: ['Crimson', 'Sanguine', 'Feral'],
-  Fortune: ['Lucky', 'Gilded', 'Jackpot'], Thorn: ['Briar', 'Bramble', 'Thorned'],
+  Fortune: ['Lucky', 'Gilded', 'Jackpot'], Thorn: ['Briar', 'Bramble', 'Thorned'], Lunar: ['Moonlit', 'Tidal', 'Silver'],
 };
 const NOUNS = ['Wanderer', 'Duelist', 'Pilgrim', 'Raider', 'Warden', 'Drifter', 'Knight', 'Hexer'];
 

@@ -52,11 +52,13 @@ const STATUS_ICON = {
   shield: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
   heal: '<path d="M12 5v14M5 12h14"/>',
   ls: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/><path d="M9.5 13.5l2.5 3 2.5-3"/>',
+  regen: '<path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z"/><path d="M9 12h5M11.5 9.5v5"/>',
+  cleanse: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar' };
 // Keyword symbols: inline in item text, and as small badges on item icons.
-const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Shield|Lifesteal|[Hh]eals?|[Hh]ealing)\b/g;
-const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l === 'lifesteal' ? 'ls' : l; };
+const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing)\b/g;
+const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l.startsWith('cleanse') ? 'cleanse' : l === 'lifesteal' ? 'ls' : l; };
 const kwIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
 const kwText = text => text.replace(KW_RE, w => { const k = kwKey(w); return `<span class="kw" style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}${w}</span>`; });
 function itemKws(def) {
@@ -68,7 +70,7 @@ function itemKws(def) {
   return def._kws;
 }
 const kwBadges = def => (isUse(def.id) ? '' : `<span class="kw-badges">${itemKws(def).map(k => `<i style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}</i>`).join('')}</span>`);
-const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns' };
+const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen' };
 
 /* =========================================================
    State
@@ -1389,6 +1391,7 @@ function updateHud(force) {
     if (s.heat > 0) chips.push(['heat', s.heat]);
     if (s.luck > 0) chips.push(['luck', s.luck]);
     if (s.thorns > 0) chips.push(['thorns', s.thorns]);
+    if (s.regen > 0) chips.push(['regen', s.regen]);
     const html = chips.map(([k, v]) => `<button type="button" class="schip${k === 'frozen' ? ' frozen' : ''}" data-st="${k}" data-side="${side}" style="--sc: var(${STATUS_VAR[k]})" aria-label="${STATUS_NAME[k] ?? 'Frozen'} ${k === 'frozen' ? '' : v}: what it does"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>${v}</button>`).join('');
     if (hudCache[side].chips !== html) { root.querySelector('.schips').innerHTML = html; hudCache[side].chips = html; }
     if (statusTip && statusTip.side === side) refreshStatusTip(fr);
@@ -1405,16 +1408,17 @@ function updateHud(force) {
 /* ---------- Status explanations ---------- */
 function statusInfo(k, s) {
   const pct = n => `${Math.round(n * 100)}%`;
-  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : s.st[k];
+  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : k === 'regen' ? s.regen : s.st[k];
   switch (k) {
-    case 'burn': return [`Burn ${n}`, `Takes ${n} damage per second, dealt continuously, and loses 1 stack each second. Burn hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
-    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Loses 1 stack every ${RULES.POISON_DECAY}s, caps at ${RULES.POISON_CAP}, and ignores Shield.`];
+    case 'burn': return [`Burn ${n}`, `Takes ${n * RULES.BURN_PER} damage per second (1 per stack every 2s), dealt continuously. Burn never wears off and caps at ${RULES.BURN_CAP} (${RULES.BURN_CAP_WILDFIRE} with Wildfire). It hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
+    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off, ignores Shield and caps at ${RULES.POISON_CAP}.`];
     case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
-    case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Loses 1 stack every 2s, and cancels Heat 1 for 1.`];
-    case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Loses 1 stack every 2s.`];
+    case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Slow never wears off, caps at ${RULES.SLOW_CAP}, and cancels Heat 1 for 1.`];
+    case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Sand never wears off.`];
     case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
     case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
     case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. Caps at ${RULES.THORNS_CAP}.`];
+    case 'regen': return [`Regen ${n}`, `Heals ${n} every ${RULES.REGEN_EVERY}s (1 per stack). Regen never wears off and caps at ${RULES.REGEN_CAP}. Burn cuts its healing like any other heal.`];
     case 'frozen': return ['Frozen', `Weapon and items are stopped for up to ${RULES.FREEZE_TIME}s. Burn and Poison still tick.`];
   }
   return [k, ''];
@@ -1627,6 +1631,14 @@ function playEvent(e, quiet) {
       break;
     case 'reflect':
       if (!quiet) floatText(e.side, 'Reflected', '#ffd27a', 'small');
+      break;
+    case 'cleanse':
+      if (!quiet) {
+        floatText(e.side, `Cleanse ${e.n}`, '#c9d2ff', 'small');
+        const f = F[e.side];
+        particles.burst(f.holder.position.x, 1.0, 0.25, 14, [0xe8ecff, 0x9aa8ff], { max: 2.4, life: 0.45, g: 0, up: 0.6, size: 0.04 });
+      }
+      log(`<b>${sideName(e.side)}</b> ${verb(e.side, 'cleanse', 'cleanses')} ${e.n} stack${e.n === 1 ? '' : 's'}.`);
       break;
     case 'thorns':
       if (!quiet) {
@@ -1906,6 +1918,7 @@ function emitStatus(f, s, dt) {
     sand: st.sand > 0 ? Math.min(22, 3 + st.sand * 1.2) : 0,
     heat: s.heat > 0 ? Math.min(10, s.heat * 0.5) : 0,
     luck: s.luck > 0 ? Math.min(8, 1 + s.luck * 0.4) : 0,
+    regen: s.regen > 0 ? Math.min(6, 1 + s.regen * 0.4) : 0,
     snail: st.slow > 0 ? Math.min(1.1, 0.3 + st.slow * 0.04) : 0,
   };
   for (const k of Object.keys(rates)) {
@@ -1936,6 +1949,7 @@ function emitStatus(f, s, dt) {
       if (k === 'frost') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 1.9 + R() * 0.3, z: (R() - 0.5) * 0.6, vx: (R() - 0.5) * 0.2, vy: -0.45 - R() * 0.2, life: 1.2, size: 0.03, color: 0xdff6ff, grow: true });
       if (k === 'sand') particles.emit({ x, y: 1.25 + R() * 0.5, vy: (R() - 0.5) * 0.3, life: 0.7 + R() * 0.4, size: 0.025 + R() * 0.02, color: R() < 0.5 ? 0xdbb470 : 0xc9a060, orbit: { cx: x, r: 0.42 + R() * 0.2, a: R() * Math.PI * 2, w: 4 + R() * 2 } });
       if (k === 'heat') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.05, z: (R() - 0.5) * 0.6, vy: 0.8 + R() * 0.6, life: 0.6, size: 0.03, color: 0xffb04a });
+      if (k === 'regen') particles.emit({ x: x + (R() - 0.5) * 0.7, y: 0.2 + R() * 0.6, z: 0.3, vy: 0.45 + R() * 0.25, wob: 0.15, life: 1.1, size: 0.03, color: R() < 0.5 ? 0xe8ecff : 0x9aa8ff, grow: true });
       if (k === 'luck') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.4 + R() * 1.4, z: (R() - 0.5) * 0.5, vy: 0.15, life: 0.6, size: 0.05, color: 0xf4c652, grow: true });
       if (k === 'snail') spawnSnail(f);
     }

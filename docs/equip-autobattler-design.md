@@ -44,19 +44,23 @@ The depth comes from three layers:
 
 | Keyword | Affects | Rule |
 |---|---|---|
-| **Burn** | enemy | Deals its stacks as damage per second, dealt continuously, and loses 1 stack each second. Damages Shield first. **A burning fighter receives less healing.** |
-| **Poison** | enemy | Deals its stacks as damage every 3s, dealt continuously (1/3 of the stacks per second). Never decays. **Bypasses Shield.** |
+| **Burn** | enemy | Deals 1 damage per stack every 2s, dealt continuously. **Never wears off.** Caps at 8 stacks (16 with Wildfire). Damages Shield first. **A burning fighter receives 20% less healing.** |
+| **Poison** | enemy | Deals 1 damage per stack every 3s, dealt continuously. **Never wears off.** Caps at 20 stacks. **Bypasses Shield.** |
+
+*No decay (like Backpack Battles):* statuses stay for the whole fight, so even a small random application keeps working. Caps, Fatigue from 25s and Cleanse are the brakes. Frost is the exception: it's a meter that empties when the enemy Freezes.
 
 *Continuous damage, tick effects:* Burn and Poison drain HP smoothly at their advertised rate, but "whenever Burn ticks" (every 1s) and "whenever Poison ticks" (every 3s) still happen on that schedule. A tick that crits repeats the damage dealt since the last tick, and tick effects like Phoenix Heart and Leechmaw Ring use that amount. Coiled Serpent stops the drain and strikes on every 5th Poison tick instead.
 | **Frost** | enemy | At 10 stacks the enemy is **Frozen** for 1.5s: weapon and cooldowns pause (statuses still tick). Frost then resets to 0, and the enemy **Thaws** for 2s, during which it can't gain Frost. |
-| **Slow** | enemy | −3% speed per stack. Loses 1 stack every 2s. **Slow and Heat on the same fighter cancel 1:1.** |
-| **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). Loses 1 stack every 2s. Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
+| **Slow** | enemy | −3% speed per stack, up to 25 stacks. **Never wears off.** **Slow and Heat on the same fighter cancel 1:1.** |
+| **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). **Never wears off.** Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
 | **Shield** | you | Absorbs damage before HP. Doesn't decay. |
 | **Heal** | you | Restores HP up to your max. Healing beyond max is **overheal** and is lost unless an item uses it. **Lifesteal counts as healing.** |
 | **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
 | **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
 | **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
 | **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. Up to 20 stacks. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
+| **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 12 stacks. Counts as healing, so Burn cuts it. |
+| **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
 
 ### Trigger words
@@ -76,6 +80,7 @@ The depth comes from three layers:
 These come from the rules themselves, before any items:
 
 - Burn beats Heal (healing cut), Shield beats Burn, Poison beats Shield, Heal beats Poison (outheals the slow ramp).
+- Cleanse and Regen beat status builds; burst and Burn (which cuts Regen) beat Lunar.
 - Sand beats weapon builds (crit, Lifesteal, on-hit). Burn and Poison beat Sand (they never miss). Fast weapon burst beats the slow Poison ramp.
 - Frost and Slow beat Heat and speed builds. Heat cancels Slow.
 - Thorns beats fast and multi-hit builds (dual wield, Heat, crit daggers): every hit pays. Burn and Poison beat Thorns (no hits to punish), and so do Sand, Frost and Slow (fewer hits land).
@@ -112,6 +117,7 @@ These come from the rules themselves, before any items:
 | Blood | Lifesteal |
 | Fortune | Luck |
 | Thorn | Thorns |
+| Lunar | Regen, Cleanse |
 | Prismatic | Random effects |
 
 Every item has a school. Bridge rings and bridge legendaries count toward **both** schools. Equipping items from one school activates **resonance**. Tiers are cumulative, so 6 items also give the 2- and 4-item bonuses:
@@ -126,6 +132,7 @@ Every item has a school. Bridge rings and bridge legendaries count toward **both
 | Blood | +5% Lifesteal | Lifesteal ignores Burn's healing cut | Lifesteal doubled while below 50% HP |
 | Fortune | +3 Luck | Crits deal 2.5× | Every chance roll rolls twice and keeps the better result |
 | Thorn | Start with 2 Thorns | Clutch: gain 5 Thorns | Thorns deal +50% damage |
+| Lunar | Start with 2 Regen | Cleanse also triggers every Regen tick | Regen cap 20 |
 
 **Prismatic resonance** (3+ Prismatic items): amounts from random effects +50%. Prismatic items count toward every school, **but only one Prismatic item counts toward school resonance.**
 
@@ -153,7 +160,7 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Boots | Firewalkers | C | Start of fight: gain 6 Heat. |
 | Cape | Phoenix Cloak | E | Clutch: apply 10 Burn and gain 5 Heat. |
 | Ring | Ashen Ring | R | Burn ticks deal +1 damage per 5 Heat you have. |
-| Amulet | Wildfire | L | While you have 15+ Heat, Burn on the enemy doesn't decay. |
+| Amulet | Wildfire | L | Your Burn cap rises from 8 to 16. While you have 8+ Heat, your Burn deals 25% more damage. |
 | Amulet | Molten Core | L | Heat has no cap. You lose 1 HP per second per 5 Heat. |
 
 ### Frost (Frost, Slow)
@@ -194,11 +201,11 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Weapon | Dune Scimitar | C | Scimitar · 2.0s · 6 dmg. On hit: apply 2 Sand. |
 | Weapon (2H) | Sandstorm Glaive | R | Glaive · 3.5s · 18 dmg. On hit: apply 4 Sand. |
 | Offhand | Sand Pouch | C | Every 3s: apply 3 Sand. |
-| Helm | Nomad's Wrap | R | While the enemy has 10+ Sand, their Sand doesn't decay. |
+| Helm | Nomad's Wrap | R | While the enemy has 10+ Sand, their weapon hits deal 15% less damage. |
 | Body | Dustveil Robe | C | When hit: apply 3 Sand to the attacker. |
 | Gloves | Grit Gloves | R | On crit: apply 4 Sand. |
 | Boots | Dust Devils | C | Start of fight: apply 8 Sand. |
-| Cape | Sirocco Cloak | E | Clutch: set the enemy's Sand to its cap. It doesn't decay for 5s. |
+| Cape | Sirocco Cloak | E | Clutch: set the enemy's Sand to its cap. |
 | Ring | Dune Ring | R | Whenever an enemy attack misses: apply 1 Sand. |
 | Amulet | Mirage | L | Enemy attacks that miss hit the enemy instead, with their own on-hit effects. |
 
@@ -277,9 +284,28 @@ Thorns is the punish-the-attacker school. Its weakness is built in (statuses and
 
 **Simulator results (prototype, day 9 ghosts):** Thorn-main builds win 44–52% overall. Against each school: Fire 66%, Blood 57%, Fortune 57%, Holy 54%, Desert 50%, Frost 45%, Venom 42%.
 
+### Lunar (Regen, Cleanse)
+
+The counter school for status builds: Regen heals steadily for the whole fight and Cleanse strips debuffs. It's weak against burst damage (it heals slowly) and against Burn (which cuts healing).
+
+| Slot | Item | Rarity | Effect |
+|---|---|---|---|
+| Weapon | Moon Sickle | C | Sickle · 1.6s · 4 dmg. On hit: gain 1 Regen, up to 8 from this sickle. |
+| Weapon (2H) | Tidecaller | R | Staff · 3.4s · 16 dmg. On hit: Cleanse 2, and gain 1 Regen for each stack removed. |
+| Offhand | Moonwell Flask | C | Every 5s: gain 2 Regen. |
+| Offhand | Clarity Chime | R | Every 4s: Cleanse 2. |
+| Helm | Crescent Circlet | R | Whenever your Regen ticks, Cleanse 1. |
+| Body | Moonweave Robe | C | Start of fight: gain 4 Regen. |
+| Gloves | Tidal Gloves | R | On crit: gain 2 Regen. |
+| Boots | Moonstep Boots | C | Start of fight: gain 2 Regen. Whenever you Cleanse, gain 1 Regen. |
+| Cape | Tide Cloak | E | Clutch: Cleanse 15 and gain 6 Regen. |
+| Amulet | Mirror of the Moon | L | Stacks you Cleanse are applied to the enemy instead of vanishing. |
+
+**Simulator results after removing decay (prototype, ghost builds by main school, overall win rate on days 3 / 8 / 14):** Fire 55 / 49 / 49, Frost 40 / 44 / 44, Venom 58 / 54 / 52, Desert 42 / 46 / 47, Holy 54 / 52 / 50, Blood 49 / 52 / 56, Fortune 39 / 43 / 46, Thorn 41 / 47 / 49, Lunar 58 / 51 / 48. Lunar is the hard counter to Frost (64%) and Desert (70%), by design: Cleanse strips their stacks.
+
 ### Prismatic (random)
 
-Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck, +3% Lifesteal and 2 Thorns. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
+Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons are drawn from heal 8, 8 Shield, 2 Heat, 2 Luck, +3% Lifesteal, 2 Thorns and 2 Regen. **Weighting:** each option's weight is 1 + the number of non-Prismatic items you're wearing from that option's school.
 
 | Slot | Item | Rarity | Effect |
 |---|---|---|---|
@@ -297,7 +323,7 @@ Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons 
 
 ## 8. Bridge rings
 
-Each bridge counts toward both of its schools. Every one of the 28 school pairs has at least one bridge.
+Each bridge counts toward both of its schools. Every one of the 36 school pairs has at least one bridge.
 
 | Ring | Schools | Effect |
 |---|---|---|
@@ -332,6 +358,14 @@ Each bridge counts toward both of its schools. Every one of the 28 school pairs 
 | Hallowed Briar | Thorn · Holy | Whenever you gain Shield, gain 1 Thorns (at most once per second). |
 | Lucky Thorn | Thorn · Fortune | Your Thorns can crit. |
 | Sandbriar Ring | Thorn · Desert | When an enemy attack misses you, your Thorns strike them anyway. |
+| Ember Moon | Lunar · Fire | Whenever your Regen ticks, apply 1 Burn. |
+| Frostmoon Band | Lunar · Frost | Whenever the enemy Freezes, gain 3 Regen. |
+| Nightshade Ring | Lunar · Venom | Whenever you Cleanse, apply 2 Poison. |
+| Mirage Moon | Lunar · Desert | Whenever an enemy attack misses you, gain 1 Regen. |
+| Hallowed Tide | Lunar · Holy | Whenever you gain Shield, Cleanse 1 (at most once per second). |
+| Bloodmoon Ring | Lunar · Blood | Whenever you Lifesteal, gain 1 Regen (at most once per second). |
+| Lucky Moon | Lunar · Fortune | Your Regen ticks can crit. |
+| Moonbriar | Lunar · Thorn | Whenever your Thorns trigger, gain 1 Regen. |
 
 ### Bridge legendary
 
@@ -341,15 +375,16 @@ Each bridge counts toward both of its schools. Every one of the 28 school pairs 
 
 ### Pair coverage
 
-| | Frost | Venom | Desert | Holy | Blood | Fortune | Thorn |
-|---|---|---|---|---|---|---|---|
-| **Fire** | Frostfire, Hoarfrost | Witchfire | Glassblower | Kindling, Hearthfire, Forgeheart, *Phoenix Heart* | Bloodfire | Lucky Ember | Pyrebriar |
-| **Frost** | | Paralytic | Quicksand | Glacial Aegis | Frozen Blood | Shatter | Rimespine |
-| **Venom** | | | Scorpion | Leechmaw | Leeching Fang | Viper's Eye | Venomspine |
-| **Desert** | | | | Oasis | Duelist's | Desert Fox | Sandbriar |
-| **Holy** | | | | | Crimson Bulwark | Blessed Dice | Hallowed Briar |
-| **Blood** | | | | | | Vampire's Die | Bloodbriar |
-| **Fortune** | | | | | | | Lucky Thorn |
+| | Frost | Venom | Desert | Holy | Blood | Fortune | Thorn | Lunar |
+|---|---|---|---|---|---|---|---|---|
+| **Fire** | Frostfire, Hoarfrost | Witchfire | Glassblower | Kindling, Hearthfire, Forgeheart, *Phoenix Heart* | Bloodfire | Lucky Ember | Pyrebriar | Ember Moon |
+| **Frost** | | Paralytic | Quicksand | Glacial Aegis | Frozen Blood | Shatter | Rimespine | Frostmoon |
+| **Venom** | | | Scorpion | Leechmaw | Leeching Fang | Viper's Eye | Venomspine | Nightshade |
+| **Desert** | | | | Oasis | Duelist's | Desert Fox | Sandbriar | Mirage Moon |
+| **Holy** | | | | | Crimson Bulwark | Blessed Dice | Hallowed Briar | Hallowed Tide |
+| **Blood** | | | | | | Vampire's Die | Bloodbriar | Bloodmoon |
+| **Fortune** | | | | | | | Lucky Thorn | Lucky Moon |
+| **Thorn** | | | | | | | | Moonbriar |
 
 Fire · Holy is the flagship pair (built around Kindling Band), so it has the most bridges.
 
@@ -380,7 +415,7 @@ The knife applies Burn every second, so Kindling heals you more each time. Burn 
 | Cinder Knife | Ember Censer | Pyromancer's Hood | Ember Ward | Stoked Gauntlets | Firewalkers | Phoenix Cloak | Ashen Ring, Lucky Ember | Wildfire |
 
 Resonance: Fire 10 (tier 6).
-Start with 10 Heat (Firewalkers plus Fire tier 4). Crits add more Heat, and at 15 Wildfire stops Burn from decaying. Ashen Ring and Lucky Ember make every tick hit harder. A Shield build hard counters it.
+Start with 10 Heat (Firewalkers plus Fire tier 4). Crits add more Heat, and from 8 Heat Wildfire's bigger Burn cap hits 25% harder. Ashen Ring and Lucky Ember make every tick hit harder. A Shield build hard counters it.
 
 ### 3. Frostfire (Frost · Fire)
 | Weapon | Offhand | Helm | Body | Gloves | Boots | Cape | Rings | Amulet |
