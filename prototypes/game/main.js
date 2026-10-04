@@ -1240,7 +1240,7 @@ function makeFighterView(side, equip, look) {
   return {
     side, equip, look, hero: h, holder, pedWrap, ice, fx, dir, x: -dir * HOME_X, mats: collectMats(h.root),
     attack: null, cast: null, knock: 0, dodge: 0, flash: 0, flashColor: new THREE.Color(1, 1, 1), flashOn: false,
-    pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, snails: 0, dead: false, deathT: 0, win: false, winT: 0,
+    pulse: 0, clutch: 0, iceK: 0, emit: { burn: 0, poison: 0, frost: 0, sand: 0, heat: 0, luck: 0 }, snails: 0, blinds: 0, dead: false, deathT: 0, win: false, winT: 0,
   };
 }
 function clearArena() {
@@ -1248,7 +1248,7 @@ function clearArena() {
   particles.clear();
   bubbles.clear();
   flames.clear();
-  $('floats').querySelectorAll('.snail').forEach(el => el.remove());
+  $('floats').querySelectorAll('.snail, .blind-eye').forEach(el => el.remove());
   bolts.clear();
 }
 const camBase = new THREE.Vector3();
@@ -1509,6 +1509,22 @@ function dotFloat(side, n, kind) {
 }
 // Slow: little snail outlines that creep off the fighter's feet.
 const SNAIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 18.5h13.5c1.9 0 3.2-1.3 3.2-3.2v-1.6"/><path d="M19.2 13.7l1.4-3.4M19.2 13.7l-.7-3.6"/><circle cx="10" cy="12.5" r="5.3"/><path d="M10 12.5c0-.9.7-1.5 1.5-1.4.9.1 1.4.9 1.3 1.8-.2 1.3-1.4 2-2.6 1.9-1.6-.2-2.6-1.6-2.4-3.2"/></svg>';
+// Sand: little closed-eye outlines drift off the head of a fighter whose hits are being blinded.
+const BLIND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10c2.6 3.6 5.4 5.3 8.5 5.3s5.9-1.7 8.5-5.3"/><path d="M6.6 13.3L5.2 15.8M10.2 15.1l-.5 2.6M13.8 15.1l.5 2.6M17.4 13.3l1.4 2.5"/></svg>';
+function spawnBlind(f) {
+  if (f.blinds >= 2) return;
+  _p.set(f.holder.position.x + (Math.random() - 0.5) * 0.5, 1.75 + Math.random() * 0.3, 0.45).project(ac);
+  const w = arenaStage.clientWidth, h = arenaStage.clientHeight;
+  const el = document.createElement('span');
+  el.className = 'blind-eye';
+  el.innerHTML = BLIND;
+  el.style.left = `${((_p.x + 1) / 2) * w}px`;
+  el.style.top = `${((1 - _p.y) / 2) * h}px`;
+  el.style.setProperty('--dx', `${((Math.random() - 0.5) * 30).toFixed(0)}px`);
+  $('floats').append(el);
+  f.blinds++;
+  setTimeout(() => { el.remove(); f.blinds--; }, 2600);
+}
 function spawnSnail(f) {
   if (f.snails >= 3) return;
   // Beside the feet on the outer side, so they creep away from the fight instead of covering the body.
@@ -1920,6 +1936,7 @@ function emitStatus(f, s, dt) {
     luck: s.luck > 0 ? Math.min(8, 1 + s.luck * 0.4) : 0,
     regen: s.regen > 0 ? Math.min(6, 1 + s.regen * 0.4) : 0,
     snail: st.slow > 0 ? Math.min(1.1, 0.3 + st.slow * 0.04) : 0,
+    blind: st.sand > 0 ? Math.min(0.9, 0.25 + st.sand * 0.04) : 0,
   };
   for (const k of Object.keys(rates)) {
     f.emit[k] = (f.emit[k] ?? 0) + rates[k] * dt;
@@ -1952,6 +1969,7 @@ function emitStatus(f, s, dt) {
       if (k === 'regen') particles.emit({ x: x + (R() - 0.5) * 0.7, y: 0.2 + R() * 0.6, z: 0.3, vy: 0.45 + R() * 0.25, wob: 0.15, life: 1.1, size: 0.03, color: R() < 0.5 ? 0xe8ecff : 0x9aa8ff, grow: true });
       if (k === 'luck') particles.emit({ x: x + (R() - 0.5) * 0.9, y: 0.4 + R() * 1.4, z: (R() - 0.5) * 0.5, vy: 0.15, life: 0.6, size: 0.05, color: 0xf4c652, grow: true });
       if (k === 'snail') spawnSnail(f);
+      if (k === 'blind') spawnBlind(f);
     }
   }
 }
