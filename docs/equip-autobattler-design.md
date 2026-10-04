@@ -21,7 +21,6 @@ The depth comes from three layers:
 | Opponent | An asynchronous ghost: a snapshot of another player's build from the same day number. |
 | Gold | 10 per day. Unspent gold carries over. |
 | Shop | 5 gear offers plus 3 Enchanter offers (scrolls and cubes). Reroll 1 gold rerolls both shelves. Lock gear offers between days. Sell items for 50%, plus 1 gold per successful scroll. |
-| Practice dummy | Between fights, a free 20-second test against a 3,000 HP training dummy that slaps back lightly (so when-hit and Thorns effects fire). Shows damage per second and the full damage breakdown. Nothing is gained or lost. |
 | Lucky Merchant | Every 3rd day, one Enchanter offer is a guaranteed rare consumable (Chaos Scroll, Mirror Cube or Golden Hammer) at 1 gold off. |
 | Bag | Two tabs. **Equip:** 6 slots for items you're holding (a bench, not a build slot). **Use:** 6 slots for scrolls and cubes, stacking up to 9 of each. |
 | Rarity by day | Common and Rare from day 1, Epic from day 3, Legendary from day 5 (rare). |
@@ -546,7 +545,7 @@ The game opens on a title menu with a live, turnable preview of your character, 
 
 - **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
 - **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
-- **Graphics:** dark Pixel (MapleStory-style UI) is the default look. A Graphics switch on the title menu (and only there) changes to Low-poly or to the light Pixel theme. A collapsed Dev tools section holds shortcuts for testing the Hall of Fame (add a kept item, set wins to 9).
+- **Graphics:** dark Pixel (MapleStory-style UI) is the default look. A Graphics switch on the title menu and in the market's top bar changes to Low-poly or to the light Pixel theme. A collapsed Dev tools section holds shortcuts for testing the Hall of Fame (add a kept item, set wins to 9).
 - **Cosmetics never affect stats.** They're the natural home for rewards that must stay fair: Hall of Fame milestones, seasonal backdrops and event outfits. Your Hall of Fame avatar in exhibitions shows your look and backdrop.
 
 ---
