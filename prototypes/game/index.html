@@ -688,6 +688,8 @@
   body.on-menu .screen { display: none; }
   .menu-inner { max-width: 1120px; margin: 0 auto; display: grid; gap: 14px; }
   .menu-head { text-align: center; display: grid; gap: 4px; }
+  .version { position: absolute; top: 12px; right: 16px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--parch-dim); padding: 3px 8px; border: 1px solid currentColor; border-radius: 999px; opacity: 0.8; }
+  @media (max-width: 560px) { .version { top: 8px; right: 10px; font-size: 0.625rem; padding: 2px 6px; } .menu-head { padding-top: 18px; } }
   .title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: clamp(2.1rem, 5vw, 3.3rem); line-height: 1; color: var(--gold); text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5), 0 0 28px rgba(244, 198, 82, 0.25); }
   .tagline { color: var(--parch-dim); }
   .menu-grid { display: grid; grid-template-columns: minmax(0, 430px) minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -1448,6 +1450,7 @@
 </style>
 
 <section class="menu" id="menu" aria-label="Main menu">
+  <span class="version" title="Game version">Alpha 1.0</span>
   <div class="menu-inner">
     <header class="menu-head">
       <h1 class="title">Zereshktopia</h1>
