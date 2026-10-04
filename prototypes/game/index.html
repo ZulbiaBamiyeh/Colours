@@ -76,6 +76,12 @@
     .screen:not(.in-battle) { grid-template-rows: auto auto; align-content: start; }
     /* The inspector scrolls rather than pushing the page past one screen. */
     .inspect { max-height: calc(100dvh - 104px); overflow: auto; scrollbar-width: thin; }
+    /* The character box matches the two slot columns instead of stretching to the tallest panel. */
+    .stack-a { align-content: start; }
+    .doll { flex: none; }
+    .stage { min-height: 0; height: calc(var(--slot-size) * 5 + 28px); }
+    /* Battle side panels hug their rows instead of filling the arena's height. */
+    .hud { align-self: start; max-height: 100%; }
   }
   @media (min-width: 1201px) and (max-height: 800px) {
     #turntable { width: min(100%, 190px, 23vh); }
