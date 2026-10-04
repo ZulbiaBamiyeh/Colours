@@ -742,6 +742,50 @@
 
   /* ---------- Title menu: tabs, dev tools, Hall of Fame ---------- */
   .panel[hidden] { display: none; }
+  .menu-opts { display: grid; gap: 7px; }
+  .mopt { display: grid; gap: 1px; justify-items: start; text-align: left; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--brass-dim); background: rgba(0, 0, 0, 0.22); color: var(--parch); cursor: pointer; }
+  .mopt[hidden] { display: none; }
+  .mopt .mo-t { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; line-height: 1.15; }
+  .mopt small { font-size: 0.8rem; color: var(--parch-faint); }
+  .mopt small:empty { display: none; }
+  .mopt:hover { border-color: var(--brass); background: rgba(244, 198, 82, 0.07); }
+  .mopt[aria-pressed="true"] { border-color: var(--gold); background: rgba(244, 198, 82, 0.12); box-shadow: inset 4px 0 0 var(--gold); }
+  .mopt.primary { border-color: #ffb27a; background: linear-gradient(#f0884a, #c8521f); box-shadow: 0 4px 0 #6f2a0b, 0 8px 18px rgba(232, 116, 59, 0.25); margin-bottom: 4px; }
+  .mopt.primary .mo-t { color: #fff6e6; font-size: 1.4rem; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+  .mopt.primary small { color: rgba(255, 240, 220, 0.85); }
+  .mopt.primary:hover { filter: brightness(1.06); background: linear-gradient(#f0884a, #c8521f); }
+  .mopt.confirm { border-color: var(--danger); box-shadow: inset 4px 0 0 var(--danger); }
+  .mopt.confirm .mo-t { color: var(--danger); }
+  .mopt:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .mopt .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--gold); color: #22180e; font-family: var(--font-body); font-size: 0.72rem; font-weight: 800; vertical-align: 2px; }
+  .mopt .count:empty { display: none; }
+  html.maple:not(.dark) .mopt:not(.primary) { background: #ffffff; border-color: #c3c9d3; color: #2f3646; }
+  html.maple:not(.dark) .mopt:not(.primary) small { color: #6a7283; }
+  html.maple:not(.dark) .mopt[aria-pressed="true"] { border-color: #f39a1e; box-shadow: inset 4px 0 0 #f39a1e; }
+  /* Ghost leaderboard */
+  .menu-board { display: grid; gap: 8px; align-content: start; }
+  .lb-note { margin: 0; font-size: 0.9rem; color: var(--parch-dim); }
+  .lb { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+  .lb-head, .lb li { display: grid; grid-template-columns: 30px minmax(0, 1fr) 72px 72px; align-items: center; gap: 8px; }
+  .lb-head { padding: 0 10px; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--parch-faint); }
+  .lb-head span:nth-child(n+3), .lb .n { text-align: right; }
+  .lb li { padding: 7px 10px; border-radius: 9px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.04); }
+  .lb li:nth-child(-n+3) { border-color: var(--brass-dim); }
+  .lb .rk { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: var(--parch-faint); text-align: center; }
+  .lb li:nth-child(1) .rk { color: #f4c652; }
+  .lb li:nth-child(2) .rk { color: #d6dbe6; }
+  .lb li:nth-child(3) .rk { color: #d9925a; }
+  .lb .who { display: grid; gap: 2px; min-width: 0; }
+  .lb .nm { font-weight: 700; color: var(--sc, var(--parch)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb .sch { display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.75rem; color: var(--parch-faint); }
+  .lb .sch span { display: inline-flex; align-items: center; gap: 4px; }
+  .lb .sch i { width: 8px; height: 8px; border-radius: 50%; background: var(--sc); }
+  .lb .n { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.05rem; }
+  .lb .n.dim { color: var(--parch-dim); font-weight: 700; }
+  .lb-empty { color: var(--parch-dim); padding: 10px 2px; }
+  html.maple:not(.dark) .lb li { background: #ffffff; border-color: #dfe3ea; }
+  html.maple:not(.dark) .lb li:nth-child(-n+3) { border-color: #f3c27a; }
+  @media (max-width: 560px) { .lb-head, .lb li { grid-template-columns: 24px minmax(0, 1fr) 54px 54px; gap: 6px; } }
   .menu-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .menu-nav button { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--brass-dim); background: rgba(0, 0, 0, 0.2); color: var(--parch-dim); font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; cursor: pointer; }
   .menu-nav button[aria-selected="true"] { border-color: var(--gold); color: var(--parch); background: rgba(244, 198, 82, 0.12); box-shadow: inset 0 -3px 0 var(--gold); }
@@ -1459,15 +1503,12 @@
     <div class="menu-grid">
       <div class="panel menu-preview">
         <div class="stage" id="menu-stage"><canvas id="menu-hero" aria-label="Your character"></canvas><span class="nameplate" id="nameplate"></span><span class="hint">Drag to turn</span></div>
-        <div class="menu-actions">
-          <button type="button" class="fight" id="play">Play</button>
-          <button type="button" class="btn" id="menu-newrun" hidden>New run</button>
-        </div>
-        <span class="menu-run" id="menu-run"></span>
-        <div class="menu-nav" role="tablist" aria-label="Title menu">
-          <button type="button" role="tab" data-tab="look" aria-selected="true" aria-controls="tab-look">Character</button>
-          <button type="button" role="tab" data-tab="hof" aria-selected="false" aria-controls="tab-hof">Hall of Fame <span class="count" id="hof-count"></span></button>
-        </div>
+        <nav class="menu-opts" aria-label="Main menu">
+          <button type="button" class="mopt" id="play" hidden><span class="mo-t">Continue</span><small id="menu-run"></small></button>
+          <button type="button" class="mopt" id="menu-newrun"><span class="mo-t" id="newrun-t">Start new run</span><small id="newrun-sub"></small></button>
+          <button type="button" class="mopt" data-tab="look" aria-pressed="false" aria-controls="tab-look"><span class="mo-t">Customize character</span><small>Name, look and backdrop</small></button>
+          <button type="button" class="mopt" data-tab="hof" aria-pressed="false" aria-controls="tab-hof"><span class="mo-t">Hall of Fame <span class="count" id="hof-count"></span></span><small>Kept items and exhibitions</small></button>
+        </nav>
         <div class="opt graphics"><span class="opt-cap">Graphics</span><div class="segs"><div class="seg" role="group" aria-label="Graphics style" data-style-seg><button type="button" data-v="smooth">Low-poly</button><button type="button" data-v="pixel">Pixel</button></div><div class="seg theme-seg" role="group" aria-label="Pixel theme" data-theme-seg><button type="button" data-v="light">Light</button><button type="button" data-v="dark">Dark</button></div></div></div>
         <details class="dev">
           <summary>Dev tools</summary>
@@ -1479,8 +1520,9 @@
           </div>
         </details>
       </div>
-      <div class="panel menu-custom" id="tab-look" role="tabpanel">
-        <div class="ph"><h2>Your look</h2><span class="rule"></span><button type="button" class="btn mini-plain" id="randomise">Randomise</button></div>
+      <div class="panel menu-board" id="tab-board" aria-label="Ghost leaderboard"></div>
+      <div class="panel menu-custom" id="tab-look" hidden>
+        <div class="ph"><h2>Your look</h2><span class="rule"></span><button type="button" class="btn mini-plain" id="randomise">Randomise</button><button type="button" class="btn mini-plain" data-tab="board">Done</button></div>
         <label class="field"><span class="opt-cap">Name</span><input id="pname" maxlength="16" autocomplete="off" spellcheck="false"></label>
         <div class="opt"><span class="opt-cap">Skin</span><div class="swatches" id="sw-skin"></div></div>
         <div class="opt"><span class="opt-cap">Hair</span><div class="swatches" id="sw-hair"></div></div>
@@ -1490,7 +1532,7 @@
         <div class="ph sub"><h3>Backdrop</h3><span class="rule"></span><span class="aside">Behind you in the market and in battle</span></div>
         <div class="backdrops" id="backdrops"></div>
       </div>
-      <div class="panel menu-hof" id="tab-hof" role="tabpanel" hidden></div>
+      <div class="panel menu-hof" id="tab-hof" hidden></div>
     </div>
   </div>
 </section>

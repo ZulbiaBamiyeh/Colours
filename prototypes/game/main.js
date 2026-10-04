@@ -1803,6 +1803,7 @@ function finishBattle() {
     draw: 'Nobody survived the fight. No change to wins or lives.',
   }[outcome];
   const runEnds = (outcome === 'win' && S.wins + 1 >= S.goal) || (outcome === 'loss' && S.lives - 1 <= 0);
+  if (outcome === 'loss') recordGhostWin(B.ghost, S.day, runEnds);
   logLine(`<b>${title}</b> after ${B.sim.duration.toFixed(1)}s.`);
   const res = $('result');
   res.innerHTML = `<div class="result-card"><span class="result-title ${outcome}">${title}</span><span class="result-sub">${sub}</span><span class="result-sub">The fight lasted ${B.sim.duration.toFixed(1)}s.</span>${reportHTML()}<button type="button" class="btn primary" id="continue">${runEnds ? 'See run results' : `Continue to Day ${S.day + 1}`}</button></div>`;
@@ -2237,10 +2238,12 @@ function renderMenu() {
   $('backdrops').innerHTML = BACKDROPS.map(([id, label]) => `<button type="button" class="bdcard${P.backdrop === id ? ' on' : ''}" data-look="backdrop" data-v="${id}" aria-pressed="${P.backdrop === id}"><span class="bd bd-${id}" aria-hidden="true"></span><span>${label}</span></button>`).join('');
   if (document.activeElement !== $('pname')) $('pname').value = P.name;
   $('nameplate').textContent = playerName();
-  $('play').textContent = S.started ? 'Continue run' : 'Play';
-  $('menu-newrun').hidden = !S.started;
+  $('play').hidden = !S.started;
+  $('play').classList.toggle('primary', S.started);
+  $('menu-newrun').classList.toggle('primary', !S.started);
+  setNewRunConfirm(false);
   $('hof-count').textContent = HOF.items.length || '';
-  $('menu-run').textContent = S.started ? `Day ${S.day} · ${S.wins} win${S.wins === 1 ? '' : 's'} · ${S.lives} li${S.lives === 1 ? 'fe' : 'ves'} left` : 'Reach 10 wins before you run out of lives.';
+  $('menu-run').textContent = S.started ? `Day ${S.day} · ${S.wins} win${S.wins === 1 ? '' : 's'} · ${S.lives} li${S.lives === 1 ? 'fe' : 'ves'} left` : '';
   setBackdrop(menuStage, P.backdrop);
 }
 function applyLook() {
@@ -2257,7 +2260,16 @@ function showMenu(tab = menuTab) {
   setTab(tab);
   renderMenu();
   sizeMenu();
-  $('play').focus({ preventScroll: true });
+  $(S.started ? 'play' : 'menu-newrun').focus({ preventScroll: true });
+}
+// Starting over mid-run asks twice: the first click arms the button, the second abandons the run.
+let newRunArmed = null;
+function setNewRunConfirm(on) {
+  clearTimeout(newRunArmed);
+  newRunArmed = on ? setTimeout(() => setNewRunConfirm(false), 4000) : null;
+  $('menu-newrun').classList.toggle('confirm', on);
+  $('newrun-t').textContent = on ? 'Abandon this run?' : 'Start new run';
+  $('newrun-sub').textContent = on ? 'Click again to start over from Day 1' : S.started ? 'Abandons the run in progress' : `Reach ${S.goal} wins before you run out of lives`;
 }
 function hideMenu() {
   document.body.classList.remove('on-menu');
@@ -2274,7 +2286,8 @@ $('menu').addEventListener('click', e => {
     return;
   }
   const tab = e.target.closest('[data-tab]');
-  if (tab) return setTab(tab.dataset.tab);
+  // The option buttons toggle their panel; picking the open one again goes back to the leaderboard.
+  if (tab) return setTab(tab.dataset.tab === menuTab && tab.classList.contains('mopt') ? 'board' : tab.dataset.tab);
   const h = e.target.closest('[data-hof]');
   if (h) return toggleLoadout(h.dataset.hof);
   if (e.target.closest('#ex-fight')) return startExhibition();
@@ -2288,7 +2301,12 @@ $('menu').addEventListener('click', e => {
     return toast(`Wins set to ${S.wins}. Win the next fight to finish the run.`);
   }
   if (e.target.closest('#play')) hideMenu();
-  else if (e.target.closest('#menu-newrun')) { newRun(); hideMenu(); }
+  else if (e.target.closest('#menu-newrun')) {
+    if (S.started && !newRunArmed) return setNewRunConfirm(true);
+    setNewRunConfirm(false);
+    newRun();
+    hideMenu();
+  }
   else if (e.target.closest('#randomise')) {
     const pick = a => a[Math.floor(Math.random() * a.length)];
     for (const k of Object.keys(LOOKS)) P[k] = pick(LOOKS[k]);
@@ -2382,7 +2400,7 @@ function renderHof() {
   const el = $('tab-hof');
   $('hof-count').textContent = HOF.items.length || '';
   const r = HOF.record;
-  const head = `<div class="ph"><h2>Hall of Fame</h2><span class="rule"></span><span class="aside">${r.w + r.l + r.d ? `Exhibitions ${r.w}W · ${r.l}L${r.d ? ` · ${r.d}D` : ''}` : `${HOF.items.length} kept`}</span></div>`;
+  const head = `<div class="ph"><h2>Hall of Fame</h2><span class="rule"></span><span class="aside">${r.w + r.l + r.d ? `Exhibitions ${r.w}W · ${r.l}L${r.d ? ` · ${r.d}D` : ''}` : `${HOF.items.length} kept`}</span><button type="button" class="btn mini-plain" data-tab="board">Done</button></div>`;
   if (!HOF.items.length) {
     el.innerHTML = `${head}<div class="hof-empty"><p><b>Win a run</b> (${S.goal} wins) to keep one item you finished with. It keeps its scroll steps and potential lines.</p><p>Then build an <b>exhibition set</b> from your kept items and fight other players' Hall of Fame avatars, just for fun. Hall of Fame items never enter runs.</p></div>`;
     return;
@@ -2408,13 +2426,78 @@ function renderHof() {
     <div class="ph sub"><h3>Vault</h3><span class="rule"></span><span class="aside">Click an item to add it to your set or take it out</span></div>
     <div class="hof-vault">${HOF.items.map(i => `<div class="slot${inSet.has(i.uid) ? ' in-set' : ''}">${hofBtn(i)}</div>`).join('')}</div>`;
 }
-let menuTab = 'look';
+/* ---------- Ghost leaderboard ----------
+   Every time a ghost beats a player it leaves a record: which ghost (ghosts go by name), its schools, the
+   day, and whether that loss ended the run. Records are tallied into the board. In the claude.ai artifact
+   they go to a shared store, so the board covers every player; elsewhere it covers this device. */
+const BOARD_KEY = 'ghostBoard';
+const BOARD = { local: loadLocalBoard(), shared: null, db: null, me: null };
+function loadLocalBoard() {
+  try { const b = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]'); return Array.isArray(b) ? b : []; } catch { return []; }
+}
+function recordGhostWin(ghost, day, ended) {
+  const rec = { ghost: String(ghost.name).slice(0, 40), schools: (ghost.schools ?? []).slice(0, 3), day, ended: !!ended, at: Date.now() };
+  BOARD.local.push(rec);
+  if (BOARD.local.length > 500) BOARD.local.splice(0, BOARD.local.length - 500);
+  try { localStorage.setItem(BOARD_KEY, JSON.stringify(BOARD.local)); } catch { /* storage unavailable */ }
+  BOARD.db?.collection('ghostWins').add({ ...rec, by: BOARD.me ?? '' }).catch(() => { /* read-only viewer or offline: the local board still has it */ });
+}
+function tallyBoard(recs, shared) {
+  const by = new Map();
+  for (const r of recs) {
+    if (!r || typeof r.ghost !== 'string') continue;
+    const g = by.get(r.ghost) ?? { name: r.ghost, schools: [], wins: 0, ended: 0, players: new Set(), best: 0 };
+    g.wins++;
+    if (r.ended) g.ended++;
+    g.players.add(shared ? String(r.by ?? '') : 'you');
+    g.best = Math.max(g.best, +r.day || 0);
+    if (Array.isArray(r.schools) && r.schools.length) g.schools = r.schools.filter(sc => SCHOOL_VAR[sc]);
+    by.set(r.ghost, g);
+  }
+  return [...by.values()].sort((a, b) => b.ended - a.ended || b.players.size - a.players.size || b.wins - a.wins || a.name.localeCompare(b.name)).slice(0, 12);
+}
+function renderBoard() {
+  const el = $('tab-board');
+  const shared = !!BOARD.shared;
+  const rows = tallyBoard(shared ? BOARD.shared : BOARD.local, shared);
+  const esc = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const head = `<div class="ph"><h2>Ghost leaderboard</h2><span class="rule"></span><span class="aside">${shared ? 'All players' : 'This device'}</span></div>
+    <p class="lb-note">${shared ? 'The ghosts that have ended the most runs, and how many players each has beaten.' : 'The ghosts that have ended the most of your runs.'}</p>`;
+  if (!rows.length) {
+    el.innerHTML = `${head}<p class="lb-empty">No ghost has beaten ${shared ? 'anyone' : 'you'} yet. Lose a fight and the ghost that beat you takes its place here.</p>`;
+    return;
+  }
+  el.innerHTML = `${head}
+    <div class="lb-head" aria-hidden="true"><span>#</span><span>Ghost</span><span>Runs ended</span><span>${shared ? 'Players beaten' : 'Wins vs you'}</span></div>
+    <ol class="lb">${rows.map((g, i) => `<li style="--sc: var(${SCHOOL_VAR[g.schools[0]] ?? '--parch'})">
+      <span class="rk">${i + 1}</span>
+      <span class="who"><span class="nm">${esc(g.name)}</span><span class="sch">${g.schools.map(sc => `<span style="--sc: var(${SCHOOL_VAR[sc]})"><i></i>${sc}</span>`).join('')}${g.best ? `<span>· reached day ${g.best}</span>` : ''}</span></span>
+      <span class="n" aria-label="Runs ended">${g.ended}</span>
+      <span class="n dim" aria-label="${shared ? 'Players beaten' : 'Wins against you'}">${shared ? g.players.size : g.wins}</span>
+    </li>`).join('')}</ol>`;
+}
+// In the artifact viewer, light up the shared board once the store answers; elsewhere this resolves to nothing.
+(async () => {
+  const db = await window.claude?.use?.('db').catch(() => null);
+  if (!db) return;
+  const user = await window.claude.use('user').catch(() => null);
+  BOARD.me = (await user?.id?.().catch(() => null)) ?? null;
+  BOARD.db = db;
+  db.collection('ghostWins').orderBy('at', 'desc').limit(1000).onSnapshot(snap => {
+    BOARD.shared = snap.docs.map(d => d.data());
+    if (onMenu() && menuTab === 'board') renderBoard();
+  }, () => { BOARD.shared = null; });
+})();
+
+let menuTab = 'board';
 function setTab(tab) {
   menuTab = tab;
-  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('.mopt[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === tab)));
+  $('tab-board').hidden = tab !== 'board';
   $('tab-look').hidden = tab !== 'look';
   $('tab-hof').hidden = tab !== 'hof';
   if (tab === 'hof') renderHof();
+  if (tab === 'board') renderBoard();
   buildMenuHero();
   sizeMenu();
 }

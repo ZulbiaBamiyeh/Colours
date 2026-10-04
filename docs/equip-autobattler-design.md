@@ -578,7 +578,9 @@ Runs end, but a player's best items shouldn't vanish. This is what gives scroll 
 
 ## 12. Main menu and cosmetics
 
-The game opens on a title menu with a live, turnable preview of your character, Play (or Continue run and New run), and two tabs: **Character** (appearance and backdrop) and **Hall of Fame**. The ☰ button in the market returns to it.
+The game opens on a title menu with a live, turnable preview of your character and four options: **Continue** (only while a run is in progress, with its day, wins and lives), **Start new run** (mid-run it asks for a second click before abandoning the run), **Customize character** (appearance and backdrop) and **Hall of Fame**. The right-hand side shows the **ghost leaderboard** until you open Customize or Hall of Fame. The ☰ button in the market returns to the menu.
+
+- **Ghost leaderboard:** every time a ghost beats a player, it leaves a record: the ghost's name (ghosts are known by name), its schools, the day, and whether that loss ended the run. The board ranks ghosts by runs ended, then by players beaten, then by total wins, and shows each ghost's schools and the furthest day it was met. In the claude.ai artifact the records go to a shared store, so the board covers every player. On other hosts (GitHub Pages) it covers the runs on that device.
 
 - **Appearance:** name (shown on your nameplate, battle panel and arena tag), skin tone, hair colour, hair style (spiky, bob, long, ponytail, bun, curly, none), eye colour and outfit colour. Equipped armour still tints the outfit during a run.
 - **Backdrop:** a scene behind your character on the menu, behind you in the market, and on your half of the arena in battle (the ghost brings its own on the other half). Current set: Hearth, Ember Forge, Frost Peaks, Dune Sunset, Dawn Chapel, Starry Night, Meadow, Mire and Rose Garden, several with drifting embers, snow, petals, fireflies or twinkling stars.
