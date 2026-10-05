@@ -800,6 +800,9 @@ function buildStats() {
     const add = Math.round((ITEMS[it.id].hp || 0) * boost + m.hp + gemSum(it, 'hp'));
     if (add) hpParts.push(`${ITEMS[it.id].name} ${add > 0 ? '+' : '−'}${Math.abs(add)}`);
     hp += add;
+    const mult = ITEMS[it.id].hpMult ? 1 + (ITEMS[it.id].hpMult - 1) * tierMult(ITEMS[it.id], it.tier) : 1;
+    if (mult !== 1) hpParts.push(`${ITEMS[it.id].name} ×${Math.round(mult * 100) / 100}`);
+    if (gemSum(it, 'hpPct')) hpParts.push(`Heartstone +${gemSum(it, 'hpPct')}%`);
     luck += (ITEMS[it.id].stats?.luck || 0) + m.luck + gemSum(it, 'luck');
     ls += m.ls;
     if (!ITEMS[it.id].cd) quick += fx.filter(x => x.quick).length;
@@ -809,11 +812,14 @@ function buildStats() {
     luck += p.stats?.luck ?? 0;
     ls += p.ls ?? 0;
   }
+  // Multipliers and % HP apply after flat HP, so read the total from the engine itself.
+  hp = Math.round(simulate({ name: 'You', equip: S.equip, passives: passivesOf(S.hero, S.spec) }, { name: 'Dummy', equip: emptyEquip(), hp: 9999 }, ITEMS, 1, { maxTime: 0.1 }).frames[0].A.maxHp);
   const weapon = (it, w) => {
     const m = it ? itemMods(it) : itemMods({});
     const g = k => (it ? gemSum(it, k) : 0);
+    const tm = it ? tierMult(ITEMS[it.id], it.tier) : 1;
     return {
-      name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (it ? tierMult(ITEMS[it.id], it.tier) : 1) * (1 + (m.dmgPct + g('dmgPct')) / 100),
+      name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * tm * (1 + (m.dmgPct + g('dmgPct')) / 100) + ((w.hpDmg ?? 0) * tm + g('hpHit')) * hp,
       interval: w.interval * (1 - (m.spdPct + g('spdPct')) / 100) * (1 - Math.min(30, quick * 4) / 100),
       critMult: Math.max(2, w.critMult || 2), ls: ((w.ls || 0) + g('ls')) * 100, critBonus: g('critBonus') * 100,
     };
@@ -945,7 +951,7 @@ function tierText(def, item) {
   const t = item?.tier ?? 1;
   if (t === 1 || def.slot === 'trinket') return kwText(def.text);
   const m = tierMult(def, t);
-  const fmt = n => { const x = Math.round(n * 10) / 10; return `<b class="tierup">${Number.isInteger(x) ? x : x.toFixed(1)}</b>`; };
+  const fmt = n => `<b class="tierup">${Math.round(n * 100) / 100}</b>`;
   let text = def.text;
   let head = '';
   if (def.starter) {
@@ -958,6 +964,8 @@ function tierText(def, item) {
   }
   text = text
     .replace(/\b(apply|gain|heal|deal|Cleanse|Haste yourself for|Charge (?!this)[a-z ]+?)\s+(\d+(?:\.\d+)?)(?![\d.]*×)/g, (all, verb, n) => `${verb} \u0000${+n * m}\u0001`)
+    // HP multipliers scale their bonus part: ×1.3 becomes ×1.45 at Silver.
+    .replace(/max HP ×(\d+(?:\.\d+)?)/, (all, n) => `max HP ×\u0000${Math.round((1 + (+n - 1) * m) * 100) / 100}\u0001`)
     // The other amount in "gain 1 Might, or 2 while …" (not percentages like Wildfire's "or 50% more").
     .replace(/\bor (\d+(?:\.\d+)?)(?![\d.]*[×%])/g, (all, n) => `or \u0000${+n * m}\u0001`)
     .replace(/^\+(\d+) Luck/, (all, n) => (def.stats?.luck ? `+\u0000${Math.round(+n * m)}\u0001 Luck` : all));
@@ -1932,7 +1940,7 @@ function playEvent(e, quiet) {
     case 'fatigue':
       if (!B.fatigueShown) {
         B.fatigueShown = true;
-        log('<b>Fatigue</b>: a sandstorm rolls in, and both fighters take growing damage each second.');
+        log('<b>Fatigue</b>: a sandstorm rolls in, and both fighters lose a growing share of their max HP each second.');
         if (!quiet) {
           const el = document.createElement('span');
           el.className = 'float banner big';

@@ -24,10 +24,12 @@ const GRACE_PER = 0.05;
 // Might: each stack makes your weapon hits deal MIGHT_PER more damage. A share of the hit, so slow and fast weapons gain alike.
 const MIGHT_PER = 0.05;
 const FATIGUE_AT = 25, MAX_TIME = 75;
+// Fatigue: each second of the sandstorm deals a growing share of max HP (1 × 0.6%, then 2 × 0.6%, …), so big HP can't outlast it.
+const FATIGUE_PCT = 0.006;
 const POISON_EVERY = 4, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
 const WILDFIRE_AT = 8, WILDFIRE_PCT = 25, WILDFIRE_HOT_PCT = 50;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { FATIGUE_AT, POISON_EVERY, REGEN_EVERY, HEAT_MAX, HEAT_PER, FORT_MAX, GRACE_PER, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SLOW_MAX, SAND_MAX, MIGHT_PER, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT, WILDFIRE_PCT, WILDFIRE_HOT_PCT };
+export const RULES = { FATIGUE_AT, FATIGUE_PCT, POISON_EVERY, REGEN_EVERY, HEAT_MAX, HEAT_PER, FORT_MAX, GRACE_PER, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SLOW_MAX, SAND_MAX, MIGHT_PER, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT, WILDFIRE_PCT, WILDFIRE_HOT_PCT };
 // Slow's speed multiplier and Sand's miss chance, shared with the UI.
 export const slowMult = n => 1 - (SLOW_MAX * n) / (n + SLOW_K);
 export const sandMiss = n => (SAND_MAX * n) / (n + SAND_K);
@@ -75,6 +77,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       stPct: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
       stasis: 0, berserk: 0, below: {}, hist: [],
+      // HP multipliers (items, tier-scaled) and % max HP (Heartstone gems), applied after all flat HP.
+      hpMult: 1, hpPct: 0,
       haste: 0,
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
@@ -101,6 +105,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (quick && !def.cd) f.gemSpd += 4 * quick;
       f.items.push(it);
       f.maxHp += (def.hp || 0) * boost + m.hp + sum('hp');
+      if (def.hpMult) f.hpMult *= 1 + (def.hpMult - 1) * tm;
+      f.hpPct += sum('hpPct');
       f.luck += m.luck + sum('luck');
       f.ls += m.ls / 100;
       for (const k in f.start) f.start[k] += m[k] ?? 0;
@@ -124,6 +130,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       const tune = w => ({
         ...w, dmg: w.dmg * tm * (1 + (m.dmgPct + sum('dmgPct')) / 100), interval: w.interval * (1 - (m.spdPct + sum('spdPct')) / 100), extra: m.onHit,
         ls: (w.ls || 0) + sum('ls'), critBonus: sum('critBonus'), catalyst: sum('catalyst'),
+        // A share of your max HP added to each hit: the weapon's own (Colossus Maul) and Heartstone gems.
+        hpDmg: (w.hpDmg ?? 0) * tm + sum('hpHit'),
         echoHits: Math.min(Infinity, ...gfx.map(x => x.echoHits ?? Infinity)),
         gemHit: gfx.filter(x => x.hit).map(x => ({ fn: x.hit, data: {}, slot, boost })),
       });
@@ -153,6 +161,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const slowW = f.items.reduce((m, it) => m * (it.def.weaponSlow ?? 1), 1);
     if (slowW !== 1) for (const wp of f.weapons) wp.w.interval *= slowW;
     if (!f.weapons.some(w => w.main)) f.weapons.unshift({ it: null, w: { interval: 1.5, dmg: 1, hands: 1 }, timer: 0, main: true, slot: 'weapon' });
+    f.maxHp *= f.hpMult * (1 + f.hpPct / 100);
     if (build.hp) f.maxHp = build.hp;
     f.hp = f.maxHp;
     return f;
@@ -499,7 +508,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (a.autoCrit > 0) { crit = true; a.autoCrit--; }
     else if (a.flags.shatter && d.frozen > 0) crit = true;
     else crit = critRoll(a) || (w.critBonus > 0 && rng() < w.critBonus);
-    let dmg = w.dmg + (w.catalyst ? w.catalyst * statusTypes(d) : 0);
+    let dmg = w.dmg + (w.catalyst ? w.catalyst * statusTypes(d) : 0) + (w.hpDmg ? w.hpDmg * a.maxHp : 0);
     if (a.lowDmgPct && a.hp < a.maxHp * 0.5) dmg *= 1 + a.lowDmgPct / 100;
     if (a.selfCatalyst) dmg *= 1 + (a.selfCatalyst * statusTypes(a)) / 100;
     if (a.flags.juggernaut) dmg += a.shield * 0.25;
@@ -683,9 +692,9 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (Math.abs(t - Math.round(t)) < 1e-6) {
       for (const f of [A, B]) fire(f, 'second');
       if (t >= FATIGUE_AT) {
-        const n = t - FATIGUE_AT + 1;
-        ev('fatigue', { n });
-        for (const f of [A, B]) damage(null, f, n, 'fatigue');
+        const k = t - FATIGUE_AT + 1;
+        ev('fatigue', { n: k });
+        for (const f of [A, B]) damage(null, f, k * FATIGUE_PCT * f.maxHp, 'fatigue');
       }
     }
     const aDead = A.hp <= 0, bDead = B.hp <= 0;

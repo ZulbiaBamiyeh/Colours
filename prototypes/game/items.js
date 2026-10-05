@@ -457,6 +457,34 @@ const LIST = [
     text: 'Every 4s: 40% chance to gain 1 Grace and heal 5.', cd: 4, act: c => { if (!c.chance(0.4)) return false; c.heal(5); return c.gain('grace', 1); },
     model: { t: 'ring', band: 0x2f8a63, gem: 0xf4ecd8, deco: 'clover' } },
 
+  /* ---------------- Giants: max HP ----------------
+     HP multipliers apply after all flat HP and multiply each other. Tiers scale the bonus part (×1.3 is ×1.45 at Silver, ×1.6 at Gold).
+     Payoffs turn max HP into damage, and Witherbloom gives Venom a way to wear a giant down. */
+  { id: 'titans_heart', name: "Titan's Heart", schools: [PRISM], slot: 'amulet', rarity: L,
+    text: 'Your max HP ×1.3.', hpMult: 1.3,
+    model: { t: 'amulet', shape: 'heart' } },
+  { id: 'giantblood_plate', name: 'Giantblood Plate', schools: [PRISM], slot: 'body', rarity: E,
+    text: 'Your max HP ×1.2.', hpMult: 1.2,
+    model: { t: 'armor', kind: 'plate', a: 0x6a4a3a, b: 0x8a2a2a, c: 0xc48a24 } },
+  { id: 'troll_hide', name: 'Troll Hide', schools: [PRISM], slot: 'cape', rarity: R, kind: 'Cape',
+    text: 'Your max HP ×1.1. Every 5s: heal 2% of your max HP.', hpMult: 1.1, cd: 5, act: c => c.heal(c.me.maxHp * 0.02),
+    model: { t: 'cape', a: 0x4f6a34, b: 0x2e3a22, hem: 0x8a9a5a, emblem: 'shield' } },
+  { id: 'colossus_maul', name: 'Colossus Maul', schools: [HOLY], slot: 'weapon', rarity: E, kind: 'Maul',
+    text: 'Hits deal +10% of your max HP as damage.', weapon: W2(5.0, 16, null, { hpDmg: 0.1 }),
+    model: { t: 'hammer', haft: 0x5c3a24, head: 0x8a909c, face: 0xc6d0e2, hand: -0.8, hold: 0.58 } },
+  { id: 'tower_shield', name: 'Tower Shield', schools: [HOLY], slot: 'offhand', rarity: R, kind: 'Shield',
+    text: 'Every 6s: deal damage equal to 4% of your max HP.', cd: 6, act: c => c.hit(c.me.maxHp * 0.04),
+    model: { t: 'buckler', a: 0x8a909c, b: 0xe8b73a, c: 0xc6d0e2, hold: 0.45 } },
+  { id: 'ironroot_ring', name: 'Ironroot Ring', schools: [THORN], slot: 'ring', rarity: R,
+    text: 'Start of fight: gain 1 Thorns per 60 max HP.', hooks: { start: c => c.gain('thorns', Math.floor(c.me.maxHp / 60)) },
+    model: { t: 'ring', band: 0x5a3a24, gem: 0x9ac36a, deco: 'spikes' } },
+  { id: 'ogres_belly', name: "Ogre's Belly", schools: [BLOOD], slot: 'ring', rarity: R,
+    text: 'Weapon hits heal 1.5% of your max HP.', hooks: { hit: c => c.heal(c.me.maxHp * 0.015) },
+    model: { t: 'ring', band: 0x3a1a20, gem: 0xd8344f, deco: 'fangs' } },
+  { id: 'witherbloom_ring', name: 'Witherbloom Ring', schools: [VENOM], slot: 'ring', rarity: R,
+    text: "Whenever your Poison ticks: deal 1% of the enemy's max HP.", hooks: { poisonTick: c => c.hit(c.foe.maxHp * 0.01) },
+    model: { t: 'ring', band: 0x4f6a34, gem: 0xb070d0, deco: 'drop' } },
+
   /* ---------------- Engine items ----------------
      Haste: your weapons and cooldown items run 50% faster for a few seconds.
      Charge: advance another item's cooldown so it fires sooner. These link items into chains you can watch fire. */

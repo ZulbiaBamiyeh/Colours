@@ -60,7 +60,7 @@ The depth comes from three layers:
 | **Heat** | you | Speed with diminishing returns: +120% × n / (n + 30). 10 Heat is +30%, 30 is +60%. No cap, doesn't decay. Molten Core makes it a straight +3% per stack. |
 | **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. No cap. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
 | **Regen** | you | Heals 1 per stack every 4s. Never wears off. No cap. Counts as healing, so Burn cuts it. |
-| **Fortify** | you | Take less damage from everything but Fatigue, with diminishing returns: 60% × n / (n + 20). 10 Fortify is −20%, 30 is −36%. Lasts the fight. |
+| **Fortify** | you | Take less damage from everything but Fatigue (which deals a growing share of max HP), with diminishing returns: 60% × n / (n + 20). 10 Fortify is −20%, 30 is −36%. Lasts the fight. |
 | **Grace** | you | Your healing (including Lifesteal and Regen) is 5% stronger per stack. Lasts the fight, no cap. |
 | **Might** | you | Your weapon hits deal +5% damage per stack. A share of each hit, so slow weapons gain as much as fast ones. Lasts the fight, no cap. |
 | **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
@@ -424,6 +424,28 @@ Tiers scale the Might gained, like any other amount.
 
 - **Tuning (item added to a day-6 ghost of its school):** Might items win 63–81%, around armour's range, against 53–85% for the other items in the same slot and school.
 - **Balance (random gemmed ghosts, with Fortify, Grace and the Holy and Blood fixes):** schools land at 40–63% on day 3, 44–55% on day 8 and 42–55% on day 14, the same spread as before the caps came off. Heroes land at 42–61%, 47–54% and 43–54%; specialisations at 42–55%.
+
+## 7f. Giants: stacking max HP
+
+HP multipliers apply after all flat HP and multiply each other, so a committed build can reach two to three times normal HP. Tiers scale the bonus part: ×1.3 becomes ×1.45 at Silver and ×1.6 at Gold.
+
+| Item | School | Slot | Effect |
+|---|---|---|---|
+| Titan's Heart | Prismatic | Amulet (L) | Max HP ×1.3 |
+| Giantblood Plate | Prismatic | Body (E) | Max HP ×1.2 |
+| Troll Hide | Prismatic | Cape (R) | Max HP ×1.1. Every 5s: heal 2% of max HP |
+| Colossus Maul | Holy | Two-handed weapon (E) | 5.0s, 16 damage; hits add 10% of your max HP |
+| Tower Shield | Holy | Offhand (R) | Every 6s: deal 4% of your max HP |
+| Ironroot Ring | Thorn | Ring (R) | Start: 1 Thorns per 60 max HP |
+| Ogre's Belly | Blood | Ring (R) | Weapon hits heal 1.5% of your max HP |
+| Witherbloom Ring | Venom | Ring (R) | Poison ticks deal 1% of the enemy's max HP |
+| Heartstone gem | — | Rare gem | Weapon: hits add 1% of max HP. Armour: max HP +4%. Jewellery: start with Shield equal to 5% of max HP |
+
+**Fatigue now scales with max HP:** second k of the sandstorm deals k × 0.6% of max HP. For a 160 HP build that's the same as the old flat Fatigue, and a giant can't outlast it.
+
+- **Tuning (the three HP pieces, a payoff and Ironroot Ring swapped into a random day-10 ghost):** an equally rare set from the ghost's own school wins 49%. The Tower Shield Giant wins 61% (70% with four Heartstones), the Colossus Maul Giant 50% (67%), and the HP pieces alone 52% (56%). Draws stay around 2%. First-pass numbers (×1.4/×1.25/×1.15, Tower Shield at 8%, 1 Thorns per 40 HP) won 85–93%.
+- **Balance:** schools land at 38–59% on day 3, 44–58% on day 8 and 40–55% on day 14.
+- **Display:** the HP shown in the market comes from the engine, so multipliers and Heartstones are counted, and the stat sheet lists each one.
 
 ## 8. Bridge rings
 
