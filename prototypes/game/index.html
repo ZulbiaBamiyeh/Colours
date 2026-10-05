@@ -559,6 +559,31 @@
   .t0 { --pc: #4f9de0; } .t1 { --pc: #a25cff; } .t2 { --pc: #f2c14e; } .t3 { --pc: #5fd068; }
   .hup { color: var(--gold); font-size: 0.75rem; }
 
+  /* ---------- Heroes ---------- */
+  .menu-hero { display: grid; gap: 8px; align-content: start; }
+  .hero-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .hero-card { display: grid; gap: 6px; align-content: start; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--brass-dim); background: rgba(0, 0, 0, 0.22); color: var(--parch); cursor: pointer; font: inherit; }
+  .hero-card:hover, .hero-card:focus-visible { border-color: var(--gold); background: rgba(244, 198, 82, 0.08); outline: none; }
+  .hc-top { display: flex; gap: 10px; align-items: center; }
+  .hc-ico { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--slot-dark); }
+  .hc-ico img { width: 38px; height: 38px; }
+  .hc-name { display: grid; gap: 2px; font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; }
+  .hc-sch { display: flex; gap: 8px; font-family: var(--font-body); font-weight: 600; font-size: 0.75rem; color: var(--parch-dim); }
+  .hp-sch { display: inline-flex; align-items: center; gap: 4px; }
+  .hp-sch i { width: 8px; height: 8px; border-radius: 50%; background: var(--sc); }
+  .hc-blurb { font-size: 0.85rem; color: var(--parch-dim); font-style: italic; }
+  .hc-line { font-size: 0.875rem; line-height: 1.35; }
+  .hc-line.dim, .hl-p.dim { color: var(--parch-faint); }
+  .hero-line { margin: 6px 0 14px; font-size: 0.8rem; line-height: 1.4; color: var(--parch-dim); }
+  .hero-line:empty { margin-bottom: 0; }
+  .hero-line > b { color: var(--parch); }
+  .hl-p { margin-left: 6px; }
+  .spec-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .spec-opt { display: grid; gap: 4px; text-align: left; padding: 12px; border-radius: 10px; border: 1px solid var(--brass-dim); background: rgba(0, 0, 0, 0.25); color: var(--parch); cursor: pointer; font: inherit; }
+  .spec-opt b { font-family: var(--font-display); font-size: 1.05rem; }
+  .spec-opt:hover, .spec-opt:focus-visible { border-color: var(--gold); outline: none; background: rgba(244, 198, 82, 0.08); }
+  @media (max-width: 520px) { .spec-pick { grid-template-columns: 1fr; } }
+  html.maple:not(.dark) .hero-card, html.maple:not(.dark) .spec-opt { background: #ffffff; border-color: #c3c9d3; color: #2f3646; }
   /* ---------- Item tiers: Silver and Gold ---------- */
   .b-tier { position: absolute; z-index: 1; right: 3px; bottom: 3px; padding: 0 4px; border-radius: 4px; font: 800 0.6rem/1.35 var(--font-body); letter-spacing: 0.04em; pointer-events: none; }
   .b-tier.t2 { background: linear-gradient(#f4f6fa, #a9b0bd); color: #2a2f3a; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); }
@@ -568,6 +593,8 @@
   .up-tag { font-size: 0.75rem; font-weight: 800; color: #7fe07f; letter-spacing: 0.03em; }
   .tierchip.t2 { border-color: #c8ced8; color: #e6ebf2; }
   .tierchip.t3 { border-color: #f4c652; color: #f4c652; }
+  .tierup { color: #9fe09f; }
+  html.maple:not(.dark) .tierup { color: #2f8a3a; }
   .tier-note { margin: 2px 0; font-size: 0.85rem; color: #9fe09f; }
   .htier { display: inline-block; padding: 0 3px; border-radius: 3px; font-size: 0.6rem; font-weight: 800; vertical-align: 1px; }
   .htier.t2 { background: #c8ced8; color: #2a2f3a; }
@@ -1614,6 +1641,7 @@
         <div class="backdrops" id="backdrops"></div>
       </div>
       <div class="panel menu-hof" id="tab-hof" hidden></div>
+      <div class="panel menu-hero" id="tab-hero" hidden></div>
     </div>
   </div>
 </section>
@@ -1648,6 +1676,7 @@
         <div class="col" id="col-right"></div>
       </div>
       <div class="trinket-row"><span class="tr-cap">Trinkets</span><div class="trinket-cells" id="trinket-cells"></div></div>
+      <div class="hero-line" id="hero-line"></div>
       <div class="stats" id="stats" role="button" tabindex="0" aria-controls="stat-sheet" aria-expanded="false" title="Show all stats"></div>
       <div class="stat-sheet" id="stat-sheet" hidden aria-label="All stats"></div>
     </section>

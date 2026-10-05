@@ -358,6 +358,24 @@ Buying a copy of gear you own (equipped or in the bag) upgrades it instead of ad
 - **Ghosts:** they buy copies too. About 12% of their gear is upgraded by day 6, rising to about 60% by day 12 as late gold goes into upgrades.
 - **Tuning (an item upgraded from Bronze on a random day-6 ghost):** Silver wins 60–63% for armour and jewellery and 74% for weapons; Gold wins 64–71% and 84%. Weapons first stepped ×1.5 and ×2 like everything else, which won 89% and 97%.
 - **Balance:** with engines and tiers in play, schools land at 41–56% on days 3, 8 and 14.
+- **Text:** the inspector and tooltips rewrite an upgraded item's numbers (statuses applied or gained, healing, damage, Haste and Charge times, jewellery starters, Luck, and the Gold "Every Ns") and highlight the changed ones. Multipliers such as "crits deal 2.5×" stay as written.
+
+## 7d. Heroes
+
+A run starts by choosing a hero. Each hero has a starting item, a passive, two schools the market leans toward, and a choice of two specialisations on day 5. Hero passives are read by the engine like items without a slot, so ghosts use the same code.
+
+| Hero | Schools | Starts with | Passive | Day 5: one of |
+|---|---|---|---|---|
+| Ashen Duelist | Fire · Blood | Ember Censer | Start: gain 3 Heat, apply 1 Burn | Blood Rite (+10% Lifesteal) · Kindler (Burn cap +4, start +2 Heat) |
+| Frost Warden | Frost · Holy | Frost Lantern | Enemy Freezes: gain 8 Shield | Glacier Heart (Freezes +1s) · Bastion (start 12 Shield) |
+| Plague Peddler | Venom · Fortune | Lucky Coin | +3 gold at the start, +2 gold each day | Blight Ledger (Poison cap +6) · Loaded (+3 Luck) |
+| Clockmaker | Desert · Lunar | Moonwell Flask | Cooldown items fire 10% faster | Hourhand (every 10s, Haste 2s) · Sandglass (start 3 Sand, 1 Regen) |
+| Briar Knight | Thorn | Briar Mail | Start: gain 1 Thorns | Ironbark (+15 max HP) · Spitesteel (Thorns +1 damage) |
+
+- **Market tilt:** each gear offer has a 35% chance to be rerolled toward the hero's schools. Other schools still show up, so a hero is a lean, not a lock.
+- **Ghosts:** each ghost picks the hero that matches its main school, and 60% of the time its second school is that hero's other one. Ghosts specialise on day 5 and get the hero's gold.
+- **Tuning (hero mirrors across random ghost builds):** heroes win 44–57% on day 3, 48–55% on day 8 and 45–53% on day 14; specialisations land at 41–55%. The Ashen Duelist started at 31–38% because ghosts kept its old starting Cinder Knife; the start item became Ember Censer and ghosts now replace a weaker starting weapon.
+- **Exhibitions** (Hall of Fame fights) leave heroes out, so kept builds are compared on gear alone.
 
 ## 8. Bridge rings
 

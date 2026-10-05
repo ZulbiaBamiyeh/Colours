@@ -8,6 +8,7 @@ export const SCHOOL_VAR = {
 };
 export const SLOTS = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet'];
 import { TRINKET_LIST } from './trinkets.js';
+import { HEROES, HERO_IDS, SPEC_DAY, passivesOf } from './heroes.js';
 
 export const SLOT_NAME = { weapon: 'Weapon', offhand: 'Offhand', helm: 'Helm', body: 'Body', gloves: 'Gloves', boots: 'Boots', cape: 'Cape', ring1: 'Ring', ring2: 'Ring', amulet: 'Amulet', ring: 'Ring', trinket: 'Trinket', trinket1: 'Trinket', trinket2: 'Trinket' };
 export const RARITY_NAME = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
@@ -718,12 +719,17 @@ const GEAR_RANK = { common: 1, rare: 2, epic: 3, legendary: 4 };
 export function makeGhost(day, rng) {
   const pick = arr => arr[Math.floor(rng() * arr.length)];
   const main = pick(SCHOOLS);
-  const second = rng() < 0.85 ? pick(SCHOOLS.filter(s => s !== main)) : null;
+  // A hero that fits its main school (or any hero), whose other school is a likely second.
+  const fits = HERO_IDS.filter(id => HEROES[id].schools.includes(main));
+  const hero = HEROES[fits.length ? pick(fits) : pick(HERO_IDS)];
+  const heroOther = hero.schools.find(sc => sc !== main);
+  const second = rng() < 0.85 ? (heroOther && rng() < 0.6 ? heroOther : pick(SCHOOLS.filter(s => s !== main))) : null;
   const plan = [main, second].filter(Boolean);
   const equip = {};
   const count = {};
   let gold = 0;
   let uid = 1;
+  const goldPerDay = hero.passive.goldPerDay ?? 0;
   const tally = (def, k) => { for (const s of def.schools) count[s] = (count[s] ?? 0) + k; };
   // How well a piece suits this build; 0 means it would not buy it.
   const fit = def => {
@@ -751,7 +757,9 @@ export function makeGhost(day, rng) {
     delete equip[slot];
   };
   for (let d = 1; d <= day; d++) {
-    gold += d === 1 ? 10 : 9;
+    gold += (d === 1 ? 10 + (hero.passive.goldStart ?? 0) : 9 + goldPerDay);
+    // It starts the run holding its hero's item.
+    if (d === 1) { const st = ITEMS[hero.start]; equip[st.slot] = { uid: uid++, id: st.id, start: true }; tally(st, 1); }
     // One plain market a day, plus rerolls spent hunting its own schools.
     const offSchool = def => !def.schools.some(sc => plan.includes(sc));
     let offers = [...rollShopOffers(d, rng), ...rollShopOffers(d, rng, offSchool), ...rollShopOffers(d, rng, offSchool), rollTrinketId(d, rng)]
@@ -778,7 +786,11 @@ export function makeGhost(day, rng) {
           // Off-school filler only goes in a slot still empty from day 3, and is the first thing replaced.
           const filler = fit(def) < 1;
           if (filler && (cur || d < 3)) continue;
-          const gain = cur ? value(def) - value(ITEMS[cur.id]) - 2 : value(def) + (slot === 'weapon' ? 12 : 4) - (filler ? 6 : 0);
+          // Weapons also compare damage per second; the free hero item is the easiest thing to replace.
+          const dps = x => (x.weapon ? (x.weapon.dmg / x.weapon.interval) * (x.weapon.hands === 2 ? 0.8 : 1) : 0);
+          const gain = cur
+            ? value(def) - value(ITEMS[cur.id]) - 2 + (slot === 'weapon' ? (dps(def) - dps(ITEMS[cur.id])) * 2 : 0) + (cur.start ? 3 : 0)
+            : value(def) + (slot === 'weapon' ? 12 : 4) - (filler ? 6 : 0);
           if (gain <= 0) continue;
           const score = gain + rng() * 3;
           if (!best || score > best.score) best = { def, slot, score };
@@ -806,5 +818,6 @@ export function makeGhost(day, rng) {
     if (w) equip.weapon = { uid: uid++, id: w.id };
   }
   const name = `${pick(TITLES[main])} ${pick(NOUNS)}`;
-  return { name, equip, schools: [...plan] };
+  const spec = day >= SPEC_DAY ? pick(hero.specs).id : null;
+  return { name, equip, schools: [...plan], hero: hero.id, spec, passives: passivesOf(hero.id, spec) };
 }

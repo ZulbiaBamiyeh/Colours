@@ -1,7 +1,7 @@
 // Game screens: the market (shop, bag, equipment, inspector) and battles against ghost builds.
 import * as THREE from 'three';
 import {
-  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost, rollTrinketId, TRINKET2_DAY, TRINKET_DAY, TIERS as TIER_NAMES, DUPE_CHANCE, canTier,
+  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost, rollTrinketId, rollShopId, TRINKET2_DAY, TRINKET_DAY, TIERS as TIER_NAMES, DUPE_CHANCE, canTier, starterText,
 } from './items.js';
 import {
   USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
@@ -11,6 +11,7 @@ import { simulate, mulberry32, RULES, tierMult } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 import { sfx, setMuted, isMuted, stormSound } from './sfx.js';
+import { HEROES, HERO_IDS, SPEC_DAY, HERO_TILT, passivesOf, specOf } from './heroes.js';
 
 const $ = id => document.getElementById(id);
 if (!document.documentElement.lang) document.documentElement.lang = 'en';
@@ -98,7 +99,7 @@ const emptyEquip = () => Object.fromEntries(ALL_SLOTS.map(k => [k, null]));
 const S = {
   day: 1, gold: 10, lives: 5, maxLives: 5, wins: 0, goal: 10,
   equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, ttStyle: loadStyle(), pixelDark: loadDark(), record: [], started: false,
-  ench: [], use: Array(6).fill(null),
+  ench: [], use: Array(6).fill(null), hero: null, spec: null,
 };
 
 /* ---------- Profile: appearance and backdrop, saved in this browser ---------- */
@@ -153,6 +154,15 @@ function refreshShop() {
   // Five gear offers, then the day's trinket (none before TRINKET_DAY).
   const ids = [...rollShopOffers(S.day, rng, d => locked.has(d.id)), rollTrinketId(S.day, rng, d => locked.has(d.id))];
   S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : id ? { ...inst(id), locked: false, sold: false } : null));
+  // The market leans toward your hero's schools.
+  const hero = heroOf();
+  if (hero) for (let i = 0; i < 5; i++) {
+    const o = S.shop[i];
+    if (!o || o.locked || rng() >= HERO_TILT || hero.schools.some(sc => ITEMS[o.id].schools.includes(sc))) continue;
+    const cat = shopCat(ITEMS[o.id]);
+    const id = rollShopId(S.day, rng, d => shopCat(d) === cat && d.slot !== 'trinket' && d.schools.some(sc => hero.schools.includes(sc)) && !S.shop.some(x => x?.id === d.id));
+    if (id) S.shop[i] = { ...inst(id), locked: false, sold: false };
+  }
   // Copies of your own gear turn up now and then, so upgrades are something to watch for.
   const owned = [...ALL_SLOTS.map(k => S.equip[k]), ...S.bag].filter(canTier);
   for (let i = 0; i < 5; i++) {
@@ -579,7 +589,28 @@ function enchantAct(act) {
   commit();
   renderEnchant();
 }
+// The day-${SPEC_DAY} specialisation: one of the hero's two, chosen once per run.
+function openSpec() {
+  const h = heroOf();
+  if (!h) return;
+  hideTip();
+  enchantEl.innerHTML = `<div class="result-card en-card spec-card" role="dialog" aria-modal="true" aria-labelledby="spec-title">
+    <div class="en-title"><span class="en-name r-epic" id="spec-title">Specialise your ${h.name}</span><span class="en-sub">Choose one. It lasts for the rest of the run.</span></div>
+    <div class="spec-pick">${h.specs.map(x => `<button type="button" class="spec-opt" data-spec="${x.id}"><b>${x.name}</b><span>${kwText(x.text)}</span></button>`).join('')}</div>
+  </div>`;
+  enchantEl.hidden = false;
+  enchantEl.querySelector('.spec-opt')?.focus({ preventScroll: true });
+}
 enchantEl.addEventListener('click', e => {
+  const sp = e.target.closest('[data-spec]');
+  if (sp) {
+    S.spec = sp.dataset.spec;
+    enchantEl.hidden = true;
+    sfx('upgrade');
+    toast(`${specOf(S.hero, S.spec).name}: ${specOf(S.hero, S.spec).text}`);
+    commit();
+    return;
+  }
   const b = e.target.closest('[data-en]');
   if (b) { if (b.getAttribute('aria-disabled') !== 'true') enchantAct(b.dataset.en); return; }
   const rep = e.target.closest('[data-rep]');
@@ -770,6 +801,11 @@ function buildStats() {
     ls += m.ls;
     if (!ITEMS[it.id].cd) quick += fx.filter(x => x.quick).length;
   }
+  for (const p of passivesOf(S.hero, S.spec)) {
+    if (p.hp) { hp += p.hp; hpParts.push(`${p.name} +${p.hp}`); }
+    luck += p.stats?.luck ?? 0;
+    ls += p.ls ?? 0;
+  }
   const weapon = (it, w) => {
     const m = it ? itemMods(it) : itemMods({});
     const g = k => (it ? gemSum(it, k) : 0);
@@ -842,8 +878,14 @@ function renderSheet(s) {
     }
     if (m.shield && it.up?.st?.ward) groups.start.push({ id: it.id, name: `${def.name} · Ward`, text: `Gain ${(it.up.st.ward) * 4} Shield` });
   }
+  for (const p of passivesOf(S.hero, S.spec)) {
+    const sent = p.text.replace(/\.$/, '');
+    const [k, , re] = WHEN.find(([, , r]) => r.test(sent));
+    const t = k === 'trigger' || k === 'passive' ? sent : sent.replace(re, '');
+    if (!p.goldPerDay) groups[k].push({ id: heroOf().start, name: `${heroOf().name} · ${p.name}`, text: t.charAt(0).toUpperCase() + t.slice(1) });
+  }
   // What you actually start with, read from a zero-length fight so every item and upgrade is counted.
-  const sim = simulate({ name: 'You', equip: S.equip }, { name: 'Dummy', equip: emptyEquip(), hp: 9999 }, ITEMS, 1, { maxTime: 0.1 });
+  const sim = simulate({ name: 'You', equip: S.equip, passives: passivesOf(S.hero, S.spec) }, { name: 'Dummy', equip: emptyEquip(), hp: 9999 }, ITEMS, 1, { maxTime: 0.1 });
   const you = {}, foe = {};
   for (const e of sim.events) {
     if (e.t > 0) break;
@@ -893,6 +935,31 @@ function tierStatLine(def, item) {
   if (def.hp) return `${SLOT_NAME[def.slot]} · +${Math.round(def.hp * m)} HP`;
   return statLine(def);
 }
+// An item's text with its tier applied: the amounts it applies, gains, heals, deals, Cleanses, Charges or Hastes,
+// its jewellery starter, its Luck, and (Gold) its cooldown. Conditions like "every 3rd hit" or "below 30%" never change.
+// Changed numbers are highlighted. Fractions are averages: the engine rounds them up or down by chance.
+function tierText(def, item) {
+  const t = item?.tier ?? 1;
+  if (t === 1 || def.slot === 'trinket') return kwText(def.text);
+  const m = tierMult(def, t);
+  const fmt = n => { const x = Math.round(n * 10) / 10; return `<b class="tierup">${Number.isInteger(x) ? x : x.toFixed(1)}</b>`; };
+  let text = def.text;
+  let head = '';
+  if (def.starter) {
+    const base = starterText(def.starter);
+    if (text.startsWith(base)) {
+      const scaled = Object.fromEntries(Object.entries(def.starter).map(([k, v]) => [k, k === 'ls' ? Math.round(v * m * 10) / 10 : Math.round(v * m)]));
+      head = starterText(scaled).replace(/(\d+(?:\.\d+)?)/g, n => `\u0000${n}\u0001`);
+      text = text.slice(base.length).trimStart();
+    }
+  }
+  text = text
+    .replace(/\b(apply|gain|heal|deal|Cleanse|Haste yourself for|Charge (?!this)[a-z ]+?)\s+(\d+(?:\.\d+)?)(?![\d.]*×)/g, (all, verb, n) => `${verb} \u0000${+n * m}\u0001`)
+    .replace(/^\+(\d+) Luck/, (all, n) => (def.stats?.luck ? `+\u0000${Math.round(+n * m)}\u0001 Luck` : all));
+  if (t === 3 && def.cd) text = text.replace(/^Every ([\d.]+)s/, (all, n) => `Every \u0000${Math.round(+n * 0.85 * 10) / 10}\u0001s`);
+  // Mark numbers first, run the keyword highlighter on plain text, then turn the marks into highlights.
+  return kwText([head, text].filter(Boolean).join(' ')).replace(/\u0000([\d.]+)\u0001/g, (all, n) => fmt(+n));
+}
 const tierChip = item => ((item?.tier ?? 1) > 1 ? `<span class="chip tierchip t${item.tier}">${tierName(item)} · effects ×${tierMult(ITEMS[item.id], item.tier)}${item.tier === 3 && ITEMS[item.id].cd ? ', fires faster' : ''}</span>` : '');
 const tierHint = (item, where) => {
   if (!item || !ITEMS[item.id] || ITEMS[item.id].slot === 'trinket') return '';
@@ -933,7 +1000,7 @@ function renderInspector() {
   card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
     <div class="chips">${tierChip(item)}${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
     <span class="c-stats">${tierStatLine(def, item)}</span>
-    <p class="c-effect">${kwText(def.text)}</p>
+    <p class="c-effect">${w === 'shop' ? kwText(def.text) : tierText(def, item)}</p>
     ${tierHint(item, w)}
     ${socketsHTML(item, w !== 'shop')}
     <span class="c-value">${where} · ${value}</span>`;
@@ -947,8 +1014,16 @@ function renderInspector() {
     actions.innerHTML = btn('unequip', 'Take off', true) + btn('sell', `Sell for ${sellValue(item)}`, false);
   }
 }
+function renderHeroLine() {
+  const h = heroOf();
+  const el = $('hero-line');
+  if (!h) { el.innerHTML = ''; return; }
+  const sp = specOf(S.hero, S.spec);
+  el.innerHTML = `<b>${h.name}</b> <span class="hl-p">${h.passive.name}: ${kwText(h.passive.text)}</span>${sp ? ` <span class="hl-p"><b>${sp.name}:</b> ${kwText(sp.text)}</span>` : ` <span class="hl-p dim">Specialise on day ${SPEC_DAY}</span>`}`;
+}
 function render() {
   const focusLoc = document.activeElement?.dataset?.loc;
+  renderHeroLine();
   renderTop();
   renderEquip();
   renderBag();
@@ -987,7 +1062,7 @@ function showTipFor(el, def, item = null) {
     ? `<span class="t-name r-${def.rarity}">${def.name} gem</span><span class="t-meta">Gem · ${def.school ?? (def.cursed ? 'Cursed' : RARITY_NAME[def.rarity])}${item?.n > 1 ? ` · ${item.n} held` : ''}</span>${gemEffectsHTML(def)}`
     : `<span class="t-name r-${def.rarity}">${def.name}</span>
     <span class="t-meta">${[...((item?.tier ?? 1) > 1 ? [`${tierName(item)} ×${tierMult(def, item.tier)}`] : []), ...def.schools, slotLabel(def), RARITY_NAME[def.rarity]].join(' · ')}</span>
-    <span>${tierStatLine(def, item)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
+    <span>${tierStatLine(def, item)}</span><span>${tierText(def, item)}</span>${upgradeHTML(item, true)}`;
   tip.hidden = false;
   const r = el.getBoundingClientRect();
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -1395,15 +1470,15 @@ function startBattle(ex = null) {
   const src = ex ? ex.equip : S.equip;
   const playerEquip = Object.fromEntries(ALL_SLOTS.map(k => [k, src[k] ? { ...src[k] } : null]));
   const seed = Math.floor(rng() * 2 ** 31);
-  const sim = simulate({ name: 'You', equip: playerEquip }, { name: ghost.name, equip: ghost.equip }, ITEMS, seed);
+  const sim = simulate({ name: 'You', equip: playerEquip, passives: ex ? [] : passivesOf(S.hero, S.spec) }, { name: ghost.name, equip: ghost.equip, passives: ex ? [] : ghost.passives ?? [] }, ITEMS, seed);
   Object.assign(B, { ex, sim, ghost, T: -INTRO, ei: 0, ai: 0, fi: -1, done: false, playing: true, flash: {}, playerEquip, fatigueShown: false, hitStop: 0, shake: 0, banner: false });
   clearArena();
   F.A = makeFighterView('A', playerEquip, lookOf(P));
   F.B = makeFighterView('B', ghost.equip, ex ? ex.look : GHOST_LOOK);
-  $('hud-A').innerHTML = hudHTML('A', playerName(), ex ? 'Exhibition set' : `Day ${S.day} build`, playerEquip);
+  $('hud-A').innerHTML = hudHTML('A', playerName(), ex ? 'Exhibition set' : heroOf()?.name ?? `Day ${S.day} build`, playerEquip);
   setBackdrop($('bd-a'), P.backdrop);
   setBackdrop($('bd-b'), ex ? ex.backdrop : BACKDROPS[Math.floor(rng() * BACKDROPS.length)][0]);
-  $('hud-B').innerHTML = hudHTML('B', ghost.name, ex ? 'Hall of Fame' : `Ghost · Day ${S.day}`, ghost.equip);
+  $('hud-B').innerHTML = hudHTML('B', ghost.name, ex ? 'Hall of Fame' : `${HEROES[ghost.hero]?.name ?? 'Ghost'} · Day ${S.day}`, ghost.equip);
   $('vs-a').textContent = playerName();
   $('vs-b').textContent = ghost.name;
   $('log').innerHTML = '';
@@ -1951,12 +2026,14 @@ function continueRun(outcome) {
   clearArena();
   if (S.wins >= S.goal || S.lives <= 0) return showRunOver();
   S.day++;
-  S.gold += 10;
+  const income = 10 + (heroOf()?.passive.goldPerDay ?? 0);
+  S.gold += income;
   refreshShop();
   S.sel = null;
   render();
   sizeHero();
-  toast(`Day ${S.day}: +10 gold and a new market.`);
+  toast(`Day ${S.day}: +${income} gold and a new market.`);
+  if (S.day >= SPEC_DAY && S.hero && !S.spec) openSpec();
 }
 let keepPick = null;
 function runItems() { return [...ALL_SLOTS.map(k => S.equip[k]), ...S.bag].filter(Boolean); }
@@ -2005,11 +2082,16 @@ $('runover').addEventListener('click', e => {
     return;
   }
   if (e.target.closest('#keep-skip')) return runOverDone(null);
-  if (e.target.closest('#newrun')) { m.hidden = true; hideTip(); newRun(); return; }
+  if (e.target.closest('#newrun')) { m.hidden = true; hideTip(); S.started = false; showMenu('hero'); return; }
   if (e.target.closest('#ro-hof')) { m.hidden = true; hideTip(); newRun(); S.started = false; showMenu('hof'); }
 });
-function newRun() {
-  Object.assign(S, { day: 1, gold: 10, lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null) });
+const heroOf = () => HEROES[S.hero] ?? null;
+function newRun(heroId = S.hero ?? HERO_IDS[0]) {
+  const h = HEROES[heroId];
+  Object.assign(S, { day: 1, gold: 10 + (h.passive.goldStart ?? 0), lives: 5, wins: 0, equip: emptyEquip(), bag: Array(6).fill(null), shop: [], sel: null, record: [], ench: [], use: Array(6).fill(null), hero: heroId, spec: null });
+  // The hero's starting item goes straight into its slot.
+  const st = inst(h.start);
+  S.equip[ITEMS[h.start].slot] = st;
   refreshShop();
   commit();
   sizeHero();
@@ -2420,6 +2502,8 @@ $('menu').addEventListener('click', e => {
   const tab = e.target.closest('[data-tab]');
   // The option buttons toggle their panel; picking the open one again goes back to the leaderboard.
   if (tab) return setTab(tab.dataset.tab === menuTab && tab.classList.contains('mopt') ? 'board' : tab.dataset.tab);
+  const hp = e.target.closest('[data-hero]');
+  if (hp) { newRun(hp.dataset.hero); hideMenu(); sfx('equip'); return toast(`${HEROES[hp.dataset.hero].name}: ${HEROES[hp.dataset.hero].passive.text}`); }
   const h = e.target.closest('[data-hof]');
   if (h) return toggleLoadout(h.dataset.hof);
   if (e.target.closest('#ex-fight')) return startExhibition();
@@ -2436,8 +2520,7 @@ $('menu').addEventListener('click', e => {
   else if (e.target.closest('#menu-newrun')) {
     if (S.started && !newRunArmed) return setNewRunConfirm(true);
     setNewRunConfirm(false);
-    newRun();
-    hideMenu();
+    setTab('hero');
   }
   else if (e.target.closest('#randomise')) {
     const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -2643,6 +2726,21 @@ function renderBoard() {
   }, () => { BOARD.shared = null; });
 })();
 
+// Choosing a hero starts the run.
+function renderHeroPick() {
+  const sch = sc => `<span class="hp-sch" style="--sc: var(${SCHOOL_VAR[sc]})"><i></i>${sc}</span>`;
+  $('tab-hero').innerHTML = `<div class="ph"><h2>Choose a hero</h2><span class="rule"></span><button type="button" class="btn mini-plain" data-tab="board">Back</button></div>
+    <p class="lb-note">Your hero sets the market's favourite schools, your first item and a passive. On day ${SPEC_DAY} you pick one of two specialisations.</p>
+    <div class="hero-grid">${HERO_IDS.map(id => {
+      const h = HEROES[id], st = ITEMS[h.start];
+      return `<button type="button" class="hero-card" data-hero="${id}">
+        <span class="hc-top"><span class="hc-ico r-${st.rarity}"><img src="${iconFor(st.id)}" alt=""></span><span class="hc-name">${h.name}<span class="hc-sch">${h.schools.map(sch).join('')}</span></span></span>
+        <span class="hc-blurb">${h.blurb}</span>
+        <span class="hc-line"><b>${h.passive.name}:</b> ${kwText(h.passive.text)}</span>
+        <span class="hc-line dim">Starts with ${st.name}. Day ${SPEC_DAY}: ${h.specs.map(x => x.name).join(' or ')}.</span>
+      </button>`;
+    }).join('')}</div>`;
+}
 let menuTab = 'board';
 function setTab(tab) {
   menuTab = tab;
@@ -2650,6 +2748,9 @@ function setTab(tab) {
   $('tab-board').hidden = tab !== 'board';
   $('tab-look').hidden = tab !== 'look';
   $('tab-hof').hidden = tab !== 'hof';
+  $('tab-hero').hidden = tab !== 'hero';
+  $('menu-newrun').setAttribute('aria-pressed', String(tab === 'hero'));
+  if (tab === 'hero') renderHeroPick();
   if (tab === 'hof') renderHof();
   if (tab === 'board') renderBoard();
   buildMenuHero();

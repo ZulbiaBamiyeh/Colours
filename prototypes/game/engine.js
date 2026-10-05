@@ -117,6 +117,22 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (def.cd) f.cds.push(it);
       for (const s of def.schools) if (s !== 'Prismatic') f.schools[s] = (f.schools[s] || 0) + 1;
     }
+    // Hero passives (heroes.js): they fight like items without a slot.
+    let cdMult = 1;
+    for (const p of build.passives ?? []) {
+      const it = { def: { ...p, schools: [] }, slot: 'hero', data: {}, busy: false, timer: 0, boost: 1, cd: p.cd ?? 0 };
+      f.items.push(it);
+      if (p.cd) f.cds.push(it);
+      f.luck += p.stats?.luck ?? 0;
+      f.ls += (p.ls ?? 0) / 100;
+      f.maxHp += p.hp ?? 0;
+      for (const k in p.capBonus ?? {}) f.capBonus[k] = (f.capBonus[k] ?? 0) + p.capBonus[k];
+      f.freezeBonus += p.freezeBonus ?? 0;
+      f.thornsBonus += p.thornsBonus ?? 0;
+      cdMult *= p.cdMult ?? 1;
+      if (p.flags) Object.assign(f.flags, p.flags);
+    }
+    if (cdMult !== 1) for (const it of f.cds) if (it.slot !== 'hero') it.cd *= cdMult;
     if (f.gemSpd) for (const wp of f.weapons) wp.w.interval *= 1 - Math.min(30, f.gemSpd) / 100;
     // Trinkets that trade weapon speed for an effect (Anchor Chain).
     const slowW = f.items.reduce((m, it) => m * (it.def.weaponSlow ?? 1), 1);
