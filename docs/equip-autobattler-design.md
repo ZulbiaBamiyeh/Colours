@@ -382,7 +382,7 @@ A run starts by choosing a hero. Each hero has a starting item, a passive, two s
 
 ## 7e. No caps, and Might
 
-Nothing has a cap any more. Burn, Poison, Thorns and Regen grow without limit; Slow, Sand, Heat and Fortify have diminishing returns toward a ceiling. Regen ticks every 4s (was 2s): uncapped at 2s it pushed Lunar to 69%.
+Nothing has a cap any more, items included: Bloodbound Mail, Vampire's Die, Loaded Dice, Kindling Band and the Clover gem lost their limits, and Briar Whip and Moon Sickle now gain a stack every 2nd and 3rd hit with no limit (they were every hit, up to 3 and 5). None of them moved more than a few points. Burn, Poison, Thorns and Regen grow without limit; Slow, Sand, Heat and Fortify have diminishing returns toward a ceiling. Regen ticks every 4s (was 2s): uncapped at 2s it pushed Lunar to 69%.
 
 - **Burn and Poison** grow for the whole fight, so their per-stack damage dropped: Burn 1 per stack every 2.5s (was 2s), Poison every 4s (was 3s). Effects that raised a cap now add damage instead: the Ember and Venom gems' jewellery effects (+10% Burn, +15% Poison), the Catalyst gem (+10% both), Kindler (+25% Burn), Blight Ledger (+30% Poison) and Wildfire (+25% Burn, +50% at 8+ Heat).
 - **Slow and Sand** have diminishing returns with a ceiling they never reach (see the table in section 4). A plain "less per stack" curve wasn't enough: a day-6 Desert ghost stacked 120 Sand, which would be 97% misses.

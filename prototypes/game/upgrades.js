@@ -80,10 +80,10 @@ const LIST = [
     text: { weapon: '+6% Lifesteal on this weapon.', armor: '+8 max HP.', jewel: 'Below 50% HP, your weapons deal 10% more damage.' },
     fx: { weapon: { ls: 0.06 }, armor: { hp: 8 }, jewel: { lowDmgPct: 10 } } },
   { id: 'gem_clover', name: 'Clover', school: 'Fortune', rarity: 'common', price: 2, weight: 10, color: 0x5fd08a, cut: 'oval',
-    text: { weapon: '+5% crit chance on this weapon.', armor: '+2 Luck.', jewel: 'Whenever you crit, gain 1 Luck (up to 5 from this gem).' },
+    text: { weapon: '+5% crit chance on this weapon.', armor: '+2 Luck.', jewel: 'Whenever you crit, gain 1 Luck.' },
     fx: {
       weapon: { critBonus: 0.05 }, armor: { luck: 2 },
-      jewel: { hooks: { crit: c => { if ((c.data.n ?? 0) >= 5) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('luck', 1); } } },
+      jewel: { hooks: { crit: c => c.gain('luck', 1) } },
     } },
   { id: 'gem_briar', name: 'Briar', school: 'Thorn', rarity: 'common', price: 2, weight: 10, color: 0xf08cb0, cut: 'drop',
     text: { weapon: 'On crit: gain 2 Thorns.', armor: 'Start of fight: gain 1 Thorns.', jewel: 'Your Thorns deal 1 more damage.' },

@@ -65,7 +65,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       st: { burn: 0, poison: 0, frost: 0, slow: 0, sand: 0 },
       heat: 0, might: 0, fortify: 0, grace: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
-      fullLs: 0, autoCrit: 0, diceLuck: 0,
+      fullLs: 0, autoCrit: 0,
       burnT: 0, poisonT: 0, regenT: 0, poisonTicks: 0, regen: 0,
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
@@ -187,7 +187,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   const luckOf = f => mod(f, 'luck', f.luck);
   function chance(f, p) {
     const ok = rng() < Math.min(1, p + 0.03 * luckOf(f));
-    if (!ok && f.flags.loadedDice && f.diceLuck < 10) { f.diceLuck++; f.luck += 1; }
+    if (!ok && f.flags.loadedDice) f.luck += 1;
     return ok;
   }
   const critRoll = f => chance(f, 0.05);

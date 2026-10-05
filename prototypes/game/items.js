@@ -215,8 +215,8 @@ const LIST = [
     text: 'While below 50% HP: +15% Lifesteal.', mods: { lifesteal: (c, v) => (c.me.hp < c.me.maxHp * 0.5 ? v + 0.15 : v) },
     model: { t: 'hood', a: 0x2a1a1e, b: 0xb02a3a, lining: 0x6b1a24, collar: 0x6b1a24, wear: { y: -0.01, s: 0.96 } } },
   { id: 'bloodbound_mail', name: 'Bloodbound Mail', schools: [BLOOD], slot: 'body', rarity: R,
-    text: 'When hit: gain 3% Lifesteal for the rest of the fight (max +30%).',
-    hooks: { whenHit: c => { if ((c.data.ls ?? 0) >= 0.3) return false; c.data.ls = Math.min(0.3, (c.data.ls ?? 0) + 0.03); return true; } },
+    text: 'When hit: gain 3% Lifesteal for the rest of the fight.',
+    hooks: { whenHit: c => { c.data.ls = (c.data.ls ?? 0) + 0.03; return true; } },
     mods: { lifesteal: (c, v) => v + (c.data.ls ?? 0) },
     model: { t: 'armor', kind: 'mail', a: 0x6b1a24, b: 0x3a2a2e } },
   { id: 'bloodied_knuckles', name: 'Bloodied Knuckles', schools: [BLOOD], slot: 'gloves', rarity: R,
@@ -266,7 +266,7 @@ const LIST = [
     text: 'Clutch: your next 3 weapon hits are guaranteed crits.', hooks: { clutch: c => { c.me.autoCrit += 3; return true; } },
     model: { t: 'cape', a: 0x24684c, b: 0x123a2a, hem: 0xf2c14e, emblem: 'card' } },
   { id: 'loaded_dice', name: 'Loaded Dice', schools: [FORTUNE], slot: 'ring', rarity: R,
-    text: 'Whenever a chance roll fails (including crits), gain 1 Luck (max 10 per fight).', flags: { loadedDice: true },
+    text: 'Whenever a chance roll fails (including crits), gain 1 Luck.', flags: { loadedDice: true },
     model: { t: 'ring', band: 0xf2c14e, gem: 0xf4ecd8, shape: 'cube', glow: 0.1 } },
   { id: 'fatebound_talisman', name: 'Fatebound Talisman', schools: [FORTUNE], slot: 'amulet', rarity: L,
     text: 'Weapon hits deal +1 damage per 5 Luck you have past 10.',
@@ -311,8 +311,8 @@ const LIST = [
      builds, weak against Burn and Poison (no hits) and Sand (misses never trigger it), which
      Ironbark Plate and the Sandbriar Ring answer. */
   { id: 'briar_whip', name: 'Briar Whip', schools: [THORN], slot: 'weapon', rarity: C, kind: 'Whip',
-    text: 'On hit: gain 1 Thorns, up to 3 from this whip.',
-    weapon: W(1.4, 3, c => { if ((c.data.n ?? 0) >= 3) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('thorns', 1); }),
+    text: 'Every 2nd hit: gain 1 Thorns.',
+    weapon: W(1.4, 3, c => { c.data.n = (c.data.n ?? 0) + 1; return c.data.n % 2 === 0 && c.gain('thorns', 1); }),
     model: { t: 'whip', grip: 0x5a3a24, vine: 0x4f6a2a, thorn: 0xe9d9b0, bloom: 0xe86f9e, hand: -0.3, hold: 0.85 } },
   { id: 'bramble_maul', name: 'Bramble Maul', schools: [THORN], slot: 'weapon', rarity: R, kind: 'Maul',
     text: 'On hit: deal bonus damage equal to your Thorns, then gain 2 Thorns.',
@@ -352,8 +352,8 @@ const LIST = [
      Regen heals 1 per stack every 2s and never wears off. Cleanse removes stacks from your biggest debuffs.
      The counter to status builds, weak against burst (it heals slowly) and Burn (which cuts healing). */
   { id: 'moon_sickle', name: 'Moon Sickle', schools: [LUNAR], slot: 'weapon', rarity: C, kind: 'Sickle',
-    text: 'On hit: gain 1 Regen, up to 5 from this sickle.',
-    weapon: W(1.6, 5, c => { if ((c.data.n ?? 0) >= 5) return false; c.data.n = (c.data.n ?? 0) + 1; return c.gain('regen', 1); }),
+    text: 'Every 3rd hit: gain 1 Regen.',
+    weapon: W(1.6, 5, c => { c.data.n = (c.data.n ?? 0) + 1; return c.data.n % 3 === 0 && c.gain('regen', 1); }),
     model: { t: 'sword', curve: 0.32, blade: 0xd8def0, edge: 0x9aa8ff, glow: 0.4, guard: 0x6a74a8, grip: 0x2c3050, gem: 0x9aa8ff, hold: 0.78 } },
   { id: 'tidecaller', name: 'Tidecaller', schools: [LUNAR], slot: 'weapon', rarity: R, kind: 'Staff',
     text: 'On hit: Cleanse 2, and gain 1 Regen for each stack removed.',
@@ -505,8 +505,8 @@ const LIST = [
 
   /* ---------------- Bridge rings ---------------- */
   { id: 'kindling_band', name: 'Kindling Band', schools: [FIRE, HOLY], slot: 'ring', rarity: R,
-    text: 'Whenever you apply Burn, heal 2. Each trigger adds +1 to the heal (max +8). Resets each fight.',
-    hooks: { applied: (c, o) => { if (o.type !== 'burn') return false; const k = c.data.k ?? 0; c.data.k = Math.min(8, k + 1); return c.heal(2 + k); } },
+    text: 'Whenever you apply Burn, heal 2. Each trigger adds +1 to the heal. Resets each fight.',
+    hooks: { applied: (c, o) => { if (o.type !== 'burn') return false; const k = c.data.k ?? 0; c.data.k = k + 1; return c.heal(2 + k); } },
     model: { t: 'kindling' } },
   { id: 'hearthfire_ring', name: 'Hearthfire Ring', schools: [FIRE, HOLY], slot: 'ring', rarity: R,
     text: 'Whenever you heal, gain 1 Heat (at most once per second).',
@@ -627,8 +627,8 @@ const LIST = [
     text: 'Whenever your Thorns trigger, gain 1 Regen.', hooks: { thorned: c => c.gain('regen', 1) },
     model: { t: 'ring', gem: 0xe86f9e, deco: 'spikes' } },
   { id: 'vampires_die', name: "Vampire's Die", schools: [BLOOD, FORTUNE], slot: 'ring', rarity: R,
-    text: 'Whenever you crit, gain 2% Lifesteal for the rest of the fight (max +20%).',
-    hooks: { crit: c => { if ((c.data.ls ?? 0) >= 0.2) return false; c.data.ls = Math.min(0.2, (c.data.ls ?? 0) + 0.02); return true; } },
+    text: 'Whenever you crit, gain 2% Lifesteal for the rest of the fight.',
+    hooks: { crit: c => { c.data.ls = (c.data.ls ?? 0) + 0.02; return true; } },
     mods: { lifesteal: (c, v) => v + (c.data.ls ?? 0) },
     model: { t: 'ring', band: 0x2a1a1e, gem: 0xf4ecd8, shape: 'cube', glow: 0.1 } },
   { id: 'phoenix_heart', name: 'Phoenix Heart', schools: [FIRE, HOLY], slot: 'amulet', rarity: L,
