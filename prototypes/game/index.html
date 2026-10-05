@@ -47,6 +47,7 @@
   * { box-sizing: border-box; }
   html { background: var(--night); }
   body {
+    margin: 0;
     background:
       radial-gradient(1200px 600px at 20% -10%, rgba(232, 116, 59, 0.12), transparent 60%),
       radial-gradient(900px 500px at 100% 0%, rgba(127, 202, 240, 0.07), transparent 60%),
@@ -871,6 +872,20 @@
   .dev .opt { grid-template-columns: 70px minmax(0, 1fr); }
   .dev-btns { display: flex; flex-wrap: wrap; gap: 6px; }
   .menu-hof { display: grid; gap: 11px; align-content: start; }
+  /* Desktop: the menu is exactly one screen tall. The character stage gives up height first, and a long right panel
+     (Hall of Fame, leaderboard) scrolls inside itself rather than scrolling the page. */
+  @media (min-width: 801px) {
+    body.on-menu .menu { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .menu-inner { flex: 1; min-height: 0; width: 100%; grid-template-rows: auto minmax(0, 1fr); }
+    .menu-grid { min-height: 0; align-items: stretch; }
+    .menu-preview { min-height: 0; grid-template-rows: minmax(0, 1fr); grid-auto-rows: auto; }
+    #menu-stage { height: auto; min-height: 150px; }
+    .menu-grid > .panel:not(.menu-preview) { min-height: 0; overflow-y: auto; }
+    .hero-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    .hero-card { gap: 4px; padding: 8px 10px; }
+    .hc-name { font-size: 1rem; }
+    .hc-blurb, .hc-line { font-size: 0.8rem; line-height: 1.3; }
+  }
   .hof-empty { display: grid; gap: 8px; color: var(--parch-dim); max-width: 60ch; }
   .hof-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; }
   .hof-set-wrap { display: grid; gap: 6px; }
