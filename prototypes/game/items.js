@@ -384,6 +384,52 @@ const LIST = [
     text: 'Stacks you Cleanse are applied to the enemy instead of vanishing.', flags: { moonMirror: true },
     model: { t: 'amulet', shape: 'moon' } },
 
+  /* ---------------- Engine items ----------------
+     Haste: your weapons and cooldown items run 50% faster for a few seconds.
+     Charge: advance another item's cooldown so it fires sooner. These link items into chains you can watch fire. */
+  { id: 'bellows', name: 'Bellows', schools: [FIRE], slot: 'offhand', rarity: C, kind: 'Bellows',
+    text: 'Every 5s: gain 2 Heat and Haste yourself for 1s.', cd: 5, act: c => { c.gain('heat', 2); return c.haste(1); },
+    model: { t: 'censer', a: 0x5a3a24, b: 0xc48a24, glow: 0xffb04a, hold: 0.45, grip: 1.0 } },
+  { id: 'stokers_gloves', name: "Stoker's Gloves", schools: [FIRE], slot: 'gloves', rarity: R,
+    text: 'Whenever you apply Burn, Charge your offhand 0.4s.', hooks: { applied: (c, o) => o.type === 'burn' && c.charge('offhand', 0.4) },
+    model: { t: 'glove', a: 0x4a2a1a, b: 0x8a4a24, knuckle: 0xff8a2a, knuckleGlow: 0.6 } },
+  { id: 'clockwork_snowglobe', name: 'Clockwork Snowglobe', schools: [FROST], slot: 'offhand', rarity: R, kind: 'Snowglobe',
+    text: 'Every 5s: apply 5 Frost. Whenever the enemy Freezes, Charge this 3s.', cd: 5, act: c => c.apply('frost', 5),
+    hooks: { enemyFreeze: c => { const it = c.me.cds.find(x => x.def.id === 'clockwork_snowglobe'); if (!it) return false; it.timer = Math.min(it.timer + 3, it.cd); return true; } },
+    model: { t: 'lantern', a: 0x7a8aa0, b: 0xe8f6ff, glow: 0xbfefff, hold: 0.45, grip: 0.66 } },
+  { id: 'rime_spurs', name: 'Rime Spurs', schools: [FROST], slot: 'boots', rarity: C,
+    text: 'Whenever the enemy Freezes, Haste yourself for 3.5s.', hooks: { enemyFreeze: c => c.haste(3.5) },
+    model: { t: 'boot', a: 0x5a7aa0, b: 0xbfefff, c: 0xe8eef4, extra: 'spikes' } },
+  { id: 'alembic', name: 'Alembic', schools: [VENOM], slot: 'offhand', rarity: C, kind: 'Alembic',
+    text: 'Every 4s: apply 2 Poison and Charge your weapon 0.5s.', cd: 4, act: c => { c.apply('poison', 2); return c.charge('weapon', 0.5); },
+    model: { t: 'lantern', a: 0x3f5a2e, b: 0xd8f0b0, glow: 0x8bd34a, hold: 0.45, grip: 0.66 } },
+  { id: 'sand_timer', name: 'Sand Timer', schools: [DESERT], slot: 'helm', rarity: R, kind: 'Hourglass',
+    text: 'Every 7s: apply 2 Sand and Charge your other items 1s.', cd: 7, act: c => { c.apply('sand', 2); return c.charge('items', 1); },
+    model: { t: 'wrap', a: 0xe0c890, b: 0x8a6a3a, c: 0xf4c652, wear: { y: 0.06, s: 0.82 } } },
+  { id: 'devotion_gauntlets', name: 'Devotion Gauntlets', schools: [HOLY], slot: 'gloves', rarity: R,
+    text: 'Whenever you gain Shield, Charge your weapon 0.3s (at most twice per second).',
+    hooks: { gainedShield: c => { if (c.t - (c.data.t ?? -9) < 0.5) return false; c.data.t = c.t; return c.charge('weapon', 0.3); } },
+    model: { t: 'glove', a: 0xf6f0e0, b: 0xe8b73a, sun: 0xfff0b0 } },
+  { id: 'heartbeat_mantle', name: 'Heartbeat Mantle', schools: [BLOOD], slot: 'cape', rarity: R,
+    text: 'Whenever you Lifesteal, Charge your weapon and offhand 0.3s (at most twice per second).',
+    hooks: { lifestole: c => { if (c.t - (c.data.t ?? -9) < 0.5) return false; c.data.t = c.t; c.charge('offhand', 0.3); return c.charge('weapon', 0.3); } },
+    model: { t: 'cape', a: 0x6b1a24, b: 0x2a0e14, hem: 0xd8344f, hemGlow: 0.6 } },
+  { id: 'spinning_coin', name: 'Spinning Coin', schools: [FORTUNE], slot: 'offhand', rarity: C, kind: 'Coin',
+    text: 'Every 3s: 50% chance to Charge your weapon 0.6s; otherwise gain 1 Luck.', cd: 3,
+    act: c => (c.chance(0.5) ? c.charge('weapon', 0.6) : c.gain('luck', 1)),
+    model: { t: 'coin', a: 0xe8e8f0, b: 0xb8b8c8, c: 0xf2c14e, hold: 0.4 } },
+  { id: 'thornwound_spring', name: 'Thornwound Spring', schools: [THORN], slot: 'body', rarity: R,
+    text: 'Start of fight: gain 1 Thorns. Whenever your Thorns trigger, Charge a random other item 0.5s.',
+    hooks: { start: c => c.gain('thorns', 1), thorned: c => c.charge('random', 0.5) },
+    model: { t: 'armor', kind: 'vest', a: 0x4a3a28, b: 0x8a8f9a, c: 0x6f8a3a, tint: 0x4a3a28, spikes: { n: 12, color: 0xc0c4cc, size: 0.07, seed: 7, front: true } } },
+  { id: 'tide_clock', name: 'Tide Clock', schools: [LUNAR], slot: 'helm', rarity: R, kind: 'Clock',
+    text: 'Every 8s: Haste yourself for 1s. The first time, also gain 1 Regen.', cd: 8,
+    act: c => { if ((c.data.n ?? 0) < 1) { c.data.n = (c.data.n ?? 0) + 1; c.gain('regen', 1); } return c.haste(1); },
+    model: { t: 'crown', a: 0x9aa8ff, b: 0xc6d0e2, c: 0xf4f0ff, wear: { y: 0.3, s: 0.82 } } },
+  { id: 'clockwork_heart', name: 'Clockwork Heart', schools: [PRISM], slot: 'amulet', rarity: L,
+    text: 'Whenever one of your cooldown items fires, Charge your weapon 0.7s.', hooks: { itemFired: c => c.charge('weapon', 0.7) },
+    model: { t: 'amulet', shape: 'prismHeart' } },
+
   /* ---------------- Bridge rings ---------------- */
   { id: 'kindling_band', name: 'Kindling Band', schools: [FIRE, HOLY], slot: 'ring', rarity: R,
     text: 'Whenever you apply Burn, heal 2. Each trigger adds +1 to the heal (max +8). Resets each fight.',
@@ -609,6 +655,11 @@ export const fitsSlot = (id, slot) => {
 };
 // Trinket slots: one from the start, a second from TRINKET2_DAY.
 export const TRINKET2_DAY = 5;
+// Item tiers: buying a copy of gear you own upgrades it, Bronze → Silver → Gold (not trinkets).
+export const TIERS = ['Bronze', 'Silver', 'Gold'];
+export const MAX_TIER = 3;
+export const DUPE_CHANCE = 0.15;
+export const canTier = item => !!item && ITEMS[item.id]?.slot !== 'trinket' && (item.tier ?? 1) < MAX_TIER;
 export const TRINKET_DAY = 2;
 
 /* ---------------- Shop and ghost builds ---------------- */
@@ -705,9 +756,20 @@ export function makeGhost(day, rng) {
     const offSchool = def => !def.schools.some(sc => plan.includes(sc));
     let offers = [...rollShopOffers(d, rng), ...rollShopOffers(d, rng, offSchool), ...rollShopOffers(d, rng, offSchool), rollTrinketId(d, rng)]
       .filter(Boolean).map(id => ITEMS[id]);
+    // Copies of gear it owns turn up now and then, as they do for players (DUPE_CHANCE per offer).
+    for (const e of Object.values(equip)) if (canTier(e) && rng() < DUPE_CHANCE * 2) offers.push(ITEMS[e.id]);
     for (let guard = 0; guard < 6; guard++) {
       let best = null;
       for (const def of offers) {
+        // A copy of something it wears upgrades it (Bronze → Silver → Gold): worth about half the item again.
+        const own = Object.keys(equip).find(k => equip[k].id === def.id && canTier(equip[k]));
+        if (own) {
+          if (def.price <= gold) {
+            const score = value(def) * 0.55 + rng() * 3;
+            if (!best || score > best.score) best = { def, slot: own, score, up: true };
+          }
+          continue;
+        }
         for (const slot of slotsFor(def, d)) {
           const cur = equip[slot];
           const sell = cur ? Math.floor(ITEMS[cur.id].price / 2) : 0;
@@ -725,6 +787,12 @@ export function makeGhost(day, rng) {
       if (!best) break;
       // Once kitted out for the day, it sometimes stops early and banks the gold.
       if (Object.keys(equip).length > d && rng() < 0.15) break;
+      if (best.up) {
+        equip[best.slot].tier = (equip[best.slot].tier ?? 1) + 1;
+        gold -= best.def.price;
+        offers = offers.filter(def => def !== best.def);
+        continue;
+      }
       sellBack(best.slot);
       gold -= best.def.price;
       equip[best.slot] = { uid: uid++, id: best.def.id };

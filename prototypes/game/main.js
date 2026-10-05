@@ -1,13 +1,13 @@
 // Game screens: the market (shop, bag, equipment, inspector) and battles against ghost builds.
 import * as THREE from 'three';
 import {
-  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost, rollTrinketId, TRINKET2_DAY, TRINKET_DAY,
+  ITEMS, ITEM_IDS, SLOT_NAME, RARITY_NAME, SCHOOL_VAR, slotLabel, statLine, fitsSlot, rollShopOffers, makeGhost, rollTrinketId, TRINKET2_DAY, TRINKET_DAY, TIERS as TIER_NAMES, DUPE_CHANCE, canTier,
 } from './items.js';
 import {
   USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
   GEMS, GEM_KINDS, gemKind, gemText, gemsOf, socketsOf, gemGhost,
 } from './upgrades.js';
-import { simulate, mulberry32, RULES } from './engine.js';
+import { simulate, mulberry32, RULES, tierMult } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 import { sfx, setMuted, isMuted, stormSound } from './sfx.js';
@@ -61,11 +61,13 @@ const STATUS_ICON = {
   ls: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/><path d="M9.5 13.5l2.5 3 2.5-3"/>',
   regen: '<path d="M15 4a8 8 0 1 0 5 13A6.5 6.5 0 0 1 15 4z"/><path d="M9 12h5M11.5 9.5v5"/>',
   cleanse: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>',
+  haste: '<path d="M4 7h7M2 12h8M4 17h7"/><path d="M13 4l7 8-7 8"/>',
+  charge: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar', haste: '--s-holy', charge: '--s-frost' };
 // Keyword symbols: inline in item text, and as small badges on item icons.
-const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing)\b/g;
-const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l.startsWith('cleanse') ? 'cleanse' : l === 'lifesteal' ? 'ls' : l; };
+const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing|Haste[sd]?|Charge[sd]?)\b/g;
+const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l.startsWith('cleanse') ? 'cleanse' : l.startsWith('haste') ? 'haste' : l.startsWith('charge') ? 'charge' : l === 'lifesteal' ? 'ls' : l; };
 const kwIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
 const kwText = text => text.replace(KW_RE, w => { const k = kwKey(w); return `<span class="kw" style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}${w}</span>`; });
 function itemKws(def) {
@@ -77,7 +79,7 @@ function itemKws(def) {
   return def._kws;
 }
 const kwBadges = def => (isUse(def.id) ? '' : `<span class="kw-badges">${itemKws(def).map(k => `<i style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}</i>`).join('')}</span>`);
-const STATUS_NAME = { burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen' };
+const STATUS_NAME = { haste: 'Haste', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen' };
 
 /* =========================================================
    State
@@ -132,16 +134,33 @@ const getItem = loc => {
   return S.equip[k];
 };
 // Half price, plus 1 gold per successful scroll. Consumables sell one at a time.
-const sellValue = item => Math.floor(ALL[item.id].price / 2) + (isUse(item.id) ? 0 : sellBonus(item));
+// Half of everything paid for it: a Silver item cost two copies, a Gold one three.
+const sellValue = item => Math.floor((ALL[item.id].price * (isUse(item.id) ? 1 : item.tier ?? 1)) / 2) + (isUse(item.id) ? 0 : sellBonus(item));
 const freeBag = (except = -1) => S.bag.map((v, i) => (v === null && i !== except ? i : -1)).filter(i => i >= 0);
 const isTwoHanded = item => !!(item && ITEMS[item.id].weapon?.hands === 2);
 
+// Gear you own that a bought copy would upgrade, and where it is.
+function ownedCopy(id) {
+  for (const k of ALL_SLOTS) if (S.equip[k]?.id === id && canTier(S.equip[k])) return { item: S.equip[k], loc: `equip:${k}` };
+  for (let i = 0; i < S.bag.length; i++) if (S.bag[i]?.id === id && canTier(S.bag[i])) return { item: S.bag[i], loc: `bag:${i}` };
+  return null;
+}
+const shopCat = def => (def.slot === 'ring' || def.slot === 'amulet' ? 'jewel' : ['helm', 'body', 'gloves', 'boots', 'cape'].includes(def.slot) ? 'armor' : def.slot);
+const tierName = item => TIER_NAMES[(item?.tier ?? 1) - 1];
 function refreshShop() {
   const old = S.shop;
   const locked = new Set((old || []).filter(o => o && o.locked && !o.sold).map(o => o.id));
   // Five gear offers, then the day's trinket (none before TRINKET_DAY).
   const ids = [...rollShopOffers(S.day, rng, d => locked.has(d.id)), rollTrinketId(S.day, rng, d => locked.has(d.id))];
   S.shop = ids.map((id, i) => (old[i] && old[i].locked && !old[i].sold ? old[i] : id ? { ...inst(id), locked: false, sold: false } : null));
+  // Copies of your own gear turn up now and then, so upgrades are something to watch for.
+  const owned = [...ALL_SLOTS.map(k => S.equip[k]), ...S.bag].filter(canTier);
+  for (let i = 0; i < 5; i++) {
+    const o = S.shop[i];
+    if (!o || o.locked || rng() >= DUPE_CHANCE) continue;
+    const pool = owned.filter(e => shopCat(ITEMS[e.id]) === shopCat(ITEMS[o.id]) && !S.shop.some(x => x?.id === e.id));
+    if (pool.length) S.shop[i] = { ...inst(pool[Math.floor(rng() * pool.length)].id), locked: false, sold: false };
+  }
   rollEnch();
 }
 // The Jeweler's shelf: 3 gems. Every 3rd day the Lucky Merchant puts a rare gem in the last spot at 1 gold off.
@@ -191,6 +210,19 @@ function buy(i, dest) {
   const o = S.shop[i];
   if (!o || o.sold) return;
   const def = ITEMS[o.id];
+  // A copy of gear you own upgrades it instead: Bronze → Silver → Gold.
+  const copy = ownedCopy(o.id);
+  if (copy) {
+    if (!pay(def.price)) return;
+    copy.item.tier = (copy.item.tier ?? 1) + 1;
+    o.sold = true;
+    S.sel = copy.loc;
+    freshUid = copy.item.uid;
+    sfx('upgrade');
+    toast(`${def.name} upgraded to ${tierName(copy.item)}: its effects are now ×${tierMult(def, copy.item.tier)}.`);
+    commit();
+    return;
+  }
   let target = dest;
   if (!target) {
     const b = freeBag();
@@ -623,14 +655,16 @@ function badges(item) {
   const gems = gemsOf(item);
   const pips = Array.from({ length: socketsOf(item) }, (_, i) => (gems[i] ? `<i style="--gc: #${GEMS[gems[i]].color.toString(16).padStart(6, '0')}"></i>` : '<i class="e"></i>')).join('');
   const st = steps(item);
-  return `<span class="b-socks" aria-hidden="true">${pips}</span>${st ? `<span class="b-up${st < 0 ? ' neg' : ''}">${signed(st)}</span>` : ''}`;
+  const t = item.tier ?? 1;
+  return `<span class="b-socks" aria-hidden="true">${pips}</span>${st ? `<span class="b-up${st < 0 ? ' neg' : ''}">${signed(st)}</span>` : ''}${t > 1 ? `<span class="b-tier t${t}" aria-hidden="true">${t === 2 ? 'II' : 'III'}</span>` : ''}`;
 }
 function itemBtn(item, loc, extraLabel = '') {
   const def = ALL[item.id];
   const cls = ['item', `r-${def.rarity}`];
   if (S.sel === loc) cls.push('sel');
   if (item.uid === freshUid) cls.push('pop');
-  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false">${kwBadges(def)}${badges(item)}</button>`;
+  if ((item.tier ?? 1) > 1) cls.push(`tier${item.tier}`);
+  return `<button type="button" class="${cls.join(' ')}" data-loc="${loc}" aria-label="${(item.tier ?? 1) > 1 ? `${tierName(item)} ` : ''}${def.name}${extraLabel}"><img src="${iconFor(item.id)}" alt="" draggable="false">${kwBadges(def)}${badges(item)}</button>`;
 }
 function renderTop() {
   $('day').textContent = `Day ${S.day}`;
@@ -671,7 +705,7 @@ function renderShop() {
     el.innerHTML = `${lockBtn}
       <div class="slot">${itemBtn(o, `shop:${i}`, `, ${def.price} gold`)}</div>
       <div class="o-name r-${def.rarity}">${def.name}</div>
-      <div class="o-meta">${def.schools.map(sc => `${schoolDot(sc)}${sc}`).join(' ')}</div>
+      ${(() => { const c = ownedCopy(o.id); return c ? `<div class="up-tag" title="You own this: buying it upgrades yours">▲ ${TIER_NAMES[c.item.tier ?? 1]}</div>` : `<div class="o-meta">${def.schools.map(sc => `${schoolDot(sc)}${sc}`).join(' ')}</div>`; })()}
       <div class="price${S.gold < def.price ? ' short' : ''}">${COIN}${def.price}</div>`;
   });
   S.ench.forEach((o, i) => {
@@ -728,7 +762,7 @@ function buildStats() {
     if (!it) continue;
     const m = itemMods(it);
     const fx = gemFx(it);
-    const boost = fx.reduce((a, x) => a * (x.boost ?? 1), 1);
+    const boost = fx.reduce((a, x) => a * (x.boost ?? 1), 1) * tierMult(ITEMS[it.id], it.tier);
     const add = Math.round((ITEMS[it.id].hp || 0) * boost + m.hp + gemSum(it, 'hp'));
     if (add) hpParts.push(`${ITEMS[it.id].name} ${add > 0 ? '+' : '−'}${Math.abs(add)}`);
     hp += add;
@@ -740,7 +774,7 @@ function buildStats() {
     const m = it ? itemMods(it) : itemMods({});
     const g = k => (it ? gemSum(it, k) : 0);
     return {
-      name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (1 + (m.dmgPct + g('dmgPct')) / 100),
+      name: it ? ITEMS[it.id].name : 'Fists', dmg: w.dmg * (it ? tierMult(ITEMS[it.id], it.tier) : 1) * (1 + (m.dmgPct + g('dmgPct')) / 100),
       interval: w.interval * (1 - (m.spdPct + g('spdPct')) / 100) * (1 - Math.min(30, quick * 4) / 100),
       critMult: Math.max(2, w.critMult || 2), ls: ((w.ls || 0) + g('ls')) * 100, critBonus: g('critBonus') * 100,
     };
@@ -847,6 +881,24 @@ $('stats').addEventListener('click', () => toggleSheet());
 $('stats').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSheet(); } });
 $('stat-sheet').addEventListener('click', e => { if (e.target.closest('#ss-close')) toggleSheet(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen && enchantEl.hidden) toggleSheet(false); });
+// The stat line with an item's tier applied: damage and HP scale, and Gold fires faster.
+function tierStatLine(def, item) {
+  const t = item?.tier ?? 1;
+  if (t === 1) return statLine(def);
+  const m = tierMult(def, t), gold = t === 3;
+  const r1 = n => Math.round(n * 10) / 10;
+  const w = def.weapon ?? def.dual;
+  if (w) return `${def.kind} · ${w.interval.toFixed(1)}s · ${r1(w.dmg * m)} dmg`;
+  if (def.cd) return `${def.kind} · every ${r1(def.cd * (gold ? 0.85 : 1))}s`;
+  if (def.hp) return `${SLOT_NAME[def.slot]} · +${Math.round(def.hp * m)} HP`;
+  return statLine(def);
+}
+const tierChip = item => ((item?.tier ?? 1) > 1 ? `<span class="chip tierchip t${item.tier}">${tierName(item)} · effects ×${tierMult(ITEMS[item.id], item.tier)}${item.tier === 3 && ITEMS[item.id].cd ? ', fires faster' : ''}</span>` : '');
+const tierHint = (item, where) => {
+  if (!item || !ITEMS[item.id] || ITEMS[item.id].slot === 'trinket') return '';
+  if (where === 'shop') { const c = ownedCopy(item.id); return c ? `<p class="tier-note">You own this. Buying it upgrades yours to <b>${TIER_NAMES[c.item.tier ?? 1]}</b> (effects ×${tierMult(ITEMS[item.id], (c.item.tier ?? 1) + 1)}).</p>` : ''; }
+  return canTier(item) ? `<p class="tier-note">Buy another ${ITEMS[item.id].name} to upgrade it to <b>${TIER_NAMES[item.tier ?? 1]}</b> (effects ×${tierMult(ITEMS[item.id], (item.tier ?? 1) + 1)}).</p>` : '';
+};
 // A gem's three effects, one per kind of item.
 const gemEffectsHTML = def => `<div class="gem-fx">${Object.entries(GEM_KINDS).map(([k, label]) => `<div><span class="gk">${label}</span><span>${kwText(def.text[k])}</span></div>`).join('')}</div>`;
 const card = $('card'), actions = $('actions');
@@ -879,9 +931,10 @@ function renderInspector() {
   const where = w === 'shop' ? 'In the market' : w === 'bag' ? 'In your bag' : `Equipped · ${SLOT_NAME[k]}`;
   const value = w === 'shop' ? `Costs ${def.price} gold` : `Sells for ${sellValue(item)} gold`;
   card.innerHTML = `<span class="c-name r-${def.rarity}">${def.name}</span>
-    <div class="chips">${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
-    <span class="c-stats">${statLine(def)}</span>
+    <div class="chips">${tierChip(item)}${def.schools.map(sc => `<span class="chip">${schoolDot(sc)}${sc}</span>`).join('')}<span class="chip">${slotLabel(def)}</span><span class="chip">${RARITY_NAME[def.rarity]}</span></div>
+    <span class="c-stats">${tierStatLine(def, item)}</span>
     <p class="c-effect">${kwText(def.text)}</p>
+    ${tierHint(item, w)}
     ${socketsHTML(item, w !== 'shop')}
     <span class="c-value">${where} · ${value}</span>`;
   if (w === 'shop') {
@@ -933,8 +986,8 @@ function showTipFor(el, def, item = null) {
   tip.innerHTML = isUse(def.id)
     ? `<span class="t-name r-${def.rarity}">${def.name} gem</span><span class="t-meta">Gem · ${def.school ?? (def.cursed ? 'Cursed' : RARITY_NAME[def.rarity])}${item?.n > 1 ? ` · ${item.n} held` : ''}</span>${gemEffectsHTML(def)}`
     : `<span class="t-name r-${def.rarity}">${def.name}</span>
-    <span class="t-meta">${[...def.schools, slotLabel(def), RARITY_NAME[def.rarity]].join(' · ')}</span>
-    <span>${statLine(def)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
+    <span class="t-meta">${[...((item?.tier ?? 1) > 1 ? [`${tierName(item)} ×${tierMult(def, item.tier)}`] : []), ...def.schools, slotLabel(def), RARITY_NAME[def.rarity]].join(' · ')}</span>
+    <span>${tierStatLine(def, item)}</span><span>${kwText(def.text)}</span>${upgradeHTML(item, true)}`;
   tip.hidden = false;
   const r = el.getBoundingClientRect();
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -1325,7 +1378,7 @@ function hudHTML(side, name, sub, equip) {
     if (!e) continue;
     const def = ITEMS[e.id];
     const timed = def.weapon || def.dual || def.cd;
-    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${def.name}${steps(e) ? ` <span class="hup">${signed(steps(e))}</span>` : ''}${e.pot ? ` <span class="b-pot inline t${e.pot.tier}"></span>` : ''}${gemsOf(e).map(g => `<span class="hgem" title="${GEMS[g].name} gem" style="--gc: #${GEMS[g].color.toString(16).padStart(6, '0')}"></span>`).join('')}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
+    rows.push(`<li><button type="button" class="hi" data-slot="${slot}" data-id="${e.id}" aria-label="${def.name}: what it does"><img src="${iconFor(e.id)}" alt=""><div><div class="nm r-${def.rarity}">${(e.tier ?? 1) > 1 ? `<span class="htier t${e.tier}">${e.tier === 2 ? 'II' : 'III'}</span> ` : ''}${def.name}${steps(e) ? ` <span class="hup">${signed(steps(e))}</span>` : ''}${e.pot ? ` <span class="b-pot inline t${e.pot.tier}"></span>` : ''}${gemsOf(e).map(g => `<span class="hgem" title="${GEMS[g].name} gem" style="--gc: #${GEMS[g].color.toString(16).padStart(6, '0')}"></span>`).join('')}</div>${timed ? '<div class="cd"><i></i></div>' : ''}</div></button></li>`);
   }
   return `<div class="hud-head"><span class="hud-name">${name}</span><span class="hud-sub">${sub}</span></div>
     <div class="hpbar"><div class="hp-lag"></div><div class="hp-fill"></div><div class="hp-sh"></div><span class="hp-text"></span></div>
@@ -1439,6 +1492,7 @@ function updateHud(force) {
     if (s.luck > 0) chips.push(['luck', s.luck]);
     if (s.thorns > 0) chips.push(['thorns', s.thorns]);
     if (s.regen > 0) chips.push(['regen', s.regen]);
+    if (s.haste) chips.push(['haste', '']);
     const html = chips.map(([k, v]) => `<button type="button" class="schip${k === 'frozen' ? ' frozen' : ''}" data-st="${k}" data-side="${side}" style="--sc: var(${STATUS_VAR[k]})" aria-label="${STATUS_NAME[k] ?? 'Frozen'} ${k === 'frozen' ? '' : v}: what it does"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>${v}</button>`).join('');
     if (hudCache[side].chips !== html) { root.querySelector('.schips').innerHTML = html; hudCache[side].chips = html; }
     if (statusTip && statusTip.side === side) refreshStatusTip(fr);
@@ -1465,6 +1519,7 @@ function statusInfo(k, s) {
     case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
     case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
     case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. Caps at ${RULES.THORNS_CAP}.`];
+    case 'haste': return ['Haste', 'Weapons and cooldown items run 50% faster while it lasts. More Haste adds time, up to 8s.'];
     case 'regen': return [`Regen ${n}`, `Heals ${n} every ${RULES.REGEN_EVERY}s (1 per stack). Regen never wears off and caps at ${RULES.REGEN_CAP}. Burn cuts its healing like any other heal.`];
     case 'frozen': return ['Frozen', `Weapon and items are stopped for up to ${RULES.FREEZE_TIME}s. Burn and Poison still tick.`];
   }
@@ -1650,6 +1705,8 @@ function eventSound(e) {
     case 'cleanse': return sfx('cleanse');
     case 'immune': return sfx('block');
     case 'moment': return sfx(e.k);
+    case 'haste': return sfx('haste');
+    case 'charge': return sfx('charge');
   }
 }
 function playEvent(e, quiet) {
@@ -1741,6 +1798,19 @@ function playEvent(e, quiet) {
     case 'immune':
       if (!quiet) floatText(e.side, 'Immune', '#f4c652', 'small');
       break;
+    case 'haste':
+      if (!quiet) {
+        floatText(e.side, `Haste ${e.n}s`, '#f2d67c', 'small');
+        const f = F[e.side];
+        for (let i = 0; i < 10; i++) particles.emit({ x: f.holder.position.x - f.dir * (0.3 + Math.random() * 0.4), y: 0.4 + Math.random() * 1.4, z: 0.1, vx: -f.dir * 3, vy: 0, drag: 2, life: 0.35, size: 0.03, color: 0xf2d67c });
+      }
+      break;
+    case 'charge': {
+      // Flash the charged item's row in the battle panel, like a trigger.
+      const el = $(`hud-${e.side}`).querySelector(`.hi[data-slot="${e.slot}"]`);
+      if (el && !quiet) { el.classList.add('charged'); B.flash[`${e.side}:${e.slot}:c`] = 0.25; }
+      break;
+    }
     case 'clutch':
       if (!quiet) {
         floatText(e.side, 'Clutch!', '#f4c652', 'banner');
@@ -2215,8 +2285,8 @@ function animateFighters(t, dt, simDt) {
   for (const key of Object.keys(B.flash)) {
     B.flash[key] -= dt;
     if (B.flash[key] <= 0) {
-      const [side, slot] = key.split(':');
-      $(`hud-${side}`).querySelector(`.hi[data-slot="${slot}"]`)?.classList.remove('flash');
+      const [side, slot, kind] = key.split(':');
+      $(`hud-${side}`).querySelector(`.hi[data-slot="${slot}"]`)?.classList.remove(kind === 'c' ? 'charged' : 'flash');
       delete B.flash[key];
     }
   }
@@ -2429,7 +2499,7 @@ const hofItem = uid => HOF.items.find(i => i.uid === uid) ?? null;
 const clone = o => (o ? JSON.parse(JSON.stringify(o)) : undefined);
 // Upgrades are copied as steps and lines, so kept items follow future balance changes.
 function keepInHof(item, meta) {
-  const kept = { uid: `h${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`, id: item.id, up: clone(item.up), pot: clone(item.pot), gems: [...gemsOf(item)], kept: meta };
+  const kept = { uid: `h${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`, id: item.id, up: clone(item.up), pot: clone(item.pot), gems: [...gemsOf(item)], tier: item.tier ?? 1, kept: meta };
   HOF.items.unshift(kept);
   rival = null;
   saveHof();

@@ -321,6 +321,44 @@ Random statuses are drawn from Burn, Poison, Frost, Slow and Sand. Random boons 
 
 ---
 
+## 7b. Engines: Haste and Charge
+
+Items that link to each other, so a build is a machine you watch run rather than a pile of separate effects.
+
+- **Haste:** your weapons and cooldown items tick 50% faster while it lasts. More Haste adds time, up to 8s. Hasted fighters show a Haste chip, and a yellow streak shows when Haste is gained.
+- **Charge:** advance another item's cooldown, so it fires sooner. The target is your weapon, your offhand, your other items, or a random one. The charged item's row flashes blue in the battle panel.
+- **Item fired:** a trigger for "whenever one of your cooldown items fires".
+
+| Item | School · slot | Effect | Win rate added to its school (peers) |
+|---|---|---|---|
+| Bellows | Fire · offhand C | Every 5s: 2 Heat and Haste 1s | 79% (Ember Censer 75%, Kindled Brazier 79%) |
+| Stoker's Gloves | Fire · gloves R | Whenever you apply Burn, Charge your offhand 0.4s | 67% (Stoked Gauntlets 67%) |
+| Clockwork Snowglobe | Frost · offhand R | Every 5s: 5 Frost; whenever the enemy Freezes, Charge this 3s | 63% (Frost Lantern 67%) |
+| Rime Spurs | Frost · boots C | Whenever the enemy Freezes, Haste 3.5s | 73% |
+| Alembic | Venom · offhand C | Every 4s: 2 Poison and Charge your weapon 0.5s | 77% |
+| Sand Timer | Desert · helm R | Every 7s: 2 Sand and Charge your other items 1s | 67% (Nomad's Wrap 67%) |
+| Devotion Gauntlets | Holy · gloves R | Whenever you gain Shield, Charge your weapon 0.3s (2/s max) | 74% (Mending Gloves 69%) |
+| Heartbeat Mantle | Blood · cape R | Whenever you Lifesteal, Charge weapon and offhand 0.3s (2/s max) | 76% |
+| Spinning Coin | Fortune · offhand C | Every 3s: 50% Charge your weapon 0.6s, else 1 Luck | 76% (Lucky Coin 67%) |
+| Thornwound Spring | Thorn · body R | Start: 1 Thorns; whenever Thorns trigger, Charge a random item 0.5s | 80% (Briar Mail 84%) |
+| Tide Clock | Lunar · helm R | Every 8s: Haste 1s; the first time, also 1 Regen | 80% (Crescent Circlet 75%) |
+| Clockwork Heart | Prismatic · amulet L | Whenever a cooldown item fires, Charge your weapon 0.7s | 62% (a build-around: it needs cooldown items) |
+
+These win rates come from builds fought against identical copies of themselves, so small edges look big. Haste is a good example: 1s every 6s is only about 8% more attacks (13 → 14 over 30s), yet it was worth around 15 points.
+
+## 7c. Item tiers: Bronze, Silver, Gold
+
+Buying a copy of gear you own (equipped or in the bag) upgrades it instead of adding a second one: Bronze → Silver → Gold. Trinkets don't tier.
+
+- **Silver:** the item's numbers ×1.5: its effects, armour HP and jewellery starters. Weapons step more gently, with damage and on-hit effects ×1.15.
+- **Gold:** ×2 (weapons ×1.3), and cooldown items fire 15% more often.
+- **Selling:** you get half of everything paid, so Silver sells for one full price and Gold for one and a half.
+- **Market:** each gear offer has a 15% chance to be a copy of something you own. Those offers say "▲ Silver" or "▲ Gold", and the inspector explains the upgrade before you buy.
+- **Display:** upgraded gear has a silver or gold frame and a II or III badge, shown in the market and the battle panel. The inspector shows the scaled stats.
+- **Ghosts:** they buy copies too. About 12% of their gear is upgraded by day 6, rising to about 60% by day 12 as late gold goes into upgrades.
+- **Tuning (an item upgraded from Bronze on a random day-6 ghost):** Silver wins 60–63% for armour and jewellery and 74% for weapons; Gold wins 64–71% and 84%. Weapons first stepped ×1.5 and ×2 like everything else, which won 89% and 97%.
+- **Balance:** with engines and tiers in play, schools land at 41–56% on days 3, 8 and 14.
+
 ## 8. Bridge rings
 
 ### Jewellery starters

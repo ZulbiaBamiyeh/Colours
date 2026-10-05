@@ -24,6 +24,13 @@ const BOONS = [
   { k: 'heal', school: 'Holy' }, { k: 'shield', school: 'Holy' }, { k: 'heat', school: 'Fire' },
   { k: 'luck', school: 'Fortune' }, { k: 'ls', school: 'Blood' }, { k: 'thorns', school: 'Thorn' }, { k: 'regen', school: 'Lunar' },
 ];
+// Item tiers from duplicates: Bronze, Silver, Gold scale an item's numbers; Gold cooldown items also fire 15% more often.
+export const TIER_MULT = [1, 1.5, 2];
+// Weapons are the main damage source, so their tiers step more gently.
+export const WEAPON_TIER_MULT = [1, 1.15, 1.3];
+export const tierMult = (def, tier = 1) => (def.weapon || def.dual ? WEAPON_TIER_MULT : TIER_MULT)[Math.min(3, Math.max(1, tier)) - 1];
+const GOLD_CD = 0.85;
+const HASTE_SPEED = 1.5, HASTE_MAX = 8;
 const SLOT_ORDER = ['weapon', 'offhand', 'helm', 'body', 'gloves', 'boots', 'cape', 'ring1', 'ring2', 'amulet', 'trinket1', 'trinket2'];
 const r1 = n => Math.round(n * 10) / 10;
 
@@ -53,6 +60,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       capBonus: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
       stasis: 0, berserk: 0, below: {}, hist: [],
+      haste: 0,
       // Fight report: damage dealt by source ('slot:<slot>' for an item's hits and effects, or a status/kind),
       // plus what this fighter took, blocked with Shield, healed and gained.
       stats: { dealt: {}, taken: 0, blocked: 0, healed: 0, lifesteal: 0, regen: 0, shield: 0, hits: 0, crits: 0, missed: 0, fatigue: 0 }, clutchShield: 0,
@@ -66,12 +74,14 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       // Socketed gems: each one's effect for this kind of item (weapon, armour or jewellery).
       const gfx = gemsOf(e).map(id => { const g = GEMS[id]; if (g.school) f.schools[g.school] = (f.schools[g.school] || 0) + 1; return g.fx[gemKind(def)]; });
       const sum = k => gfx.reduce((a, x) => a + (x[k] ?? 0), 0);
-      const boost = gfx.reduce((a, x) => a * (x.boost ?? 1), 1);
+      const tier = Math.min(3, Math.max(1, e.tier ?? 1));
+      const tm = tierMult(def, tier);
+      const boost = gfx.reduce((a, x) => a * (x.boost ?? 1), 1) * tm;
       const quick = gfx.filter(x => x.quick).length;
       const it = {
         def, slot, data: {}, busy: false, timer: 0, boost,
         echo: 1 - gfx.reduce((a, x) => a * (1 - (x.echo ?? 0)), 1),
-        cd: def.cd ? def.cd * (1 - m.cdPct / 100) * 0.75 ** quick : 0,
+        cd: def.cd ? def.cd * (1 - m.cdPct / 100) * 0.75 ** quick * (tier === 3 ? GOLD_CD : 1) : 0,
       };
       if (quick && !def.cd) f.gemSpd += 4 * quick;
       f.items.push(it);
@@ -87,16 +97,17 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         // A gem's own triggered effects ride along as a companion of its item (same slot, same boost).
         if (x.hooks) f.items.push({ def: { hooks: x.hooks, schools: [] }, slot, data: {}, busy: false, timer: 0, boost, gem: true });
       }
-      if (def.stats) { f.luck += def.stats.luck || 0; }
-      // Jewellery starters (items.js): Luck and Lifesteal now, the rest at the start of the fight.
-      for (const [k, v] of Object.entries(def.starter ?? {})) {
+      if (def.stats) { f.luck += Math.round((def.stats.luck || 0) * tm); }
+      // Jewellery starters (items.js): Luck and Lifesteal now, the rest at the start of the fight. Tiers scale them.
+      for (let [k, v] of Object.entries(def.starter ?? {})) {
+        v = k === 'ls' ? v * tm : Math.round(v * tm);
         if (k === 'luck') f.luck += v;
         else if (k === 'ls') f.ls += v / 100;
         else f.start[k] += v;
       }
       if (def.flags) Object.assign(f.flags, def.flags);
       const tune = w => ({
-        ...w, dmg: w.dmg * (1 + (m.dmgPct + sum('dmgPct')) / 100), interval: w.interval * (1 - (m.spdPct + sum('spdPct')) / 100), extra: m.onHit,
+        ...w, dmg: w.dmg * tm * (1 + (m.dmgPct + sum('dmgPct')) / 100), interval: w.interval * (1 - (m.spdPct + sum('spdPct')) / 100), extra: m.onHit,
         ls: (w.ls || 0) + sum('ls'), critBonus: sum('critBonus'), catalyst: sum('catalyst'),
         echoHits: Math.min(Infinity, ...gfx.map(x => x.echoHits ?? Infinity)),
         gemHit: gfx.filter(x => x.hit).map(x => ({ fn: x.hit, data: {}, slot, boost })),
@@ -355,6 +366,33 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     fire(f, 'cleansed', { n: total, removed });
     return total;
   }
+  // Haste: your weapons and cooldown items tick 50% faster while it lasts (stacks up to HASTE_MAX seconds).
+  function haste(f, secs) {
+    if (f.dead || !(secs > 0)) return false;
+    f.haste = Math.min(HASTE_MAX, f.haste + secs);
+    ev('haste', { side: f.side, n: r1(secs) });
+    fire(f, 'hasted', { secs });
+    return true;
+  }
+  // Charge: advance a cooldown by some seconds, so it fires sooner (at most on the next tick).
+  // what: 'weapon', 'offhand', 'items' (every other cooldown item) or 'random' (one other cooldown item, else the weapon).
+  function charge(f, what, secs, self) {
+    if (f.dead || !(secs > 0)) return false;
+    const items = f.cds.filter(it => it !== self);
+    const weapons = f.weapons.filter(w => w.it || w.main);
+    let targets = [];
+    if (what === 'weapon') targets = weapons.filter(w => w.main);
+    else if (what === 'offhand') targets = [...items.filter(it => it.slot === 'offhand'), ...weapons.filter(w => !w.main)];
+    else if (what === 'items') targets = items;
+    else if (what === 'random') targets = items.length ? [items[Math.floor(rng() * items.length)]] : weapons.filter(w => w.main);
+    if (!targets.length) return false;
+    for (const t of targets) {
+      if (t.w) t.timer = Math.min(t.timer + secs, t.w.interval);
+      else t.timer = Math.min(t.timer + secs, t.cd);
+      ev('charge', { side: f.side, slot: t.slot, n: r1(secs) });
+    }
+    return true;
+  }
   function regenTick(f) {
     let n = f.regen;
     if (f.flags.regenCrit && critRoll(f)) n *= 2;
@@ -405,6 +443,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       freezeFoe: dur => freeze(foe, dur, false, me),
       pure: n => damage(me, foe, n, 'pure', { slot: it?.slot }),
       moment: (k, data = {}) => ev('moment', { side: me.side, k, ...data }),
+      haste: secs => haste(me, ampF(secs)),
+      charge: (what, secs) => charge(me, what, ampF(secs), it),
       capOf: type => capOf(me, type),
     };
   }
@@ -521,7 +561,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0,
+      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0, haste: f.haste > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
@@ -569,6 +609,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
         }
       }
       if (f.stasis > 0) f.stasis = Math.max(0, f.stasis - DT);
+      if (f.haste > 0) f.haste = Math.max(0, f.haste - DT);
       if (f.berserk > 0) f.berserk = Math.max(0, f.berserk - DT);
       f.hist.push(f.hp);
       if (f.hist.length > 31) f.hist.shift();
@@ -582,7 +623,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const order = tick % 2 ? [A, B] : [B, A];
     for (const f of order) {
       if (f.dead || f.hp <= 0) continue;
-      const sp = speed(f) * DT;
+      const sp = speed(f) * DT * (f.haste > 0 ? HASTE_SPEED : 1);
       if (!sp) continue;
       for (const wp of f.weapons) {
         if (f.stasis > 0) continue;
@@ -603,6 +644,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
             it.def.act(ctx(f, it));
             if (it.echo && rng() < it.echo) it.def.act(ctx(f, it));
           } finally { it.busy = false; cause = 'other'; }
+          fire(f, 'itemFired', { slot: it.slot });
         }
       }
     }

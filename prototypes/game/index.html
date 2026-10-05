@@ -559,6 +559,21 @@
   .t0 { --pc: #4f9de0; } .t1 { --pc: #a25cff; } .t2 { --pc: #f2c14e; } .t3 { --pc: #5fd068; }
   .hup { color: var(--gold); font-size: 0.75rem; }
 
+  /* ---------- Item tiers: Silver and Gold ---------- */
+  .b-tier { position: absolute; z-index: 1; right: 3px; bottom: 3px; padding: 0 4px; border-radius: 4px; font: 800 0.6rem/1.35 var(--font-body); letter-spacing: 0.04em; pointer-events: none; }
+  .b-tier.t2 { background: linear-gradient(#f4f6fa, #a9b0bd); color: #2a2f3a; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); }
+  .b-tier.t3 { background: linear-gradient(#ffe48a, #d49a1e); color: #3a2400; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 0 6px rgba(244, 198, 82, 0.8); }
+  .item.tier2 { box-shadow: inset 0 0 0 2px rgba(214, 220, 232, 0.75); }
+  .item.tier3 { box-shadow: inset 0 0 0 2px rgba(244, 198, 82, 0.9), 0 0 10px rgba(244, 198, 82, 0.35); }
+  .up-tag { font-size: 0.75rem; font-weight: 800; color: #7fe07f; letter-spacing: 0.03em; }
+  .tierchip.t2 { border-color: #c8ced8; color: #e6ebf2; }
+  .tierchip.t3 { border-color: #f4c652; color: #f4c652; }
+  .tier-note { margin: 2px 0; font-size: 0.85rem; color: #9fe09f; }
+  .htier { display: inline-block; padding: 0 3px; border-radius: 3px; font-size: 0.6rem; font-weight: 800; vertical-align: 1px; }
+  .htier.t2 { background: #c8ced8; color: #2a2f3a; }
+  .htier.t3 { background: #f4c652; color: #3a2400; }
+  .hi.charged { box-shadow: inset 0 0 0 2px #7fd6ff, 0 0 10px rgba(127, 214, 255, 0.5); }
+  html.maple:not(.dark) .up-tag, html.maple:not(.dark) .tier-note { color: #2f8a3a; }
   /* ---------- Gems: socket pips, socket lists, gem effects ---------- */
   .b-socks { position: absolute; z-index: 1; top: 4px; right: 4px; display: flex; gap: 3px; pointer-events: none; }
   .b-socks i { width: 7px; height: 7px; transform: rotate(45deg); border-radius: 1px; background: var(--gc); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 4px var(--gc); }

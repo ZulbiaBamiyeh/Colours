@@ -93,6 +93,10 @@ const SOUNDS = {
   pearl: [1, () => { noise({ filter: 'lowpass', f: 400, to: 1600, a: 0.25, d: 0.6, vol: 0.25 }); tone(330, { at: 0.2, d: 0.6, vol: 0.08 }); }],
   erupt: [1, () => { noise({ filter: 'lowpass', f: 300, a: 0.01, d: 0.7, vol: 0.55 }); tone(55, { type: 'triangle', d: 0.6, vol: 0.5, to: 35 }); noise({ filter: 'highpass', f: 2500, at: 0.1, d: 0.4, vol: 0.08 }); }],
   berserk: [1, () => { tone(90, { type: 'sawtooth', a: 0.05, d: 0.5, vol: 0.12, to: 130 }); tone(92, { type: 'sawtooth', a: 0.05, d: 0.5, vol: 0.1, to: 128, detune: 20 }); }],
+  // Engines and tiers
+  haste: [0.3, () => { noise({ filter: 'bandpass', f: 800, to: 3200, a: 0.02, d: 0.18, vol: 0.14 }); tone(660, { type: 'triangle', d: 0.12, vol: 0.06, to: 1320 }); }],
+  charge: [0.12, () => tone(1046, { type: 'square', d: 0.035, vol: 0.035, to: 1568 })],
+  upgrade: [0.2, () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, { type: 'triangle', at: i * 0.06, d: 0.25, vol: 0.09 }))],
   // Market
   buy: [0.05, () => { tone(1320, { type: 'square', d: 0.05, vol: 0.05 }); tone(1980, { type: 'square', at: 0.06, d: 0.09, vol: 0.05 }); }],
   sell: [0.05, () => { tone(1980, { type: 'square', d: 0.05, vol: 0.05 }); tone(1320, { type: 'square', at: 0.06, d: 0.08, vol: 0.04 }); }],
