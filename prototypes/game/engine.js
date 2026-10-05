@@ -12,20 +12,27 @@ export function mulberry32(a) {
 }
 
 const DT = 0.1;
-const HEAT_CAP = 20, THORNS_CAP = Infinity, REGEN_CAP = 8, REGEN_EVERY = 2, BURN_PER = 0.4;
+const REGEN_EVERY = 4, BURN_PER = 0.4;
 // Enemy statuses have no caps. Slow and Sand have diminishing returns instead: each stack does a little less than the one
 // before, approaching a ceiling they never reach (MAX × n / (n + K): K stacks give half the ceiling).
 const SLOW_MAX = 0.75, SLOW_K = 15, SAND_MAX = 0.85, SAND_K = 10;
+// Nothing on you caps either. Heat's speed follows the same kind of curve (Molten Core makes it a straight 3% per stack);
+// Fortify cuts the damage you take the same way.
+const HEAT_MAX = 1.2, HEAT_K = 30, HEAT_PER = 0.03, FORT_MAX = 0.6, FORT_K = 20;
+// Grace: each stack makes your healing GRACE_PER stronger.
+const GRACE_PER = 0.05;
 // Might: each stack makes your weapon hits deal MIGHT_PER more damage. A share of the hit, so slow and fast weapons gain alike.
 const MIGHT_PER = 0.05;
 const FATIGUE_AT = 25, MAX_TIME = 75;
 const POISON_EVERY = 4, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
 const WILDFIRE_AT = 8, WILDFIRE_PCT = 25, WILDFIRE_HOT_PCT = 50;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { THORNS_CAP, HEAT_CAP, FATIGUE_AT, POISON_EVERY, REGEN_CAP, REGEN_EVERY, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SLOW_MAX, SAND_MAX, MIGHT_PER, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT, WILDFIRE_PCT, WILDFIRE_HOT_PCT };
+export const RULES = { FATIGUE_AT, POISON_EVERY, REGEN_EVERY, HEAT_MAX, HEAT_PER, FORT_MAX, GRACE_PER, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SLOW_MAX, SAND_MAX, MIGHT_PER, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT, WILDFIRE_PCT, WILDFIRE_HOT_PCT };
 // Slow's speed multiplier and Sand's miss chance, shared with the UI.
 export const slowMult = n => 1 - (SLOW_MAX * n) / (n + SLOW_K);
 export const sandMiss = n => (SAND_MAX * n) / (n + SAND_K);
+export const heatBonus = (n, molten) => (molten ? HEAT_PER * n : (HEAT_MAX * n) / (n + HEAT_K));
+export const fortCut = n => (FORT_MAX * n) / (n + FORT_K);
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [
@@ -56,14 +63,14 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const f = {
       side, name: build.name, hp: 0, maxHp: 100, shield: 0,
       st: { burn: 0, poison: 0, frost: 0, slow: 0, sand: 0 },
-      heat: 0, might: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
+      heat: 0, might: 0, fortify: 0, grace: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0,
       burnT: 0, poisonT: 0, regenT: 0, poisonTicks: 0, regen: 0,
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, might: 0, slow: 0, sand: 0, poison: 0, burn: 0, frost: 0, thorns: 0, regen: 0, random: 0 },
+      start: { shield: 0, heat: 0, might: 0, fortify: 0, grace: 0, slow: 0, sand: 0, poison: 0, burn: 0, frost: 0, thorns: 0, regen: 0, random: 0 },
       // Gem bonuses (upgrades.js): Burn and Poison damage (stPct), Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
       stPct: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
@@ -184,7 +191,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     return ok;
   }
   const critRoll = f => chance(f, 0.05);
-  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, (1 + 0.03 * f.heat) * slowMult(f.st.slow)) * (f.berserk > 0 ? f.berserkSpd : 1));
+  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, (1 + heatBonus(f.heat, f.flags.molten)) * slowMult(f.st.slow)) * (f.berserk > 0 ? f.berserkSpd : 1));
 
   function weightedPick(f, options, schoolOf) {
     const w = options.map(o => (f.flags.foolsOpal ? 1 : 1 + (f.schools[schoolOf(o)] || 0)));
@@ -218,6 +225,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (tgt.stasis > 0) return 0;
     if (tgt.berserk > 0) n *= tgt.berserkTaken;
     if (kind === 'hit') n = incoming(src, tgt, n);
+    // Fortify cuts everything but Fatigue and your own costs.
+    if (tgt.fortify > 0 && kind !== 'fatigue' && kind !== 'self') n *= 1 - fortCut(tgt.fortify);
     let absorbed = 0;
     if (kind !== 'poison' && kind !== 'fatigue' && kind !== 'self') {
       absorbed = Math.min(tgt.shield, n);
@@ -242,7 +251,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function credit(f, key, n) { f.stats.dealt[key] = (f.stats.dealt[key] ?? 0) + n; }
   function heal(f, n, o = {}) {
     if (!(n > 0) || f.dead) return false;
-    n = mod(f, 'heal', n) * (1 + f.healPct / 100);
+    n = mod(f, 'heal', n) * (1 + f.healPct / 100) * (1 + GRACE_PER * f.grace);
     if (f.st.burn > 0) n *= BURN_HEAL_CUT;
     if (f.flags.healCrit && critRoll(f)) n *= 2;
     const room = Math.max(0, f.maxHp - f.hp);
@@ -272,8 +281,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       const c = Math.min(f.st.slow, n);
       f.st.slow -= c;
       n -= c;
-      const cap = f.flags.molten ? Infinity : HEAT_CAP;
-      const add = Math.min(n, Math.max(0, cap - f.heat));
+      const add = n;
       if (add <= 0) return c > 0;
       f.heat += add;
       ev('boon', { side: f.side, k: 'heat', n: add });
@@ -282,17 +290,16 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       f.might += n;
       ev('boon', { side: f.side, k: 'might', n });
       fire(f, 'gainedMight', { n });
+    } else if (type === 'fortify' || type === 'grace') {
+      f[type] += n;
+      ev('boon', { side: f.side, k: type, n });
     } else if (type === 'thorns') {
-      const add = Math.min(n, Math.max(0, THORNS_CAP - f.thorns));
-      if (add <= 0) return false;
-      f.thorns += add;
-      ev('boon', { side: f.side, k: 'thorns', n: add });
+      f.thorns += n;
+      ev('boon', { side: f.side, k: 'thorns', n });
     } else if (type === 'regen') {
-      const add = Math.min(n, Math.max(0, REGEN_CAP - f.regen));
-      if (add <= 0) return false;
-      f.regen += add;
-      ev('boon', { side: f.side, k: 'regen', n: add });
-      fire(f, 'gainedRegen', { n: add });
+      f.regen += n;
+      ev('boon', { side: f.side, k: 'regen', n });
+      fire(f, 'gainedRegen', { n });
     } else if (type === 'luck') {
       f.luck += n;
       ev('boon', { side: f.side, k: 'luck', n });
@@ -528,6 +535,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   // spread evenly across ticks of DT. Burn hits Shield first; Poison ignores it.
   function drain(f, kind, n) {
     if (f.dead || !(n > 0)) return;
+    if (f.fortify > 0) n *= 1 - fortCut(f.fortify);
     let absorbed = 0;
     if (kind === 'burn' && f.shield > 0) {
       absorbed = Math.min(f.shield, n);
@@ -582,7 +590,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, might: f.might, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0, haste: f.haste > 0,
+      st: { ...f.st }, heat: f.heat, might: f.might, fortify: f.fortify, grace: f.grace, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0, haste: f.haste > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
@@ -597,6 +605,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (s.shield) gain(f, 'shield', s.shield);
     if (s.heat) gain(f, 'heat', s.heat);
     if (s.might) gain(f, 'might', s.might);
+    if (s.fortify) gain(f, 'fortify', s.fortify);
+    if (s.grace) gain(f, 'grace', s.grace);
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
     if (s.poison) apply(f, other(f), 'poison', s.poison, { generated: true });

@@ -58,7 +58,7 @@ const LIST = [
     text: 'Your Burn deals 25% more damage, or 50% more while you have 8+ Heat.', flags: { wildfire: true },
     model: { t: 'amulet', shape: 'flame' } },
   { id: 'molten_core', name: 'Molten Core', schools: [FIRE], slot: 'amulet', rarity: L,
-    text: 'Heat has no cap. Weapon hits deal +10% damage per 5 Heat. You lose 1 HP per second per 10 Heat.', flags: { molten: true },
+    text: 'Each Heat speeds you up a full 3%, with no falloff. Weapon hits deal +10% damage per 5 Heat. You lose 1 HP per second per 10 Heat.', flags: { molten: true },
     mods: { hitDmg: (c, d) => d * (1 + 0.1 * Math.floor(c.me.heat / 5)) },
     hooks: { second: c => { const n = Math.floor(c.me.heat / 10); return n > 0 && c.selfDamage(n); } },
     model: { t: 'amulet', shape: 'core' } },
@@ -165,16 +165,16 @@ const LIST = [
 
   /* ---------------- Holy ---------------- */
   { id: 'wardens_mace', name: "Warden's Mace", schools: [HOLY], slot: 'weapon', rarity: C, kind: 'Mace',
-    text: 'On hit: gain 6 Shield.', weapon: W(3.0, 10, c => c.gain('shield', 6)),
+    text: 'On hit: gain 6 Shield.', weapon: W(3.0, 12.5, c => c.gain('shield', 6)),
     model: { t: 'mace', haft: 0x6a5a4a, head: 0xc6d0e2, flange: 0xe8b73a, gem: 0x7fd0ff, hand: -0.38, hold: 0.8 } },
   { id: 'dawnhammer', name: 'Dawnhammer', schools: [HOLY], slot: 'weapon', rarity: R, kind: 'Hammer',
-    text: 'On hit: heal 8 and gain 8 Shield.', weapon: W2(4.5, 22, c => { c.heal(8); c.gain('shield', 8); }),
+    text: 'On hit: heal 8 and gain 8 Shield.', weapon: W2(4.5, 27.5, c => { c.heal(8); c.gain('shield', 8); }),
     model: { t: 'hammer', haft: 0x8a6a3a, head: 0xf3eedc, face: 0xe8b73a, hand: -0.8, hold: 0.58 } },
   { id: 'oak_buckler', name: 'Oak Buckler', schools: [HOLY], slot: 'offhand', rarity: C, kind: 'Shield',
     text: 'Every 4s: gain 10 Shield.', cd: 4, act: c => c.gain('shield', 10),
     model: { t: 'buckler', a: 0x8a5a2b, b: 0xc6d0e2, c: 0xe8b73a, hold: 0.42 } },
   { id: 'hymnal', name: 'Hymnal', schools: [HOLY], slot: 'offhand', rarity: C, kind: 'Tome',
-    text: 'Every 5s: heal 12.', cd: 5, act: c => c.heal(12),
+    text: 'Every 5s: heal 12 and Cleanse 2.', cd: 5, act: c => { c.cleanse(2); return c.heal(12); },
     model: { t: 'tome', a: 0xf3eedc, b: 0xe8b73a, c: 0xf2d67c, hold: 0.38 } },
   { id: 'gilded_halo', name: 'Gilded Halo', schools: [HOLY], slot: 'helm', rarity: R,
     text: 'While you have Shield, your heals are 25% stronger.', mods: { heal: (c, n) => (c.me.shield > 0 ? n * 1.25 : n) },
@@ -404,8 +404,8 @@ const LIST = [
     text: 'Every 6s: gain 1 Might, or 2 if you have Shield.', cd: 6, kind: 'Gauntlets', act: c => c.gain('might', c.me.shield >= 1 ? 2 : 1),
     model: { t: 'glove', a: 0xe8d8b0, b: 0xc48a24, knuckle: 0xf4e08a, knuckleGlow: 0.5 } },
   { id: 'bloodsworn_ring', name: 'Bloodsworn Ring', schools: [BLOOD], slot: 'ring', rarity: R,
-    text: 'For every 22 HP you heal: gain 1 Might.',
-    hooks: { healed: (c, o) => { c.data.h = (c.data.h ?? 0) + o.n; let got = false; while (c.data.h >= 22) { c.data.h -= 22; got = c.gain('might', 1) || got; } return got; } },
+    text: 'For every 16 HP you heal: gain 1 Might.',
+    hooks: { healed: (c, o) => { c.data.h = (c.data.h ?? 0) + o.n; let got = false; while (c.data.h >= 16) { c.data.h -= 16; got = c.gain('might', 1) || got; } return got; } },
     model: { t: 'ring', band: 0x3a1a20, gem: 0xdb2d4a, deco: 'fangs' } },
   { id: 'gamblers_edge', name: "Gambler's Edge", schools: [FORTUNE], slot: 'ring', rarity: R, kind: 'Ring',
     text: 'Every 3s: 30% chance to gain 2 Might.', cd: 3, act: c => c.chance(0.3) && c.gain('might', 2),
@@ -420,6 +420,42 @@ const LIST = [
   { id: 'warlords_helm', name: "Warlord's Helm", schools: [PRISM], slot: 'helm', rarity: E, kind: 'Helm',
     text: 'Every 5s: gain 1 Might.', cd: 5, act: c => c.gain('might', 1),
     model: { t: 'crown', a: 0x5a5f6a, b: 0x8a909c, c: 0xf0a868, wear: { y: 0.3, s: 0.82 } } },
+
+  /* ---------------- Fortify and Grace ----------------
+     Fortify: you take less damage, each stack a little less than the one before (never reaching 60%).
+     Grace: each stack makes your healing 5% stronger. The armour and healing counterparts of Might. */
+  { id: 'consecrated_plate', name: 'Consecrated Plate', schools: [HOLY], slot: 'body', rarity: R, kind: 'Plate',
+    text: 'Every 5s: gain 1 Fortify, or 2 if you have Shield.', cd: 5, act: c => c.gain('fortify', c.me.shield >= 1 ? 2 : 1),
+    model: { t: 'armor', kind: 'plate', a: 0xe8d8b0, b: 0xc48a24, c: 0xf4e08a } },
+  { id: 'aegis_charm', name: 'Aegis Charm', schools: [HOLY], slot: 'amulet', rarity: E,
+    text: 'Whenever your Shield breaks: gain 3 Fortify.', hooks: { shieldBreak: c => c.gain('fortify', 3) },
+    model: { t: 'amulet', shape: 'shield' } },
+  { id: 'saints_mitts', name: "Saint's Mitts", schools: [HOLY], slot: 'gloves', rarity: R, kind: 'Mitts',
+    text: 'Every 7s: heal 4 and gain 1 Grace.', cd: 7, act: c => { c.heal(4); return c.gain('grace', 1); },
+    model: { t: 'glove', a: 0xf4ecd8, b: 0xe8b73a, knuckle: 0xfff0b0, knuckleGlow: 0.6 } },
+  { id: 'barkskin_helm', name: 'Barkskin Helm', schools: [THORN], slot: 'helm', rarity: R,
+    text: 'Whenever your Thorns trigger: gain 1 Fortify (at most once every 3s).',
+    hooks: { thorned: c => { if (c.t - (c.data.t ?? -9) < 3) return false; c.data.t = c.t; return c.gain('fortify', 1); } },
+    model: { t: 'hood', a: 0x5a3a24, b: 0x3a5a2a, lining: 0x2a1a12, gem: 0x9ac36a, wear: { y: -0.01, s: 0.96 } } },
+  { id: 'glacier_plate', name: 'Glacier Plate', schools: [FROST], slot: 'body', rarity: R,
+    text: 'Whenever the enemy Freezes: gain 4 Fortify.', hooks: { enemyFreeze: c => c.gain('fortify', 4) },
+    model: { t: 'armor', kind: 'plate', a: 0x6a8fb4, b: 0xc6d0e2, snow: 0xccf5ff } },
+  { id: 'sandstone_greaves', name: 'Sandstone Greaves', schools: [DESERT], slot: 'boots', rarity: R,
+    text: 'Whenever an enemy attack misses: gain 1 Fortify.', hooks: { enemyMiss: c => c.gain('fortify', 1) },
+    model: { t: 'boot', a: 0xc48a24, b: 0x8a5a2b, extra: 'swirl' } },
+  { id: 'bulwark_mantle', name: 'Bulwark Mantle', schools: [PRISM], slot: 'cape', rarity: E, kind: 'Cape',
+    text: 'Every 6s: gain 1 Fortify.', cd: 6, act: c => c.gain('fortify', 1),
+    model: { t: 'cape', a: 0x5a5f6a, b: 0x2a2e36, hem: 0xc6d0e2, emblem: 'shield' } },
+  { id: 'tidewell_ring', name: 'Tidewell Ring', schools: [LUNAR], slot: 'ring', rarity: R, kind: 'Ring',
+    text: 'Every 6s: gain 1 Grace, or 2 if you have 3+ Regen.', cd: 6, act: c => c.gain('grace', c.me.regen >= 3 ? 2 : 1),
+    model: { t: 'ring', band: 0xb8c0dc, gem: 0x7fd0ff, deco: 'drop' } },
+  { id: 'heartsblood_ring', name: 'Heartsblood Ring', schools: [BLOOD], slot: 'ring', rarity: R,
+    text: 'Whenever a weapon hit Lifesteals: gain 1 Grace (at most once a second).',
+    hooks: { lifestole: c => { if (c.t - (c.data.t ?? -9) < 1) return false; c.data.t = c.t; return c.gain('grace', 1); } },
+    model: { t: 'ring', band: 0x3a1a20, gem: 0xdb2d4a, deco: 'vessel' } },
+  { id: 'blessed_coin', name: 'Blessed Coin', schools: [FORTUNE], slot: 'ring', rarity: R, kind: 'Ring',
+    text: 'Every 4s: 40% chance to gain 1 Grace and heal 5.', cd: 4, act: c => { if (!c.chance(0.4)) return false; c.heal(5); return c.gain('grace', 1); },
+    model: { t: 'ring', band: 0x2f8a63, gem: 0xf4ecd8, deco: 'clover' } },
 
   /* ---------------- Engine items ----------------
      Haste: your weapons and cooldown items run 50% faster for a few seconds.
@@ -663,6 +699,7 @@ for (const def of LIST) {
   def.price = def.slot === 'trinket' ? def.price : PRICE[def.rarity] + (def.weapon?.hands === 2 ? 1 : 0);
   def.hp = ARMOR_SLOTS.includes(def.slot) ? ARMOR_HP[def.rarity] : 0;
   def.bridge = def.schools.length > 1;
+  if (ITEMS[def.id]) throw new Error(`Duplicate item id: ${def.id}`);
   ITEMS[def.id] = def;
 }
 export const ITEM_IDS = LIST.map(d => d.id);

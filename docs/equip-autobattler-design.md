@@ -57,9 +57,11 @@ The depth comes from three layers:
 | **Heal** | you | Restores HP up to your max. Healing beyond max is **overheal** and is lost unless an item uses it. **Lifesteal counts as healing.** |
 | **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
 | **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
-| **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
+| **Heat** | you | Speed with diminishing returns: +120% × n / (n + 30). 10 Heat is +30%, 30 is +60%. No cap, doesn't decay. Molten Core makes it a straight +3% per stack. |
 | **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. No cap. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
-| **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 8 stacks. Counts as healing, so Burn cuts it. |
+| **Regen** | you | Heals 1 per stack every 4s. Never wears off. No cap. Counts as healing, so Burn cuts it. |
+| **Fortify** | you | Take less damage from everything but Fatigue, with diminishing returns: 60% × n / (n + 20). 10 Fortify is −20%, 30 is −36%. Lasts the fight. |
+| **Grace** | you | Your healing (including Lifesteal and Regen) is 5% stronger per stack. Lasts the fight, no cap. |
 | **Might** | you | Your weapon hits deal +5% damage per stack. A share of each hit, so slow weapons gain as much as fast ones. Lasts the fight, no cap. |
 | **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
@@ -380,7 +382,7 @@ A run starts by choosing a hero. Each hero has a starting item, a passive, two s
 
 ## 7e. No caps, and Might
 
-Burn, Poison, Slow, Sand and Thorns have no caps. Heat (speed) and Regen keep theirs: Regen without a cap pushed Lunar to 70%.
+Nothing has a cap any more. Burn, Poison, Thorns and Regen grow without limit; Slow, Sand, Heat and Fortify have diminishing returns toward a ceiling. Regen ticks every 4s (was 2s): uncapped at 2s it pushed Lunar to 69%.
 
 - **Burn and Poison** grow for the whole fight, so their per-stack damage dropped: Burn 1 per stack every 2.5s (was 2s), Poison every 4s (was 3s). Effects that raised a cap now add damage instead: the Ember and Venom gems' jewellery effects (+10% Burn, +15% Poison), the Catalyst gem (+10% both), Kindler (+25% Burn), Blight Ledger (+30% Poison) and Wildfire (+25% Burn, +50% at 8+ Heat).
 - **Slow and Sand** have diminishing returns with a ceiling they never reach (see the table in section 4). A plain "less per stack" curve wasn't enough: a day-6 Desert ghost stacked 120 Sand, which would be 97% misses.
@@ -403,8 +405,25 @@ Burn, Poison, Slow, Sand and Thorns have no caps. Heat (speed) and Regen keep th
 
 Tiers scale the Might gained, like any other amount.
 
+**Fortify and Grace** do the same for armour and healing:
+
+| Item | School | Slot | Effect |
+|---|---|---|---|
+| Consecrated Plate | Holy | Body | Every 5s: gain 1 Fortify, or 2 if you have Shield |
+| Aegis Charm | Holy | Amulet | Whenever your Shield breaks: gain 3 Fortify |
+| Saint's Mitts | Holy | Gloves | Every 7s: heal 4 and gain 1 Grace |
+| Barkskin Helm | Thorn | Helm | Whenever your Thorns trigger: gain 1 Fortify (at most once every 3s) |
+| Glacier Plate | Frost | Body | Whenever the enemy Freezes: gain 4 Fortify |
+| Sandstone Greaves | Desert | Boots | Whenever an enemy attack misses: gain 1 Fortify |
+| Bulwark Mantle | Prismatic | Cape | Every 6s: gain 1 Fortify |
+| Tidewell Ring | Lunar | Ring | Every 6s: gain 1 Grace, or 2 with 3+ Regen |
+| Heartsblood Ring | Blood | Ring | Whenever a weapon hit Lifesteals: gain 1 Grace (at most once a second) |
+| Blessed Coin | Fortune | Ring | Every 4s: 40% chance to heal 5 and gain 1 Grace |
+
+**Holy and Blood fixes.** Holy dealt the least damage of any school and had no answer to uncapped Burn and Poison: it won 8% against Lunar and about 21% against Fire and Venom. Warden's Mace now hits for 12.5 (was 10), Dawnhammer for 27.5 (was 22), and Hymnal also Cleanses 2. Blood faded late (62% on day 3, 40% by day 14); Heartsblood Ring and Bloodsworn Ring (1 Might per 16 HP healed) give it a ramp. Item ids are now checked for duplicates at load: a new ring briefly reused Crimson Chalice's id and silently replaced Blood's legendary amulet.
+
 - **Tuning (item added to a day-6 ghost of its school):** Might items win 63–81%, around armour's range, against 53–85% for the other items in the same slot and school.
-- **Balance (random gemmed ghosts):** schools land at 38–60% on day 3, 36–57% on day 8 and 42–54% on day 14 (before: 38–63, 44–55, 42–55). Holy is the weakest school, as it was before; Thorn lost the most from uncapped Burn and Poison, and removing its Thorns cap won back most of it. Heroes land at 42–60% and specialisations at 45–56%.
+- **Balance (random gemmed ghosts, with Fortify, Grace and the Holy and Blood fixes):** schools land at 40–63% on day 3, 44–55% on day 8 and 42–55% on day 14, the same spread as before the caps came off. Heroes land at 42–61%, 47–54% and 43–54%; specialisations at 42–55%.
 
 ## 8. Bridge rings
 

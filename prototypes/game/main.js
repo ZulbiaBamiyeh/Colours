@@ -7,7 +7,7 @@ import {
   USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
   GEMS, GEM_KINDS, gemKind, gemText, gemsOf, socketsOf, gemGhost,
 } from './upgrades.js';
-import { simulate, mulberry32, RULES, tierMult, slowMult, sandMiss } from './engine.js';
+import { simulate, mulberry32, RULES, tierMult, slowMult, sandMiss, heatBonus, fortCut } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 import { sfx, setMuted, isMuted, stormSound } from './sfx.js';
@@ -64,11 +64,13 @@ const STATUS_ICON = {
   cleanse: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>',
   haste: '<path d="M4 7h7M2 12h8M4 17h7"/><path d="M13 4l7 8-7 8"/>',
   charge: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+  fortify: '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M12 7v10M8 11h8"/>',
+  grace: '<path d="M12 20s-6.5-4-6.5-9a3.5 3.5 0 0 1 6.5-1.8A3.5 3.5 0 0 1 18.5 11c0 5-6.5 9-6.5 9z"/><path d="M12 2.5v2.5M7.5 4l1 1.8M16.5 4l-1 1.8"/>',
   might: '<path d="M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5"/><path d="M6.5 13.5l4 4M8.5 15.5L4 20"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar', haste: '--s-holy', charge: '--s-frost', might: '--s-might' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar', haste: '--s-holy', charge: '--s-frost', might: '--s-might', fortify: '--s-fortify', grace: '--s-grace' };
 // Keyword symbols: inline in item text, and as small badges on item icons.
-const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing|Haste[sd]?|Charge[sd]?|Might)\b/g;
+const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing|Haste[sd]?|Charge[sd]?|Might|Fortify|Grace)\b/g;
 const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l.startsWith('cleanse') ? 'cleanse' : l.startsWith('haste') ? 'haste' : l.startsWith('charge') ? 'charge' : l === 'lifesteal' ? 'ls' : l; };
 const kwIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
 const kwText = text => text.replace(KW_RE, w => { const k = kwKey(w); return `<span class="kw" style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}${w}</span>`; });
@@ -81,7 +83,7 @@ function itemKws(def) {
   return def._kws;
 }
 const kwBadges = def => (isUse(def.id) ? '' : `<span class="kw-badges">${itemKws(def).map(k => `<i style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}</i>`).join('')}</span>`);
-const STATUS_NAME = { haste: 'Haste', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen', might: 'Might' };
+const STATUS_NAME = { haste: 'Haste', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen', might: 'Might', fortify: 'Fortify', grace: 'Grace' };
 
 /* =========================================================
    State
@@ -1568,6 +1570,8 @@ function updateHud(force) {
     for (const k of ['burn', 'poison', 'frost', 'slow', 'sand']) if (s.st[k] > 0) chips.push([k, k === 'frost' ? `${s.st.frost}/10` : s.st[k]]);
     if (s.heat > 0) chips.push(['heat', s.heat]);
     if (s.might > 0) chips.push(['might', s.might]);
+    if (s.fortify > 0) chips.push(['fortify', s.fortify]);
+    if (s.grace > 0) chips.push(['grace', s.grace]);
     if (s.luck > 0) chips.push(['luck', s.luck]);
     if (s.thorns > 0) chips.push(['thorns', s.thorns]);
     if (s.regen > 0) chips.push(['regen', s.regen]);
@@ -1588,19 +1592,21 @@ function updateHud(force) {
 /* ---------- Status explanations ---------- */
 function statusInfo(k, s) {
   const pct = n => `${Math.round(n * 100)}%`;
-  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'might' ? s.might : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : k === 'regen' ? s.regen : s.st[k];
+  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'might' ? s.might : k === 'fortify' ? s.fortify : k === 'grace' ? s.grace : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : k === 'regen' ? s.regen : s.st[k];
   switch (k) {
     case 'burn': return [`Burn ${n}`, `Takes ${Math.round(n * RULES.BURN_PER * 10) / 10} damage per second (1 per stack every ${Math.round(10 / RULES.BURN_PER) / 10}s), dealt continuously. Burn never wears off and has no cap. It hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
     case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off, has no cap and ignores Shield.`];
     case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
     case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(1 - slowMult(n))} slower. Each stack slows a little less than the one before, approaching ${pct(RULES.SLOW_MAX)} but never reaching it (10 Slow is ${pct(1 - slowMult(10))}, 30 is ${pct(1 - slowMult(30))}). Slow never wears off and cancels Heat 1 for 1.`];
     case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(sandMiss(n))} of the time. Each stack adds a little less than the one before, approaching ${pct(RULES.SAND_MAX)} but never reaching it (10 Sand is ${pct(sandMiss(10))}, 30 is ${pct(sandMiss(30))}). A miss triggers no on-hit effects. Sand never wears off.`];
+    case 'fortify': return [`Fortify ${n}`, `Take ${pct(fortCut(n))} less damage from everything but Fatigue. Each stack adds a little less than the one before (10 is ${pct(fortCut(10))}, 30 is ${pct(fortCut(30))}), up to ${pct(RULES.FORT_MAX)}. Lasts the whole fight.`];
+    case 'grace': return [`Grace ${n}`, `Your healing is ${pct(n * RULES.GRACE_PER)} stronger (${pct(RULES.GRACE_PER)} per stack), including Lifesteal and Regen. Lasts the whole fight and has no cap.`];
     case 'might': return [`Might ${n}`, `Weapon hits deal ${pct(n * RULES.MIGHT_PER)} more damage (${pct(RULES.MIGHT_PER)} per stack). Might lasts the whole fight and has no cap.`];
-    case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
+    case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(heatBonus(n))} faster. Each stack adds a little less than the one before (10 Heat is +${pct(heatBonus(10))}, 30 is +${pct(heatBonus(30))}), up to +${pct(RULES.HEAT_MAX)}. Cancels Slow 1 for 1. No cap.`];
     case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
-    case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. Caps at ${RULES.THORNS_CAP}.`];
+    case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. No cap.`];
     case 'haste': return ['Haste', 'Weapons and cooldown items run 50% faster while it lasts. More Haste adds time, up to 8s.'];
-    case 'regen': return [`Regen ${n}`, `Heals ${n} every ${RULES.REGEN_EVERY}s (1 per stack). Regen never wears off and caps at ${RULES.REGEN_CAP}. Burn cuts its healing like any other heal.`];
+    case 'regen': return [`Regen ${n}`, `Heals ${n} every ${RULES.REGEN_EVERY}s (1 per stack). Regen never wears off and has no cap. Burn cuts its healing like any other heal.`];
     case 'frozen': return ['Frozen', `Weapon and items are stopped for up to ${RULES.FREEZE_TIME}s. Burn and Poison still tick.`];
   }
   return [k, ''];
@@ -1879,9 +1885,9 @@ function playEvent(e, quiet) {
       if (!quiet) floatText(e.side, 'Immune', '#f4c652', 'small');
       break;
     case 'boon':
-      if (e.k === 'might' && !quiet) {
-        floatText(e.side, `+${e.n} Might`, '#f0a868', 'small');
-        sfx('might');
+      if (['might', 'fortify', 'grace'].includes(e.k) && !quiet) {
+        floatText(e.side, `+${e.n} ${STATUS_NAME[e.k]}`, { might: '#f0a868', fortify: '#b8c4d8', grace: '#ffd0e8' }[e.k], 'small');
+        sfx(e.k === 'might' ? 'might' : 'shield');
       }
       break;
     case 'haste':
