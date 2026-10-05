@@ -22,14 +22,14 @@ const LIST = [
     text: 'Your weapons attack 20% slower. Each hit Freezes the enemy for 1s (Freezes still leave 2s before the next).',
     hooks: { hit: c => c.freezeFoe(1) } },
   { id: 'pearl_of_the_deep', name: 'Pearl of the Deep', rarity: 'epic', price: 6,
-    text: "At 12s: the enemy's Burn, Poison, Slow and Sand double, up to their caps.",
+    text: "At 12s: the enemy's Burn, Poison, Slow and Sand double.",
     hooks: {
       second: c => {
         if (c.t !== 12) return false;
         let any = false;
         for (const k of STATUS) {
           const v = c.foe.st[k];
-          if (v > 0) { c.foe.st[k] = Math.max(v, Math.min(c.capOf(k), v * 2)); any = any || c.foe.st[k] > v; }
+          if (v > 0) { c.foe.st[k] = v * 2; any = true; }
         }
         if (any) c.moment('pearl');
         return any;

@@ -44,22 +44,23 @@ The depth comes from three layers:
 
 | Keyword | Affects | Rule |
 |---|---|---|
-| **Burn** | enemy | Deals 1 damage per stack every 2s, dealt continuously. **Never wears off.** Caps at 8 stacks (16 with Wildfire). Damages Shield first. **A burning fighter receives 20% less healing.** |
-| **Poison** | enemy | Deals 1 damage per stack every 3s, dealt continuously. **Never wears off.** Caps at 20 stacks. **Bypasses Shield.** |
+| **Burn** | enemy | Deals 1 damage per stack every 2.5s, dealt continuously. **Never wears off. No cap.** Damages Shield first. **A burning fighter receives 20% less healing.** |
+| **Poison** | enemy | Deals 1 damage per stack every 4s, dealt continuously. **Never wears off. No cap.** **Bypasses Shield.** |
 
-*No decay (like Backpack Battles):* statuses stay for the whole fight, so even a small random application keeps working. Caps, Fatigue from 25s and Cleanse are the brakes. Frost is the exception: it's a meter that empties when the enemy Freezes.
+*No decay (like Backpack Battles):* statuses stay for the whole fight, so even a small random application keeps working. Fatigue from 25s and Cleanse are the brakes; enemy statuses have no caps (see 7e). Frost is the exception: it's a meter that empties when the enemy Freezes.
 
-*Continuous damage, tick effects:* Burn and Poison drain HP smoothly at their advertised rate, but "whenever Burn ticks" (every 1s) and "whenever Poison ticks" (every 3s) still happen on that schedule. A tick that crits repeats the damage dealt since the last tick, and tick effects like Phoenix Heart and Leechmaw Ring use that amount. Coiled Serpent stops the drain and strikes on every 5th Poison tick instead.
+*Continuous damage, tick effects:* Burn and Poison drain HP smoothly at their advertised rate, but "whenever Burn ticks" (every 1s) and "whenever Poison ticks" (every 4s) still happen on that schedule. A tick that crits repeats the damage dealt since the last tick, and tick effects like Phoenix Heart and Leechmaw Ring use that amount. Coiled Serpent stops the drain and strikes on every 5th Poison tick instead.
 | **Frost** | enemy | At 10 stacks the enemy is **Frozen** for 1.5s: weapon and cooldowns pause (statuses still tick). Frost then resets to 0, and the enemy **Thaws** for 2s, during which it can't gain Frost. |
-| **Slow** | enemy | −3% speed per stack, up to 25 stacks. **Never wears off.** **Slow and Heat on the same fighter cancel 1:1.** |
-| **Sand** | enemy | −4% weapon accuracy per stack, up to 15 stacks (60% miss chance). **Never wears off.** Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
+| **Slow** | enemy | Slows weapons and cooldowns with diminishing returns: 75% × n / (n + 15). 10 Slow is −30%, 30 is −50%, and it never reaches −75%. **Never wears off.** **Slow and Heat on the same fighter cancel 1:1.** |
+| **Sand** | enemy | Miss chance with diminishing returns: 85% × n / (n + 10). 10 Sand is 43%, 30 is 64%, and it never reaches 85%. **Never wears off.** Affects weapon attacks only, including dual-wield offhands. **A missed attack triggers nothing.** |
 | **Shield** | you | Absorbs damage before HP. Doesn't decay. |
 | **Heal** | you | Restores HP up to your max. Healing beyond max is **overheal** and is lost unless an item uses it. **Lifesteal counts as healing.** |
 | **Lifesteal** | you | Heals you for a percentage of the weapon damage you deal, including damage to Shield. |
 | **Luck** | you | +3% crit chance per stack, **and +3 percentage points to every other chance-based effect.** |
 | **Heat** | you | +3% speed per stack, up to 20 stacks. Doesn't decay. |
-| **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. Up to 20 stacks. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
+| **Thorns** | you | Whenever an enemy weapon hit lands on you, deal damage equal to your Thorns to the attacker. No cap. Doesn't decay. **Misses don't trigger it.** Thorns damage hits Shield first, isn't a weapon hit (so it never triggers on-hit or when-hit effects, and two Thorns fighters can't loop), and counts as "Thorns triggering" for items. |
 | **Regen** | you | Heals 1 per stack every 2s. Never wears off. Caps at 8 stacks. Counts as healing, so Burn cuts it. |
+| **Might** | you | Your weapon hits deal +5% damage per stack. A share of each hit, so slow weapons gain as much as fast ones. Lasts the fight, no cap. |
 | **Cleanse N** | you | Removes N stacks from your biggest debuff, one stack at a time (Burn, Poison, Slow or Sand; never the Frost meter). |
 | **Prismatic** | item | Counts as every school (see resonance limits). Its random rolls are weighted toward schools you're wearing. |
 
@@ -160,7 +161,7 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Boots | Firewalkers | C | Start of fight: gain 6 Heat. |
 | Cape | Phoenix Cloak | E | Clutch: apply 10 Burn and gain 5 Heat. |
 | Ring | Ashen Ring | R | Burn ticks deal +1 damage per 5 Heat you have. |
-| Amulet | Wildfire | L | Your Burn cap rises from 8 to 16. While you have 8+ Heat, your Burn deals 25% more damage. |
+| Amulet | Wildfire | L | Your Burn deals 25% more damage, or 50% more while you have 8+ Heat. |
 | Amulet | Molten Core | L | Heat has no cap. You lose 1 HP per second per 5 Heat. |
 
 ### Frost (Frost, Slow)
@@ -205,7 +206,7 @@ Rarity: C = Common, R = Rare, E = Epic, L = Legendary.
 | Body | Dustveil Robe | C | When hit: apply 3 Sand to the attacker. |
 | Gloves | Grit Gloves | R | On crit: apply 4 Sand. |
 | Boots | Dust Devils | C | Start of fight: apply 8 Sand. |
-| Cape | Sirocco Cloak | E | Clutch: set the enemy's Sand to its cap. |
+| Cape | Sirocco Cloak | E | Clutch: apply 12 Sand. |
 | Ring | Dune Ring | R | Whenever an enemy attack misses: apply 1 Sand. |
 | Amulet | Mirage | L | Enemy attacks that miss hit the enemy instead, with their own on-hit effects. |
 
@@ -366,9 +367,9 @@ A run starts by choosing a hero. Each hero has a starting item, a passive, two s
 
 | Hero | Schools | Starts with | Passive | Day 5: one of |
 |---|---|---|---|---|
-| Ashen Duelist | Fire · Blood | Ember Censer | Start: gain 3 Heat, apply 1 Burn | Blood Rite (+10% Lifesteal) · Kindler (Burn cap +4, start +2 Heat) |
+| Ashen Duelist | Fire · Blood | Ember Censer | Start: gain 3 Heat, apply 1 Burn | Blood Rite (+10% Lifesteal) · Kindler (Burn +25% damage, start +2 Heat) |
 | Frost Warden | Frost · Holy | Frost Lantern | Enemy Freezes: gain 8 Shield | Glacier Heart (Freezes +1s) · Bastion (start 12 Shield) |
-| Plague Peddler | Venom · Fortune | Lucky Coin | +3 gold at the start, +2 gold each day | Blight Ledger (Poison cap +6) · Loaded (+3 Luck) |
+| Plague Peddler | Venom · Fortune | Lucky Coin | +3 gold at the start, +2 gold each day | Blight Ledger (Poison +30% damage) · Loaded (+3 Luck) |
 | Clockmaker | Desert · Lunar | Moonwell Flask | Cooldown items fire 10% faster | Hourhand (every 10s, Haste 2s) · Sandglass (start 3 Sand, 1 Regen) |
 | Briar Knight | Thorn | Briar Mail | Start: gain 1 Thorns | Ironbark (+15 max HP) · Spitesteel (Thorns +1 damage) |
 
@@ -376,6 +377,34 @@ A run starts by choosing a hero. Each hero has a starting item, a passive, two s
 - **Ghosts:** each ghost picks the hero that matches its main school, and 60% of the time its second school is that hero's other one. Ghosts specialise on day 5 and get the hero's gold.
 - **Tuning (hero mirrors across random ghost builds):** heroes win 44–57% on day 3, 48–55% on day 8 and 45–53% on day 14; specialisations land at 41–55%. The Ashen Duelist started at 31–38% because ghosts kept its old starting Cinder Knife; the start item became Ember Censer and ghosts now replace a weaker starting weapon.
 - **Exhibitions** (Hall of Fame fights) leave heroes out, so kept builds are compared on gear alone.
+
+## 7e. No caps, and Might
+
+Burn, Poison, Slow, Sand and Thorns have no caps. Heat (speed) and Regen keep theirs: Regen without a cap pushed Lunar to 70%.
+
+- **Burn and Poison** grow for the whole fight, so their per-stack damage dropped: Burn 1 per stack every 2.5s (was 2s), Poison every 4s (was 3s). Effects that raised a cap now add damage instead: the Ember and Venom gems' jewellery effects (+10% Burn, +15% Poison), the Catalyst gem (+10% both), Kindler (+25% Burn), Blight Ledger (+30% Poison) and Wildfire (+25% Burn, +50% at 8+ Heat).
+- **Slow and Sand** have diminishing returns with a ceiling they never reach (see the table in section 4). A plain "less per stack" curve wasn't enough: a day-6 Desert ghost stacked 120 Sand, which would be 97% misses.
+- **Pearl of the Deep** now simply doubles the statuses.
+
+**Might** is the weapon builds' ramp. Each stack is +5% weapon damage for the fight. Because it's a share of the hit, a 4s maul gains as much damage per second as a 1s dagger. Each school has one piece that builds Might from its own play, and Prismatic has a helm:
+
+| Item | School | Slot | Effect |
+|---|---|---|---|
+| Forgeborn Ring | Fire | Ring | Every 6s: gain 1 Might, or 2 at 8+ Heat |
+| Icebound Edge | Frost | Ring | Whenever the enemy Freezes: gain 3 Might |
+| Venom Whetstone | Venom | Ring | Whenever your Poison ticks: gain 1 Might |
+| Duelist's Sash | Desert | Ring | Whenever an enemy attack misses: gain 1 Might |
+| Oathsworn Gauntlets | Holy | Gloves | Every 6s: gain 1 Might, or 2 if you have Shield |
+| Bloodsworn Ring | Blood | Ring | For every 22 HP you heal: gain 1 Might |
+| Gambler's Edge | Fortune | Ring | Every 3s: 30% chance to gain 2 Might |
+| Briarsteel Bracers | Thorn | Gloves | Whenever your Thorns trigger: gain 1 Might (at most once a second) |
+| Moonsteel Ring | Lunar | Ring | Every 2nd Regen tick: gain 1 Might |
+| Warlord's Helm | Prismatic | Helm | Every 5s: gain 1 Might |
+
+Tiers scale the Might gained, like any other amount.
+
+- **Tuning (item added to a day-6 ghost of its school):** Might items win 63–81%, around armour's range, against 53–85% for the other items in the same slot and school.
+- **Balance (random gemmed ghosts):** schools land at 38–60% on day 3, 36–57% on day 8 and 42–54% on day 14 (before: 38–63, 44–55, 42–55). Holy is the weakest school, as it was before; Thorn lost the most from uncapped Burn and Poison, and removing its Thorns cap won back most of it. Heroes land at 42–60% and specialisations at 45–56%.
 
 ## 8. Bridge rings
 

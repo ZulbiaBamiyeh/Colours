@@ -96,6 +96,7 @@ const SOUNDS = {
   // Engines and tiers
   haste: [0.3, () => { noise({ filter: 'bandpass', f: 800, to: 3200, a: 0.02, d: 0.18, vol: 0.14 }); tone(660, { type: 'triangle', d: 0.12, vol: 0.06, to: 1320 }); }],
   charge: [0.12, () => tone(1046, { type: 'square', d: 0.035, vol: 0.035, to: 1568 })],
+  might: [0.25, () => { tone(392, { type: 'square', d: 0.06, vol: 0.05 }); noise({ f: 3200, q: 6, at: 0.01, d: 0.12, vol: 0.08 }); }],
   upgrade: [0.2, () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, { type: 'triangle', at: i * 0.06, d: 0.25, vol: 0.09 }))],
   // Market
   buy: [0.05, () => { tone(1320, { type: 'square', d: 0.05, vol: 0.05 }); tone(1980, { type: 'square', at: 0.06, d: 0.09, vol: 0.05 }); }],

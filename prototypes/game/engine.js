@@ -12,12 +12,20 @@ export function mulberry32(a) {
 }
 
 const DT = 0.1;
-const HEAT_CAP = 20, SAND_CAP = 15, SLOW_CAP = 25, THORNS_CAP = 20, BURN_CAP = 8, BURN_CAP_WILDFIRE = 16, REGEN_CAP = 8, REGEN_EVERY = 2, BURN_PER = 0.5;
+const HEAT_CAP = 20, THORNS_CAP = Infinity, REGEN_CAP = 8, REGEN_EVERY = 2, BURN_PER = 0.4;
+// Enemy statuses have no caps. Slow and Sand have diminishing returns instead: each stack does a little less than the one
+// before, approaching a ceiling they never reach (MAX × n / (n + K): K stacks give half the ceiling).
+const SLOW_MAX = 0.75, SLOW_K = 15, SAND_MAX = 0.85, SAND_K = 10;
+// Might: each stack makes your weapon hits deal MIGHT_PER more damage. A share of the hit, so slow and fast weapons gain alike.
+const MIGHT_PER = 0.05;
 const FATIGUE_AT = 25, MAX_TIME = 75;
-const POISON_EVERY = 3, POISON_CAP = 20, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
-const WILDFIRE_AT = 8;
+const POISON_EVERY = 4, BURN_HEAL_CUT = 0.8, FREEZE_TIME = 3;
+const WILDFIRE_AT = 8, WILDFIRE_PCT = 25, WILDFIRE_HOT_PCT = 50;
 // Shared with the UI so status explanations always match the engine.
-export const RULES = { THORNS_CAP, HEAT_CAP, SAND_CAP, SLOW_CAP, FATIGUE_AT, POISON_EVERY, POISON_CAP, BURN_CAP, BURN_CAP_WILDFIRE, REGEN_CAP, REGEN_EVERY, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SAND_MISS: 0.04, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT };
+export const RULES = { THORNS_CAP, HEAT_CAP, FATIGUE_AT, POISON_EVERY, REGEN_CAP, REGEN_EVERY, BURN_PER, BURN_HEAL_CUT, FREEZE_TIME, THAW_TIME: 2, FREEZE_AT: 10, SLOW_MAX, SAND_MAX, MIGHT_PER, SPEED_PER: 0.03, BASE_CRIT: 0.05, LUCK_PER: 0.03, WILDFIRE_AT, WILDFIRE_PCT, WILDFIRE_HOT_PCT };
+// Slow's speed multiplier and Sand's miss chance, shared with the UI.
+export const slowMult = n => 1 - (SLOW_MAX * n) / (n + SLOW_K);
+export const sandMiss = n => (SAND_MAX * n) / (n + SAND_K);
 const STATUSES = ['burn', 'poison', 'frost', 'slow', 'sand'];
 const STATUS_SCHOOL = { burn: 'Fire', poison: 'Venom', frost: 'Frost', slow: 'Frost', sand: 'Desert' };
 const BOONS = [
@@ -48,16 +56,16 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const f = {
       side, name: build.name, hp: 0, maxHp: 100, shield: 0,
       st: { burn: 0, poison: 0, frost: 0, slow: 0, sand: 0 },
-      heat: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
+      heat: 0, might: 0, luck: 0, ls: 0, thorns: 0, frozen: 0, thaw: 0, clutch: false, dead: false,
       flags: {}, items: [], weapons: [], cds: [], schools: {},
       fullLs: 0, autoCrit: 0, diceLuck: 0,
       burnT: 0, poisonT: 0, regenT: 0, poisonTicks: 0, regen: 0,
       // Burn and Poison drain continuously; tick holds the damage since the last 1s / 3s tick (for hooks and crits),
       // shown holds what the UI hasn't floated yet.
       tick: { burn: 0, poison: 0 }, shown: { burn: 0, poison: 0 },
-      start: { shield: 0, heat: 0, slow: 0, sand: 0, poison: 0, burn: 0, frost: 0, thorns: 0, regen: 0, random: 0 },
-      // Gem bonuses (upgrades.js): status caps, Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
-      capBonus: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
+      start: { shield: 0, heat: 0, might: 0, slow: 0, sand: 0, poison: 0, burn: 0, frost: 0, thorns: 0, regen: 0, random: 0 },
+      // Gem bonuses (upgrades.js): Burn and Poison damage (stPct), Freeze length, Thorns damage, healing, low-HP and self-status damage, weapon speed.
+      stPct: {}, freezeBonus: 0, thornsBonus: 0, healPct: 0, lowDmgPct: 0, selfCatalyst: 0, gemSpd: 0,
       // Trinket moments: stasis (untouchable, can't act), berserk (faster, takes more), HP thresholds passed, HP history for rewinds.
       stasis: 0, berserk: 0, below: {}, hist: [],
       haste: 0,
@@ -92,7 +100,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       f.clutchShield += m.clutchShield;
       for (const x of gfx) {
         for (const k in x.start ?? {}) f.start[k] += x.start[k];
-        for (const k in x.capBonus ?? {}) f.capBonus[k] = (f.capBonus[k] ?? 0) + x.capBonus[k];
+        for (const k in x.stPct ?? {}) f.stPct[k] = (f.stPct[k] ?? 0) + x.stPct[k];
         for (const k of ['freezeBonus', 'thornsBonus', 'healPct', 'lowDmgPct', 'selfCatalyst']) f[k] += x[k] ?? 0;
         // A gem's own triggered effects ride along as a companion of its item (same slot, same boost).
         if (x.hooks) f.items.push({ def: { hooks: x.hooks, schools: [] }, slot, data: {}, busy: false, timer: 0, boost, gem: true });
@@ -126,7 +134,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       f.luck += p.stats?.luck ?? 0;
       f.ls += (p.ls ?? 0) / 100;
       f.maxHp += p.hp ?? 0;
-      for (const k in p.capBonus ?? {}) f.capBonus[k] = (f.capBonus[k] ?? 0) + p.capBonus[k];
+      for (const k in p.stPct ?? {}) f.stPct[k] = (f.stPct[k] ?? 0) + p.stPct[k];
       f.freezeBonus += p.freezeBonus ?? 0;
       f.thornsBonus += p.thornsBonus ?? 0;
       cdMult *= p.cdMult ?? 1;
@@ -176,7 +184,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     return ok;
   }
   const critRoll = f => chance(f, 0.05);
-  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, Math.max(0.4, 1 + 0.03 * f.heat - 0.03 * f.st.slow)) * (f.berserk > 0 ? f.berserkSpd : 1));
+  const speed = f => (f.frozen > 0 ? 0 : Math.min(2.5, (1 + 0.03 * f.heat) * slowMult(f.st.slow)) * (f.berserk > 0 ? f.berserkSpd : 1));
 
   function weightedPick(f, options, schoolOf) {
     const w = options.map(o => (f.flags.foolsOpal ? 1 : 1 + (f.schools[schoolOf(o)] || 0)));
@@ -270,6 +278,10 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       f.heat += add;
       ev('boon', { side: f.side, k: 'heat', n: add });
       fire(f, 'gainedHeat', { n: add });
+    } else if (type === 'might') {
+      f.might += n;
+      ev('boon', { side: f.side, k: 'might', n });
+      fire(f, 'gainedMight', { n });
     } else if (type === 'thorns') {
       const add = Math.min(n, Math.max(0, THORNS_CAP - f.thorns));
       if (add <= 0) return false;
@@ -308,8 +320,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (rb && !o.generated && src !== tgt && rb.pool.includes(type) && rng() < rb.chance) {
       const pool = rb.pool;
       const to = pool[Math.floor(rng() * pool.length)];
-      // mode 'cap' converts at the same share of the cap (3 Slow is about 1 Burn); fractions round up or down by chance.
-      const x = n * (rb.mode === 'cap' ? capOf(src, to) / capOf(src, type) : 1) * (1 + rb.bonus);
+      // Fractions round up or down by chance.
+      const x = n * (1 + rb.bonus);
       n = Math.floor(x) + (rng() < x - Math.floor(x) ? 1 : 0);
       type = to;
       if (rng() < rb.self) apply(tgt, src, pool[Math.floor(rng() * pool.length)], 1, { generated: true });
@@ -326,13 +338,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       if (type === 'slow') {
         const c = Math.min(tgt.heat, n);
         tgt.heat -= c;
-        tgt.st.slow = Math.min(capOf(src, 'slow'), tgt.st.slow + n - c);
-      } else if (type === 'sand') {
-        tgt.st.sand = Math.min(capOf(src, 'sand'), tgt.st.sand + n);
-      } else if (type === 'poison' || type === 'burn') {
-        n = Math.min(n, Math.max(0, capOf(src, type) - tgt.st[type]));
-        if (n <= 0) return false;
-        tgt.st[type] += n;
+        tgt.st.slow += n - c;
       } else {
         tgt.st[type] += n;
       }
@@ -357,11 +363,11 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     fire(owner, 'thorned', { dmg: n, pulse: !!pulse });
     return true;
   }
-  // Statuses never wear off; caps keep them in check. Wildfire lifts its owner's Burn cap.
-  function capOf(src, type) {
-    const bonus = src.capBonus[type] ?? 0;
-    if (type === 'burn') return (src.flags.wildfire ? BURN_CAP_WILDFIRE : BURN_CAP) + bonus;
-    return ({ poison: POISON_CAP, slow: SLOW_CAP, sand: SAND_CAP }[type] ?? Infinity) + bonus;
+  // How much harder the source's Burn or Poison hits: stPct bonuses (gems, heroes), plus Wildfire for Burn.
+  function dotMult(src, type) {
+    let pct = src.stPct[type] ?? 0;
+    if (type === 'burn' && src.flags.wildfire) pct += src.heat >= WILDFIRE_AT ? WILDFIRE_HOT_PCT : WILDFIRE_PCT;
+    return 1 + pct / 100;
   }
   // Cleanse: remove stacks from your biggest debuff (Burn, Poison, Slow or Sand; not the Frost meter), one at a time. Mirror of the Moon sends them back.
   function cleanse(f, n) {
@@ -438,7 +444,6 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       rng,
       apply: (type, n) => apply(me, foe, type, ampI(n)),
       addRaw: (type, n) => {
-        if (type === 'poison' || type === 'burn') n = Math.min(n, Math.max(0, capOf(me, type) - foe.st[type]));
         if (!(n > 0)) return false;
         foe.st[type] += n;
         ev('status', { side: foe.side, st: type, n });
@@ -461,7 +466,6 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
       moment: (k, data = {}) => ev('moment', { side: me.side, k, ...data }),
       haste: secs => haste(me, ampF(secs)),
       charge: (what, secs) => charge(me, what, ampF(secs), it),
-      capOf: type => capOf(me, type),
     };
   }
 
@@ -470,7 +474,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const w = wp.w;
     ev('attack', { side: a.side, slot: wp.slot, main: wp.main });
     if (d.stasis > 0) { ev('immune', { side: d.side }); return; }
-    const miss = rng() < 0.04 * a.st.sand;
+    const miss = rng() < sandMiss(a.st.sand);
     fire(d, 'attacked', { miss });
     if (miss) {
       a.stats.missed++;
@@ -492,6 +496,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     if (a.lowDmgPct && a.hp < a.maxHp * 0.5) dmg *= 1 + a.lowDmgPct / 100;
     if (a.selfCatalyst) dmg *= 1 + (a.selfCatalyst * statusTypes(a)) / 100;
     if (a.flags.juggernaut) dmg += a.shield * 0.25;
+    if (a.might > 0) dmg *= 1 + MIGHT_PER * a.might;
     dmg = mod(a, 'hitDmg', dmg);
     if (crit) dmg *= Math.max(2, w.critMult || 2, mod(a, 'critMult', 2));
     a.stats.hits++;
@@ -577,7 +582,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
   function snapshot() {
     const s = f => ({
       hp: Math.max(0, r1(f.hp)), maxHp: r1(f.maxHp), shield: r1(f.shield),
-      st: { ...f.st }, heat: f.heat, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0, haste: f.haste > 0,
+      st: { ...f.st }, heat: f.heat, might: f.might, luck: luckOf(f), thorns: f.thorns, regen: f.regen, frozen: f.frozen > 0, gold: f.stasis > 0, berserk: f.berserk > 0, haste: f.haste > 0,
       cds: [
         ...f.weapons.map(w => ({ slot: w.slot, p: Math.min(1, w.timer / w.w.interval) })),
         ...f.cds.map(it => ({ slot: it.slot, p: Math.min(1, it.timer / it.cd) })),
@@ -591,6 +596,7 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     const s = f.start;
     if (s.shield) gain(f, 'shield', s.shield);
     if (s.heat) gain(f, 'heat', s.heat);
+    if (s.might) gain(f, 'might', s.might);
     if (s.slow) apply(f, other(f), 'slow', s.slow, { generated: true });
     if (s.sand) apply(f, other(f), 'sand', s.sand, { generated: true });
     if (s.poison) apply(f, other(f), 'poison', s.poison, { generated: true });
@@ -610,8 +616,8 @@ export function simulate(buildA, buildB, ITEMS, seed = 1, opts = {}) {
     t = r1(tick * DT);
     for (const f of [A, B]) {
       const src = other(f);
-      if (f.stasis > 0) { /* gold: Burn and Poison wait */ } else if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * (src.flags.wildfire && src.heat >= WILDFIRE_AT ? 1.25 : 1) * BURN_PER * DT);
-      if (f.st.poison > 0 && !(f.stasis > 0)) drain(f, 'poison', (f.st.poison / POISON_EVERY) * DT);
+      if (f.stasis > 0) { /* gold: Burn and Poison wait */ } else if (f.st.burn > 0) drain(f, 'burn', (f.st.burn + (src.flags.ashen ? Math.floor(src.heat / 5) : 0)) * dotMult(src, 'burn') * BURN_PER * DT);
+      if (f.st.poison > 0 && !(f.stasis > 0)) drain(f, 'poison', (f.st.poison / POISON_EVERY) * dotMult(src, 'poison') * DT);
       f.burnT += DT;
       if (f.burnT >= 0.999) { f.burnT -= 1; if (f.st.burn > 0 || f.tick.burn > 0) burnTick(f); }
       f.poisonT += DT;

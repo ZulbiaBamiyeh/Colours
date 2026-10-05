@@ -7,7 +7,7 @@ import {
   USE, isUse, rollUseId, STATS, TIERS, lineText, steps, itemMods, sellBonus,
   GEMS, GEM_KINDS, gemKind, gemText, gemsOf, socketsOf, gemGhost,
 } from './upgrades.js';
-import { simulate, mulberry32, RULES, tierMult } from './engine.js';
+import { simulate, mulberry32, RULES, tierMult, slowMult, sandMiss } from './engine.js';
 import { createStudio, buildHero, dressHero, animateHero, swingPose, pedestal, heroLights, iceBlock, MS, mesh, materialFactory, PixelPass } from './models.js';
 import { Particles, Bolts, fighterFx } from './fx.js';
 import { sfx, setMuted, isMuted, stormSound } from './sfx.js';
@@ -64,10 +64,11 @@ const STATUS_ICON = {
   cleanse: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>',
   haste: '<path d="M4 7h7M2 12h8M4 17h7"/><path d="M13 4l7 8-7 8"/>',
   charge: '<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>',
+  might: '<path d="M20 4l-9.5 9.5M20 4h-4.5M20 4v4.5"/><path d="M6.5 13.5l4 4M8.5 15.5L4 20"/>',
 };
-const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar', haste: '--s-holy', charge: '--s-frost' };
+const STATUS_VAR = { burn: '--s-fire', poison: '--s-venom', frost: '--s-frost', slow: '--s-frost', sand: '--s-desert', heat: '--s-fire', luck: '--s-fortune', frozen: '--s-frost', thorns: '--s-thorn', shield: '--s-shield', heal: '--s-heal', ls: '--s-blood', regen: '--s-lunar', cleanse: '--s-lunar', haste: '--s-holy', charge: '--s-frost', might: '--s-might' };
 // Keyword symbols: inline in item text, and as small badges on item icons.
-const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing|Haste[sd]?|Charge[sd]?)\b/g;
+const KW_RE = /\b(Burn|Poison|Frost|Freezes?|Frozen|Slow|Sand|Heat|Luck|Thorns|Regen|Cleanse[sd]?|Shield|Lifesteal|[Hh]eals?|[Hh]ealing|Haste[sd]?|Charge[sd]?|Might)\b/g;
 const kwKey = w => { const l = w.toLowerCase(); return l.startsWith('free') || l === 'frozen' ? 'frozen' : l.startsWith('heal') ? 'heal' : l.startsWith('cleanse') ? 'cleanse' : l.startsWith('haste') ? 'haste' : l.startsWith('charge') ? 'charge' : l === 'lifesteal' ? 'ls' : l; };
 const kwIcon = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${STATUS_ICON[k]}</svg>`;
 const kwText = text => text.replace(KW_RE, w => { const k = kwKey(w); return `<span class="kw" style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}${w}</span>`; });
@@ -80,7 +81,7 @@ function itemKws(def) {
   return def._kws;
 }
 const kwBadges = def => (isUse(def.id) ? '' : `<span class="kw-badges">${itemKws(def).map(k => `<i style="--sc: var(${STATUS_VAR[k]})">${kwIcon(k)}</i>`).join('')}</span>`);
-const STATUS_NAME = { haste: 'Haste', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen' };
+const STATUS_NAME = { haste: 'Haste', burn: 'Burn', poison: 'Poison', frost: 'Frost', slow: 'Slow', sand: 'Sand', heat: 'Heat', luck: 'Luck', ls: 'Lifesteal', thorns: 'Thorns', regen: 'Regen', might: 'Might' };
 
 /* =========================================================
    State
@@ -955,6 +956,8 @@ function tierText(def, item) {
   }
   text = text
     .replace(/\b(apply|gain|heal|deal|Cleanse|Haste yourself for|Charge (?!this)[a-z ]+?)\s+(\d+(?:\.\d+)?)(?![\d.]*×)/g, (all, verb, n) => `${verb} \u0000${+n * m}\u0001`)
+    // The other amount in "gain 1 Might, or 2 while …" (not percentages like Wildfire's "or 50% more").
+    .replace(/\bor (\d+(?:\.\d+)?)(?![\d.]*[×%])/g, (all, n) => `or \u0000${+n * m}\u0001`)
     .replace(/^\+(\d+) Luck/, (all, n) => (def.stats?.luck ? `+\u0000${Math.round(+n * m)}\u0001 Luck` : all));
   if (t === 3 && def.cd) text = text.replace(/^Every ([\d.]+)s/, (all, n) => `Every \u0000${Math.round(+n * 0.85 * 10) / 10}\u0001s`);
   // Mark numbers first, run the keyword highlighter on plain text, then turn the marks into highlights.
@@ -1564,6 +1567,7 @@ function updateHud(force) {
     if (s.frozen) chips.push(['frozen', 'Frozen']);
     for (const k of ['burn', 'poison', 'frost', 'slow', 'sand']) if (s.st[k] > 0) chips.push([k, k === 'frost' ? `${s.st.frost}/10` : s.st[k]]);
     if (s.heat > 0) chips.push(['heat', s.heat]);
+    if (s.might > 0) chips.push(['might', s.might]);
     if (s.luck > 0) chips.push(['luck', s.luck]);
     if (s.thorns > 0) chips.push(['thorns', s.thorns]);
     if (s.regen > 0) chips.push(['regen', s.regen]);
@@ -1584,13 +1588,14 @@ function updateHud(force) {
 /* ---------- Status explanations ---------- */
 function statusInfo(k, s) {
   const pct = n => `${Math.round(n * 100)}%`;
-  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : k === 'regen' ? s.regen : s.st[k];
+  const n = k === 'frozen' ? 0 : k === 'heat' ? s.heat : k === 'might' ? s.might : k === 'luck' ? s.luck : k === 'thorns' ? s.thorns : k === 'regen' ? s.regen : s.st[k];
   switch (k) {
-    case 'burn': return [`Burn ${n}`, `Takes ${n * RULES.BURN_PER} damage per second (1 per stack every 2s), dealt continuously. Burn never wears off and caps at ${RULES.BURN_CAP} (${RULES.BURN_CAP_WILDFIRE} with Wildfire). It hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
-    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off, ignores Shield and caps at ${RULES.POISON_CAP}.`];
+    case 'burn': return [`Burn ${n}`, `Takes ${Math.round(n * RULES.BURN_PER * 10) / 10} damage per second (1 per stack every ${Math.round(10 / RULES.BURN_PER) / 10}s), dealt continuously. Burn never wears off and has no cap. It hits Shield first, and healing is ${pct(1 - RULES.BURN_HEAL_CUT)} weaker while burning.`];
+    case 'poison': return [`Poison ${n}`, `Takes ${n} damage every ${RULES.POISON_EVERY}s (${Math.round((n / RULES.POISON_EVERY) * 10) / 10} per second), dealt continuously. Poison never wears off, has no cap and ignores Shield.`];
     case 'frost': return [`Frost ${n} / ${RULES.FREEZE_AT}`, `${RULES.FREEZE_AT - n} more Frost freezes this fighter for ${RULES.FREEZE_TIME}s, stopping their weapon and items. After a freeze, Frost can't build for ${RULES.THAW_TIME}s.`];
-    case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(Math.min(n * RULES.SPEED_PER, 0.6))} slower (${pct(RULES.SPEED_PER)} per stack). Slow never wears off, caps at ${RULES.SLOW_CAP}, and cancels Heat 1 for 1.`];
-    case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(Math.min(n, RULES.SAND_CAP) * RULES.SAND_MISS)} of the time (${pct(RULES.SAND_MISS)} per stack, up to ${pct(RULES.SAND_CAP * RULES.SAND_MISS)}). A miss triggers no on-hit effects. Sand never wears off.`];
+    case 'slow': return [`Slow ${n}`, `Weapon and items run ${pct(1 - slowMult(n))} slower. Each stack slows a little less than the one before, approaching ${pct(RULES.SLOW_MAX)} but never reaching it (10 Slow is ${pct(1 - slowMult(10))}, 30 is ${pct(1 - slowMult(30))}). Slow never wears off and cancels Heat 1 for 1.`];
+    case 'sand': return [`Sand ${n}`, `Weapon attacks miss ${pct(sandMiss(n))} of the time. Each stack adds a little less than the one before, approaching ${pct(RULES.SAND_MAX)} but never reaching it (10 Sand is ${pct(sandMiss(10))}, 30 is ${pct(sandMiss(30))}). A miss triggers no on-hit effects. Sand never wears off.`];
+    case 'might': return [`Might ${n}`, `Weapon hits deal ${pct(n * RULES.MIGHT_PER)} more damage (${pct(RULES.MIGHT_PER)} per stack). Might lasts the whole fight and has no cap.`];
     case 'heat': return [`Heat ${n}`, `Weapon and items run ${pct(n * RULES.SPEED_PER)} faster (${pct(RULES.SPEED_PER)} per stack). Cancels Slow 1 for 1. Caps at ${RULES.HEAT_CAP} unless an item removes the cap.`];
     case 'luck': return [`Luck ${n}`, `Crit chance is ${pct(RULES.BASE_CRIT + n * RULES.LUCK_PER)} (${pct(RULES.BASE_CRIT)} base + ${pct(RULES.LUCK_PER)} per Luck). Every other chance-based effect also gets +${pct(n * RULES.LUCK_PER)}.`];
     case 'thorns': return [`Thorns ${n}`, `Whenever an enemy weapon hit lands, strikes back for ${n}. Misses don't trigger it. Thorns damage hits Shield first, never triggers on-hit or when-hit effects, and doesn't wear off. Caps at ${RULES.THORNS_CAP}.`];
@@ -1872,6 +1877,12 @@ function playEvent(e, quiet) {
     }
     case 'immune':
       if (!quiet) floatText(e.side, 'Immune', '#f4c652', 'small');
+      break;
+    case 'boon':
+      if (e.k === 'might' && !quiet) {
+        floatText(e.side, `+${e.n} Might`, '#f0a868', 'small');
+        sfx('might');
+      }
       break;
     case 'haste':
       if (!quiet) {

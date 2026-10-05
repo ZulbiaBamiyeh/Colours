@@ -1,6 +1,6 @@
 // Heroes: chosen at the start of a run. Each has two schools the market leans toward, a starting item, a passive,
 // and a choice of two specialisations on SPEC_DAY. Passives are read by the engine like items without a slot:
-// hooks, flags, stats.luck, hp, ls (%), capBonus, freezeBonus, thornsBonus, cdMult, and cd/act. goldPerDay and goldStart are
+// hooks, flags, stats.luck, hp, ls (%), stPct (Burn/Poison damage %), freezeBonus, thornsBonus, cdMult, and cd/act. goldPerDay and goldStart are
 // handled by the run (main.js) and by ghost shopping (items.js).
 export const SPEC_DAY = 5;
 // Chance that each gear offer is rerolled toward the hero's schools.
@@ -13,7 +13,7 @@ const LIST = [
     passive: { name: 'Kindled', text: 'Start of fight: gain 3 Heat and apply 1 Burn.', hooks: { start: c => { c.gain('heat', 3); return c.apply('burn', 1); } } },
     specs: [
       { id: 'blood_rite', name: 'Blood Rite', text: '+10% Lifesteal.', ls: 10 },
-      { id: 'kindler', name: 'Kindler', text: 'Your Burn cap rises by 4. Start of fight: gain 2 Heat.', capBonus: { burn: 4 }, hooks: { start: c => c.gain('heat', 2) } },
+      { id: 'kindler', name: 'Kindler', text: 'Your Burn deals 25% more damage. Start of fight: gain 2 Heat.', stPct: { burn: 25 }, hooks: { start: c => c.gain('heat', 2) } },
     ],
   },
   {
@@ -30,7 +30,7 @@ const LIST = [
     blurb: 'Sells poison, and always has a little more gold.',
     passive: { name: 'Profiteer', text: 'Start the run with 3 extra gold, and gain 2 extra gold each day.', goldPerDay: 2, goldStart: 3 },
     specs: [
-      { id: 'blight_ledger', name: 'Blight Ledger', text: 'Your Poison cap rises by 6.', capBonus: { poison: 6 } },
+      { id: 'blight_ledger', name: 'Blight Ledger', text: 'Your Poison deals 30% more damage.', stPct: { poison: 30 } },
       { id: 'loaded', name: 'Loaded', text: '+3 Luck.', stats: { luck: 3 } },
     ],
   },
